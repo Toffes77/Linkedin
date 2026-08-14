@@ -53,7 +53,7 @@ CREATE TABLE Publicacion (
 );
 
 -- ============================================================
--- OFERTA
+-- OFERTAd
 -- ============================================================
 CREATE TABLE Oferta (
     id SERIAL PRIMARY KEY,
