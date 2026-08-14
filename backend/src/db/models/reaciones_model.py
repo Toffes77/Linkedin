@@ -15,3 +15,6 @@ class Reacciones(Base):
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, onupdate=func.now())
     deleted_at = Column(DateTime, nullable=True)
+
+
+#COMENTARIO PARA ENSEÑARLE A GAMBETA COMO USAR GIT PORQUE NO LE PREGUNTO NADA AL PROFE Y AHORA SE LO TENGO QUE EXPLICAR YO
