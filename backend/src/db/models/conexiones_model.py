@@ -1,21 +1,42 @@
-from sqlalchemy import Column, Integer, DateTime, ForeignKey, String, UniqueConstraint, CheckConstraint
+from sqlalchemy import Column, Integer, DateTime, ForeignKey, String, CheckConstraint
 from sqlalchemy.sql import func
 from db.connection import Base
 
+
 class Conexion(Base):
-    __tablename__ = "connections"
+    __tablename__ = "conexiones"
 
-    id = Column(Integer, primary_key=True)
-    
+    usuario_a = Column(
+        Integer,
+        ForeignKey("Usuario.id"),
+        primary_key=True,
+        nullable=False
+    )
 
-    manda_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    recibe_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    
-    estado = Column(String(20), default="pendiente", nullable=False)
-    
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, onupdate=func.now())
+    usuario_b = Column(
+        Integer,
+        ForeignKey("Usuario.id"),
+        primary_key=True,
+        nullable=False
+    )
+
+    fecha = Column(
+        DateTime,
+        server_default=func.now(),
+        nullable=False
+    )
+
+    estado = Column(
+        String(20),
+        default="pendiente",
+        nullable=False
+    )
+
     __table_args__ = (
-    UniqueConstraint('manda_id', 'recibe_id', name='uq_manda_recibe'),
-    CheckConstraint("estado IN ('pendiente', 'aceptado', 'rechazado')", name="check_valid_status"),
-)
+        CheckConstraint(
+            "usuario_a <> usuario_b"
+        ),
+        CheckConstraint(
+            "estado IN ('pendiente', 'aceptada', 'rechazada')"
+        ),
+    )

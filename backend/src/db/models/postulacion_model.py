@@ -1,14 +1,22 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint, CheckConstraint
 from sqlalchemy.sql import func
 from db.connection import Base
 
 
 class Postulacion(Base):
-    _tablename_ = "postulaciones"
+    __tablename__ = "Postulacion"
 
     id = Column(Integer, primary_key=True)
-    usuario_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    oferta_id = Column(Integer, ForeignKey("ofertas.id"), nullable=False)
-    estado = Column(String, default="Pendiente", nullable=False)
-    fecha_postulacion = Column(DateTime, server_default=func.now())
-    deleted_at = Column(DateTime, nullable=True)
+    oferta_id = Column(Integer, ForeignKey("Oferta.id"), nullable=False)
+    usuario_id = Column(Integer, ForeignKey("Usuario.id"), nullable=False)
+
+    fecha = Column(DateTime, server_default=func.now(), nullable=False)
+
+    estado = Column(String(20), default="nueva", nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("oferta_id", "usuario_id"),
+        CheckConstraint(
+            "estado IN ('nueva', 'vista', 'entrevista', 'contratado', 'rechazada')"
+        ),
+    )

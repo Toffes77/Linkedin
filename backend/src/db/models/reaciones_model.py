@@ -1,20 +1,31 @@
-from sqlalchemy import Column, Integer, DateTime, ForeignKey, String
-from sqlalchemy.sql import func
+from sqlalchemy import Column, Integer, String, ForeignKey, CheckConstraint
 from db.connection import Base
+
 
 class Reacciones(Base):
     __tablename__ = "reacciones"
 
-    id = Column(Integer, primary_key=True)
+    usuario_id = Column(
+        Integer,
+        ForeignKey("Usuario.id"),
+        primary_key=True,
+        nullable=False
+    )
 
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    post_id = Column(Integer, ForeignKey("posts.id"), nullable=False)
+    publicacion_id = Column(
+        Integer,
+        ForeignKey("Publicacion.id"),
+        primary_key=True,
+        nullable=False
+    )
 
-    content = Column(String(500), nullable=False)
+    tipo = Column(
+        String(20),
+        nullable=False
+    )
 
-    created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, onupdate=func.now())
-    deleted_at = Column(DateTime, nullable=True)
-
-
-#COMENTARIO PARA ENSEÑARLE A GAMBETA COMO USAR GIT PORQUE NO LE PREGUNTO NADA AL PROFE Y AHORA SE LO TENGO QUE EXPLICAR YO
+    __table_args__ = (
+        CheckConstraint(
+            "tipo IN ('like', 'celebrar', 'apoyar', 'interesante')"
+        ),
+    )

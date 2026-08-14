@@ -16,6 +16,8 @@ class Usuario(Base):
     fecha_registro = Column(DateTime, nullable=False)
 
 
+#QUIERO REVISAR ESTO DE CURRENT TIME STAMP
+
 """
 CREATE TABLE Usuario (
     id SERIAL PRIMARY KEY,
