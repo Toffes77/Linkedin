@@ -13,16 +13,16 @@ EstadoPostulacion = Literal[
 ]
 
 
-class CreatePostulacionSchema(BaseModel):
+class CreatePostulacionDTO(BaseModel):
     oferta_id: int
     usuario_id: int
 
 
-class UpdatePostulacionSchema(BaseModel):
+class UpdatePostulacionDTO(BaseModel):
     estado: EstadoPostulacion
 
 
-class GetPostulacionSchema(BaseModel):
+class PostulacionResponseDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int

@@ -1,17 +1,18 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, CheckConstraint
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from src.db.connection import Base
 
 
 class Publicacion(Base):
-    __tablename__ = "Publicacion"
+    __tablename__ = "publicacion"
 
     id = Column(Integer, primary_key=True)
 
     autor_id = Column(
         Integer,
-        ForeignKey("Usuario.id"),
+        ForeignKey("usuario.id"),
         nullable=False
     )
 
@@ -22,6 +23,9 @@ class Publicacion(Base):
         server_default=func.now(),
         nullable=False
     )
+
+    autor = relationship("Usuario", back_populates="publicaciones")
+    reacciones = relationship("Reacciones", back_populates="publicacion")
 
     __table_args__ = (
         CheckConstraint(

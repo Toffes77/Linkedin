@@ -7,16 +7,16 @@ from pydantic import BaseModel, ConfigDict
 EstadoConexion = Literal["pendiente", "aceptada", "rechazada"]
 
 
-class CreateConexionSchema(BaseModel):
+class CreateConexionDTO(BaseModel):
     usuario_a: int
     usuario_b: int
 
 
-class UpdateConexionSchema(BaseModel):
+class UpdateConexionDTO(BaseModel):
     estado: EstadoConexion
 
 
-class GetConexionSchema(BaseModel):
+class ConexionResponseDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     usuario_a: int

@@ -1,5 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, CheckConstraint
-from db.connection import Base
+from sqlalchemy.orm import relationship
+
+from src.db.connection import Base
 
 
 class Reacciones(Base):
@@ -7,14 +9,14 @@ class Reacciones(Base):
 
     usuario_id = Column(
         Integer,
-        ForeignKey("Usuario.id"),
+        ForeignKey("usuario.id"),
         primary_key=True,
         nullable=False
     )
 
     publicacion_id = Column(
         Integer,
-        ForeignKey("Publicacion.id"),
+        ForeignKey("publicacion.id"),
         primary_key=True,
         nullable=False
     )
@@ -23,6 +25,9 @@ class Reacciones(Base):
         String(20),
         nullable=False
     )
+
+    usuario = relationship("Usuario", back_populates="reacciones")
+    publicacion = relationship("Publicacion", back_populates="reacciones")
 
     __table_args__ = (
         CheckConstraint(

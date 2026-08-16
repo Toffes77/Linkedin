@@ -1,0 +1,103 @@
+# Proyecto 2 — LinkedIn
+
+Red social profesional. Los usuarios cargan su experiencia laboral, se conectan entre sí, publican contenido y se postulan a ofertas de empleo.
+
+## Entidades sugeridas
+
+- `Usuario` (id, email, nombre, headline, ciudad, fecha_registro)
+- `Empresa` (id, nombre, industria, sitio_web)
+- `Experiencia` (id, usuario_id, empresa_id, puesto, desde, hasta)
+- `Publicacion` (id, autor_id, texto, fecha)
+- `Oferta` (id, empresa_id, titulo, descripcion, publicada, fecha_publicacion)
+- `Postulacion` (id, oferta_id, usuario_id, fecha, estado)
+- Relación N a M `conexiones` (usuario_a, usuario_b, fecha, estado)
+- Relación N a M `reacciones` (usuario_id, publicacion_id, tipo)
+
+## Historias de usuario
+
+### HU1 — Registro y perfil
+Como visitante, quiero registrarme y armar mi perfil profesional.
+
+- [ ] El email es único.
+- [ ] `headline` (frase de presentación) tiene máx. 200 caracteres.
+- [ ] `GET /usuarios/{id}` devuelve nombre, headline, ciudad y experiencias asociadas.
+
+### HU2 — Cargar experiencia laboral
+Como usuario, quiero cargar mis experiencias laborales en mi perfil.
+
+- [ ] La experiencia siempre pertenece a una empresa existente.
+- [ ] `desde` es obligatorio; `hasta` puede ser `null` (trabajo actual).
+- [ ] `desde` no puede ser posterior a `hasta`.
+- [ ] Un usuario puede tener varias experiencias en la misma empresa (períodos distintos), pero no solapadas.
+
+### HU3 — Solicitar conexión
+Como usuario, quiero enviar solicitudes de conexión a otros usuarios.
+
+- [ ] No se puede solicitar conexión consigo mismo.
+- [ ] No puede existir más de una solicitud entre los mismos dos usuarios.
+- [ ] La solicitud arranca en estado `pendiente`.
+- [ ] El destinatario puede `aceptar` o `rechazar`.
+
+### HU4 — Publicar contenido
+Como usuario, quiero publicar contenido en mi muro.
+
+- [ ] El texto tiene entre 1 y 3000 caracteres.
+- [ ] Se guarda `fecha` automáticamente.
+- [ ] Solo el autor puede editar o borrar su publicación.
+
+### HU5 — Reaccionar a publicaciones
+Como usuario, quiero reaccionar a las publicaciones que veo.
+
+- [ ] Los tipos válidos son `like`, `celebrar`, `apoyar`, `interesante`.
+- [ ] Un usuario tiene como máximo una reacción por publicación (puede cambiar el tipo).
+- [ ] `GET /publicaciones/{id}/reacciones` devuelve el conteo por tipo.
+
+### HU6 — Feed
+Como usuario, quiero ver un feed con las publicaciones de mis conexiones.
+
+- [ ] `GET /usuarios/{id}/feed` devuelve publicaciones de conexiones aceptadas, ordenadas por fecha descendente.
+- [ ] Paginado de 20 en 20.
+- [ ] No incluye las publicaciones del propio usuario.
+
+### HU7 — Publicar oferta de empleo
+Como empresa, quiero publicar ofertas de empleo.
+
+- [ ] La oferta siempre pertenece a una empresa.
+- [ ] `titulo` y `descripcion` son obligatorios.
+- [ ] `publicada = false` implica que no aparece en búsquedas.
+- [ ] Al publicar se guarda `fecha_publicacion`.
+
+### HU8 — Postulación a oferta
+Como usuario, quiero postularme a una oferta.
+
+- [ ] La oferta tiene que estar `publicada`.
+- [ ] Un mismo usuario no puede postularse dos veces a la misma oferta.
+- [ ] La postulación arranca en estado `nueva`.
+
+### HU9 — Estados de postulación
+Como reclutador, quiero moverr las postulaciones por los distintos estados.
+
+- [ ] Transiciones válidas: `nueva → vista → entrevista → contratado` o `nueva/vista/entrevista → rechazada`.
+- [ ] No se puede volver hacia atrás.
+- [ ] `PATCH /postulaciones/{id}` recibe el nuevo estado y valida la transición.
+
+### HU10 — Búsqueda de perfiles
+Como reclutador, quiero buscar perfiles por texto.
+
+- [ ] `GET /buscar/usuarios?q=texto&ciudad=X` matchea contra `nombre`, `headline` y `puesto` de sus experiencias.
+- [ ] La búsqueda no distingue mayúsculas y minúsculas.
+- [ ] Se puede filtrar por ciudad.
+
+### HU11 — Red de segundo grado
+Como usuario, quiero ver conexiones sugeridas.
+
+- [ ] `GET /usuarios/{id}/sugerencias` devuelve usuarios que son conexión de mis conexiones pero no míos.
+- [ ] Se excluye al propio usuario y las conexiones ya existentes (aceptadas o pendientes).
+- [ ] Se ordena por cantidad de conexiones en común (descendente).
+
+### HU12 — Estadísticas de la oferta
+Como reclutador, quiero ver métricas de una oferta.
+
+- [ ] `GET /ofertas/{id}/estadisticas` devuelve total de postulaciones y cantidad por estado.
+- [ ] Incluye días desde la publicación.
+- [ ] Solo el usuario asociado a la empresa dueña de la oferta puede consultarla.

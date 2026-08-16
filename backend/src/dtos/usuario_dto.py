@@ -1,39 +1,25 @@
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
-class CreateUsuarioSchema(BaseModel):
+class CreateUsuarioDTO(BaseModel):
     email: EmailStr = Field(max_length=100)
     password: str = Field(min_length=8)
     nombre: str = Field(min_length=1, max_length=100)
     headline: str = Field(min_length=1, max_length=200)
     ciudad: str = Field(min_length=1, max_length=100)
 
-    @field_validator("password")
-    @classmethod
-    def validar_password(cls, value: str):
-        if len(value) < 8:
-            raise ValueError("La contraseña debe tener al menos 8 caracteres")
-        return value
 
-
-class UpdateUsuarioSchema(BaseModel):
+class UpdateUsuarioDTO(BaseModel):
     email: EmailStr | None = Field(default=None, max_length=100)
     password: str | None = Field(default=None, min_length=8)
     nombre: str | None = Field(default=None, min_length=1, max_length=100)
     headline: str | None = Field(default=None, min_length=1, max_length=200)
     ciudad: str | None = Field(default=None, min_length=1, max_length=100)
 
-    @field_validator("password")
-    @classmethod
-    def validar_password(cls, value: str | None):
-        if value is not None and len(value) < 8:
-            raise ValueError("La contraseña debe tener al menos 8 caracteres")
-        return value
 
-
-class ExperienciaUsuarioSchema(BaseModel):
+class ExperienciaUsuarioDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -43,11 +29,11 @@ class ExperienciaUsuarioSchema(BaseModel):
     hasta: date | None = None
 
 
-class GetUsuarioSchema(BaseModel):
+class UsuarioResponseDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     nombre: str
     headline: str
     ciudad: str
-    experiencias: list[ExperienciaUsuarioSchema]
+    experiencias: list[ExperienciaUsuarioDTO]

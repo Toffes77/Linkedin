@@ -1,19 +1,19 @@
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
-class CreateEmpresaSchema(BaseModel):
+class CreateEmpresaDTO(BaseModel):
     nombre: str = Field(min_length=1, max_length=100)
     industria: str | None = Field(default=None, max_length=100)
     sitio_web: HttpUrl | None = Field(default=None, max_length=255)
 
 
-class UpdateEmpresaSchema(BaseModel):
+class UpdateEmpresaDTO(BaseModel):
     nombre: str | None = Field(default=None, min_length=1, max_length=100)
     industria: str | None = Field(default=None, max_length=100)
     sitio_web: HttpUrl | None = Field(default=None, max_length=255)
 
 
-class GetEmpresaSchema(BaseModel):
+class EmpresaResponseDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int

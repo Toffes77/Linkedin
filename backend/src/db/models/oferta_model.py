@@ -1,16 +1,17 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey
-from sqlalchemy.sql import func
-from db.connection import Base
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, text
+from sqlalchemy.orm import relationship
+
+from src.db.connection import Base
 
 
 class Oferta(Base):
-    __tablename__ = "Oferta"
+    __tablename__ = "oferta"
 
     id = Column(Integer, primary_key=True)
 
     empresa_id = Column(
         Integer,
-        ForeignKey("Empresa.id"),
+        ForeignKey("empresa.id"),
         nullable=False
     )
 
@@ -21,6 +22,7 @@ class Oferta(Base):
     publicada = Column(
         Boolean,
         default=False,
+        server_default=text("FALSE"),
         nullable=False
     )
 
@@ -28,3 +30,6 @@ class Oferta(Base):
         DateTime,
         nullable=True
     )
+
+    empresa = relationship("Empresa", back_populates="ofertas")
+    postulaciones = relationship("Postulacion", back_populates="oferta")

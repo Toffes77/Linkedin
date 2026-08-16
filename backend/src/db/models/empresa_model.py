@@ -1,25 +1,15 @@
 from sqlalchemy import Column, Integer, String
+from sqlalchemy.orm import relationship
 
 from src.db.connection import Base
 
-from sqlalchemy import Float
-
-
-
 class Empresa(Base):
-    __tablename__ = "Empresa"
+    __tablename__ = "empresa"
 
     id = Column(Integer, primary_key=True)
     nombre = Column(String(100), nullable=False)
     industria = Column(String(100))
     sitio_web = Column(String(255))
 
-
-"""
-CREATE TABLE Empresa (
-    id SERIAL PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL,
-    industria VARCHAR(100),
-    sitio_web VARCHAR(255)
-);
-"""
+    experiencias = relationship("Experiencia", back_populates="empresa")
+    ofertas = relationship("Oferta", back_populates="empresa")
