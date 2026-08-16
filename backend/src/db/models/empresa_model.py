@@ -1,24 +1,25 @@
-from pydantic import BaseModel, Field
+from sqlalchemy import Column, Integer, String
+
+from src.db.connection import Base
+
+from sqlalchemy import Float
 
 
-class CreateEmpresaSchema(BaseModel):
-    nombre: str = Field(min_length=1, max_length=100)
-    industria: str | None = Field(default=None, max_length=100)
-    sitio_web: str | None = Field(default=None, max_length=255)
+
+class Empresa(Base):
+    __tablename__ = "Empresa"
+
+    id = Column(Integer, primary_key=True)
+    nombre = Column(String(100), nullable=False)
+    industria = Column(String(100))
+    sitio_web = Column(String(255))
 
 
-class UpdateEmpresaSchema(BaseModel):
-    nombre: str | None = Field(default=None, min_length=1, max_length=100)
-    industria: str | None = Field(default=None, max_length=100)
-    sitio_web: str | None = Field(default=None, max_length=255)
-
-
-class DeleteEmpresaSchema(BaseModel):
-    id: int
-
-
-class GetEmpresaSchema(BaseModel):
-    id: int
-    nombre: str
-    industria: str | None
-    sitio_web: str | None
+"""
+CREATE TABLE Empresa (
+    id SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    industria VARCHAR(100),
+    sitio_web VARCHAR(255)
+);
+"""
