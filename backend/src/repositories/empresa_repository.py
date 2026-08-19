@@ -1,8 +1,10 @@
 from sqlalchemy.orm import Session
 
 from src.db.models.empresa_model import Empresa
-from src.db.models.empresa_usuario_model import EmpresaUsuario, RolEmpresa
+from src.db.models.empresa_usuario_model import RolEmpresa
 from src.dtos.empresa_dto import CreateEmpresaDTO, UpdateEmpresaDTO
+from src.mappers.empresa_mapper import EmpresaMapper
+from src.mappers.empresa_usuario_mapper import EmpresaUsuarioMapper
 
 
 class EmpresaRepository:
@@ -10,7 +12,7 @@ class EmpresaRepository:
         self.db = db
 
     def create(self, empresa_data: CreateEmpresaDTO) -> Empresa:
-        empresa = Empresa(**empresa_data.model_dump(mode="json"))
+        empresa = EmpresaMapper.to_model(empresa_data)
         self.db.add(empresa)
         self.db.commit()
         self.db.refresh(empresa)
@@ -22,11 +24,11 @@ class EmpresaRepository:
         usuario_id: int,
     ) -> Empresa:
         try:
-            empresa = Empresa(**empresa_data.model_dump(mode="json"))
+            empresa = EmpresaMapper.to_model(empresa_data)
             self.db.add(empresa)
             self.db.flush()
             self.db.add(
-                EmpresaUsuario(
+                EmpresaUsuarioMapper.to_model_from_values(
                     empresa_id=empresa.id,
                     usuario_id=usuario_id,
                     rol=RolEmpresa.OWNER,
@@ -43,10 +45,7 @@ class EmpresaRepository:
         return self.db.query(Empresa).filter(Empresa.id == empresa_id).first()
 
     def update(self, empresa: Empresa, empresa_data: UpdateEmpresaDTO) -> Empresa:
-        for field, value in empresa_data.model_dump(
-            exclude_unset=True, mode="json"
-        ).items():
-            setattr(empresa, field, value)
+        EmpresaMapper.apply_update(empresa, empresa_data)
 
         self.db.commit()
         self.db.refresh(empresa)

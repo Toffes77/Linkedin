@@ -8,6 +8,7 @@ from src.dtos.oferta_dto import (
     OfertaResponseDTO,
     UpdateOfertaDTO,
 )
+from src.mappers.oferta_mapper import OfertaMapper
 from src.db.models.empresa_usuario_model import RolEmpresa
 from src.repositories.empresa_repository import EmpresaRepository
 from src.repositories.empresa_usuario_repository import EmpresaUsuarioRepository
@@ -36,23 +37,23 @@ class OfertaService:
             oferta.fecha_publicacion = datetime.now()
             oferta = self.repository.update(oferta, UpdateOfertaDTO())
 
-        return OfertaResponseDTO.model_validate(oferta)
+        return OfertaMapper.to_response_dto(oferta)
 
     def get_by_id(self, oferta_id: int) -> OfertaResponseDTO:
         oferta = self.repository.get_by_id(oferta_id)
         if oferta is None:
             raise NotFoundError("Oferta no encontrada.")
 
-        return OfertaResponseDTO.model_validate(oferta)
+        return OfertaMapper.to_response_dto(oferta)
 
     def get_by_empresa(self, empresa_id: int) -> list[OfertaResponseDTO]:
         self._validar_empresa(empresa_id)
         ofertas = self.repository.get_by_empresa(empresa_id)
-        return [OfertaResponseDTO.model_validate(oferta) for oferta in ofertas]
+        return [OfertaMapper.to_response_dto(oferta) for oferta in ofertas]
 
     def get_publicadas(self) -> list[OfertaResponseDTO]:
         ofertas = self.repository.get_publicadas()
-        return [OfertaResponseDTO.model_validate(oferta) for oferta in ofertas]
+        return [OfertaMapper.to_response_dto(oferta) for oferta in ofertas]
 
     def update(
         self,
@@ -74,7 +75,7 @@ class OfertaService:
             oferta.fecha_publicacion = datetime.now()
 
         oferta_actualizada = self.repository.update(oferta, oferta_data)
-        return OfertaResponseDTO.model_validate(oferta_actualizada)
+        return OfertaMapper.to_response_dto(oferta_actualizada)
 
     def get_estadisticas(
         self,

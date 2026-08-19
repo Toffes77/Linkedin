@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from src.db.models.publicacion_model import Publicacion
 from src.dtos.publicacion_dto import CreatePublicacionDTO, UpdatePublicacionDTO
+from src.mappers.publicacion_mapper import PublicacionMapper
 
 
 class PublicacionRepository:
@@ -9,7 +10,7 @@ class PublicacionRepository:
         self.db = db
 
     def create(self, publicacion_data: CreatePublicacionDTO) -> Publicacion:
-        publicacion = Publicacion(**publicacion_data.model_dump())
+        publicacion = PublicacionMapper.to_model(publicacion_data)
         self.db.add(publicacion)
         self.db.commit()
         self.db.refresh(publicacion)
@@ -30,8 +31,7 @@ class PublicacionRepository:
         publicacion: Publicacion,
         publicacion_data: UpdatePublicacionDTO,
     ) -> Publicacion:
-        for field, value in publicacion_data.model_dump(exclude_unset=True).items():
-            setattr(publicacion, field, value)
+        PublicacionMapper.apply_update(publicacion, publicacion_data)
 
         self.db.commit()
         self.db.refresh(publicacion)

@@ -5,6 +5,7 @@ from src.dtos.empresa_dto import (
     EmpresaResponseDTO,
     UpdateEmpresaDTO,
 )
+from src.mappers.empresa_mapper import EmpresaMapper
 from src.repositories.empresa_repository import EmpresaRepository
 from src.repositories.empresa_usuario_repository import EmpresaUsuarioRepository
 from src.db.models.empresa_usuario_model import RolEmpresa
@@ -22,14 +23,14 @@ class EmpresaService:
         usuario_actual_id: int,
     ) -> EmpresaResponseDTO:
         empresa = self.repository.create_with_owner(empresa_data, usuario_actual_id)
-        return EmpresaResponseDTO.model_validate(empresa)
+        return EmpresaMapper.to_response_dto(empresa)
 
     def get_by_id(self, empresa_id: int) -> EmpresaResponseDTO:
         empresa = self.repository.get_by_id(empresa_id)
         if empresa is None:
             raise NotFoundError("Empresa no encontrada.")
 
-        return EmpresaResponseDTO.model_validate(empresa)
+        return EmpresaMapper.to_response_dto(empresa)
 
     def update(
         self,
@@ -49,4 +50,4 @@ class EmpresaService:
             raise ForbiddenError("No tiene permisos para modificar la empresa.")
 
         empresa_actualizada = self.repository.update(empresa, empresa_data)
-        return EmpresaResponseDTO.model_validate(empresa_actualizada)
+        return EmpresaMapper.to_response_dto(empresa_actualizada)

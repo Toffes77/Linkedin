@@ -5,6 +5,7 @@ from src.dtos.reacciones_dto import (
     ReaccionResponseDTO,
     UpdateReaccionDTO,
 )
+from src.mappers.reaccion_mapper import ReaccionMapper
 from src.repositories.publicacion_repository import PublicacionRepository
 from src.repositories.reacciones_repository import ReaccionRepository
 from src.repositories.usuario_repository import UsuarioRepository
@@ -31,7 +32,7 @@ class ReaccionesService:
             raise ConflictError("El usuario ya reaccionó a esta publicación.")
 
         reaccion = self.repository.create(reaccion_data)
-        return ReaccionResponseDTO.model_validate(reaccion)
+        return ReaccionMapper.to_response_dto(reaccion)
 
     def get_by_usuario_and_publicacion(
         self,
@@ -45,7 +46,7 @@ class ReaccionesService:
         if reaccion is None:
             raise NotFoundError("Reacción no encontrada.")
 
-        return ReaccionResponseDTO.model_validate(reaccion)
+        return ReaccionMapper.to_response_dto(reaccion)
 
     def get_by_publicacion(
         self,
@@ -53,10 +54,7 @@ class ReaccionesService:
     ) -> list[ReaccionResponseDTO]:
         self._validar_publicacion(publicacion_id)
         reacciones = self.repository.get_by_publicacion(publicacion_id)
-        return [
-            ReaccionResponseDTO.model_validate(reaccion)
-            for reaccion in reacciones
-        ]
+        return [ReaccionMapper.to_response_dto(reaccion) for reaccion in reacciones]
 
     def update(
         self,
@@ -72,7 +70,7 @@ class ReaccionesService:
             raise NotFoundError("Reacción no encontrada.")
 
         reaccion_actualizada = self.repository.update(reaccion, reaccion_data)
-        return ReaccionResponseDTO.model_validate(reaccion_actualizada)
+        return ReaccionMapper.to_response_dto(reaccion_actualizada)
 
     def delete(self, usuario_id: int, publicacion_id: int) -> None:
         reaccion = self.repository.get_by_usuario_and_publicacion(

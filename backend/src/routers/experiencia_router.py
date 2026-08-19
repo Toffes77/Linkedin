@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session
 
 from src.db.connection import get_db
 from src.dtos.experiencia_dto import (
-    CreateExperienciaDTO,
     ExperienciaResponseDTO,
 )
+from src.mappers.experiencia_mapper import ExperienciaMapper
 from src.schemas.experiencia_schema import (
     CreateExperienciaSchema,
     GetExperienciaSchema,
@@ -25,6 +25,6 @@ def create_experiencia(
     payload: CreateExperienciaSchema,
     db: Session = Depends(get_db),
 ):
-    dto = CreateExperienciaDTO(usuario_id=usuario_id, **payload.model_dump())
+    dto = ExperienciaMapper.to_create_dto(payload, usuario_id)
     experiencia: ExperienciaResponseDTO = ExperienciaService(db).create(dto)
-    return GetExperienciaSchema.model_validate(experiencia)
+    return ExperienciaMapper.to_response_schema(experiencia)

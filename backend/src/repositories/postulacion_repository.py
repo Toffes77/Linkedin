@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from src.db.models.postulacion_model import Postulacion
 from src.dtos.postulacion_dto import CreatePostulacionDTO, UpdatePostulacionDTO
+from src.mappers.postulacion_mapper import PostulacionMapper
 
 
 class PostulacionRepository:
@@ -10,7 +11,7 @@ class PostulacionRepository:
         self.db = db
 
     def create(self, postulacion_data: CreatePostulacionDTO) -> Postulacion:
-        postulacion = Postulacion(**postulacion_data.model_dump())
+        postulacion = PostulacionMapper.to_model(postulacion_data)
         self.db.add(postulacion)
         self.db.commit()
         self.db.refresh(postulacion)
@@ -52,8 +53,7 @@ class PostulacionRepository:
         postulacion: Postulacion,
         postulacion_data: UpdatePostulacionDTO,
     ) -> Postulacion:
-        for field, value in postulacion_data.model_dump(exclude_unset=True).items():
-            setattr(postulacion, field, value)
+        PostulacionMapper.apply_update(postulacion, postulacion_data)
 
         self.db.commit()
         self.db.refresh(postulacion)

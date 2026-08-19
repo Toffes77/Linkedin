@@ -6,6 +6,7 @@ from src.dtos.empresa_usuario_dto import (
     EmpresaUsuarioResponseDTO,
     UpdateEmpresaUsuarioDTO,
 )
+from src.mappers.empresa_usuario_mapper import EmpresaUsuarioMapper
 from src.repositories.empresa_repository import EmpresaRepository
 from src.repositories.empresa_usuario_repository import EmpresaUsuarioRepository
 from src.repositories.usuario_repository import UsuarioRepository
@@ -26,10 +27,7 @@ class EmpresaUsuarioService:
         self._validar_empresa(empresa_id)
         self._requerir_owner(empresa_id, usuario_actual_id)
         relaciones = self.repository.get_by_empresa(empresa_id)
-        return [
-            EmpresaUsuarioResponseDTO.model_validate(relacion)
-            for relacion in relaciones
-        ]
+        return [EmpresaUsuarioMapper.to_response_dto(relacion) for relacion in relaciones]
 
     def create(
         self,
@@ -52,13 +50,9 @@ class EmpresaUsuarioService:
         ):
             raise ConflictError("El usuario ya pertenece a la empresa.")
 
-        relacion = EmpresaUsuario(
-            empresa_id=empresa_id,
-            usuario_id=empresa_usuario_data.usuario_id,
-            rol=empresa_usuario_data.rol,
-        )
+        relacion = EmpresaUsuarioMapper.to_model(empresa_id, empresa_usuario_data)
         relacion_creada = self.repository.create(relacion)
-        return EmpresaUsuarioResponseDTO.model_validate(relacion_creada)
+        return EmpresaUsuarioMapper.to_response_dto(relacion_creada)
 
     def update(
         self,
@@ -82,7 +76,7 @@ class EmpresaUsuarioService:
             relacion,
             empresa_usuario_data.rol,
         )
-        return EmpresaUsuarioResponseDTO.model_validate(relacion_actualizada)
+        return EmpresaUsuarioMapper.to_response_dto(relacion_actualizada)
 
     def delete(
         self,

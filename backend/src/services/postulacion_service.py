@@ -6,6 +6,7 @@ from src.dtos.postulacion_dto import (
     PostulacionResponseDTO,
     UpdatePostulacionDTO,
 )
+from src.mappers.postulacion_mapper import PostulacionMapper
 from src.repositories.oferta_repository import OfertaRepository
 from src.repositories.empresa_usuario_repository import EmpresaUsuarioRepository
 from src.repositories.postulacion_repository import PostulacionRepository
@@ -40,14 +41,14 @@ class PostulacionService:
             raise ConflictError("El usuario ya se postuló a esta oferta.")
 
         postulacion = self.repository.create(postulacion_data)
-        return PostulacionResponseDTO.model_validate(postulacion)
+        return PostulacionMapper.to_response_dto(postulacion)
 
     def get_by_id(self, postulacion_id: int) -> PostulacionResponseDTO:
         postulacion = self.repository.get_by_id(postulacion_id)
         if postulacion is None:
             raise NotFoundError("Postulación no encontrada.")
 
-        return PostulacionResponseDTO.model_validate(postulacion)
+        return PostulacionMapper.to_response_dto(postulacion)
 
     def get_by_oferta(
         self,
@@ -57,18 +58,12 @@ class PostulacionService:
         oferta = self._obtener_oferta(oferta_id)
         self._requerir_gestor_empresa(oferta.empresa_id, usuario_actual_id)
         postulaciones = self.repository.get_by_oferta(oferta_id)
-        return [
-            PostulacionResponseDTO.model_validate(postulacion)
-            for postulacion in postulaciones
-        ]
+        return [PostulacionMapper.to_response_dto(postulacion) for postulacion in postulaciones]
 
     def get_by_usuario(self, usuario_id: int) -> list[PostulacionResponseDTO]:
         self._validar_usuario(usuario_id)
         postulaciones = self.repository.get_by_usuario(usuario_id)
-        return [
-            PostulacionResponseDTO.model_validate(postulacion)
-            for postulacion in postulaciones
-        ]
+        return [PostulacionMapper.to_response_dto(postulacion) for postulacion in postulaciones]
 
     def update(
         self,
@@ -87,7 +82,7 @@ class PostulacionService:
             postulacion,
             postulacion_data,
         )
-        return PostulacionResponseDTO.model_validate(postulacion_actualizada)
+        return PostulacionMapper.to_response_dto(postulacion_actualizada)
 
     def _validar_usuario(self, usuario_id: int) -> None:
         if self.usuario_repository.get_by_id(usuario_id) is None:

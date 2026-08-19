@@ -4,10 +4,9 @@ from sqlalchemy.orm import Session
 from src.db.connection import get_db
 from src.db.models.usuario_model import Usuario
 from src.dtos.reacciones_dto import (
-    CreateReaccionDTO,
     ReaccionResponseDTO,
-    UpdateReaccionDTO,
 )
+from src.mappers.reaccion_mapper import ReaccionMapper
 from src.middlewares.auth_middleware import get_current_user
 from src.schemas.reaciones_schema import (
     CreateReaccionSchema,
@@ -29,13 +28,9 @@ def create_reaccion(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    dto = CreateReaccionDTO(
-        usuario_id=current_user.id,
-        publicacion_id=payload.publicacion_id,
-        tipo=payload.tipo,
-    )
+    dto = ReaccionMapper.to_create_dto(payload, current_user.id)
     reaccion: ReaccionResponseDTO = ReaccionesService(db).create(dto)
-    return GetReaccionSchema.model_validate(reaccion)
+    return ReaccionMapper.to_response_schema(reaccion)
 
 
 @router.patch(
@@ -48,13 +43,13 @@ def update_reaccion(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    dto = UpdateReaccionDTO(**payload.model_dump())
+    dto = ReaccionMapper.to_update_dto(payload)
     reaccion: ReaccionResponseDTO = ReaccionesService(db).update(
         current_user.id,
         publicacion_id,
         dto,
     )
-    return GetReaccionSchema.model_validate(reaccion)
+    return ReaccionMapper.to_response_schema(reaccion)
 
 
 @router.get("/publicaciones/{publicacion_id}/reacciones", response_model=dict[str, int])

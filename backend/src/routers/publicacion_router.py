@@ -4,10 +4,9 @@ from sqlalchemy.orm import Session
 from src.db.connection import get_db
 from src.db.models.usuario_model import Usuario
 from src.dtos.publicacion_dto import (
-    CreatePublicacionDTO,
     PublicacionResponseDTO,
-    UpdatePublicacionDTO,
 )
+from src.mappers.publicacion_mapper import PublicacionMapper
 from src.middlewares.auth_middleware import get_current_user
 from src.schemas.publicación_schemas import (
     CreatePublicacionSchema,
@@ -25,9 +24,9 @@ def create_publicacion(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    dto = CreatePublicacionDTO(autor_id=current_user.id, **payload.model_dump())
+    dto = PublicacionMapper.to_create_dto(payload, current_user.id)
     publicacion: PublicacionResponseDTO = PublicacionService(db).create(dto)
-    return GetPublicacionSchema.model_validate(publicacion)
+    return PublicacionMapper.to_response_schema(publicacion)
 
 
 @router.put("/{publicacion_id}", response_model=GetPublicacionSchema)
@@ -37,13 +36,13 @@ def update_publicacion(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    dto = UpdatePublicacionDTO(**payload.model_dump(exclude_unset=True))
+    dto = PublicacionMapper.to_update_dto(payload)
     publicacion: PublicacionResponseDTO = PublicacionService(db).update(
         publicacion_id,
         current_user.id,
         dto,
     )
-    return GetPublicacionSchema.model_validate(publicacion)
+    return PublicacionMapper.to_response_schema(publicacion)
 
 
 @router.delete("/{publicacion_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -7,6 +7,7 @@ from src.dtos.experiencia_dto import (
     ExperienciaResponseDTO,
     UpdateExperienciaDTO,
 )
+from src.mappers.experiencia_mapper import ExperienciaMapper
 from src.repositories.empresa_repository import EmpresaRepository
 from src.repositories.experiencia_repository import ExperienciaRepository
 from src.repositories.usuario_repository import UsuarioRepository
@@ -33,22 +34,19 @@ class ExperienciaService:
         )
 
         experiencia = self.repository.create(experiencia_data)
-        return ExperienciaResponseDTO.model_validate(experiencia)
+        return ExperienciaMapper.to_response_dto(experiencia)
 
     def get_by_id(self, experiencia_id: int) -> ExperienciaResponseDTO:
         experiencia = self.repository.get_by_id(experiencia_id)
         if experiencia is None:
             raise NotFoundError("Experiencia no encontrada.")
 
-        return ExperienciaResponseDTO.model_validate(experiencia)
+        return ExperienciaMapper.to_response_dto(experiencia)
 
     def get_by_usuario(self, usuario_id: int) -> list[ExperienciaResponseDTO]:
         self._validar_usuario(usuario_id)
         experiencias = self.repository.get_by_usuario(usuario_id)
-        return [
-            ExperienciaResponseDTO.model_validate(experiencia)
-            for experiencia in experiencias
-        ]
+        return [ExperienciaMapper.to_response_dto(experiencia) for experiencia in experiencias]
 
     def update(
         self,
@@ -90,7 +88,7 @@ class ExperienciaService:
             experiencia,
             experiencia_data,
         )
-        return ExperienciaResponseDTO.model_validate(experiencia_actualizada)
+        return ExperienciaMapper.to_response_dto(experiencia_actualizada)
 
     def delete(self, experiencia_id: int) -> None:
         experiencia = self.repository.get_by_id(experiencia_id)

@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from src.db.models.oferta_model import Oferta
 from src.dtos.oferta_dto import CreateOfertaDTO, UpdateOfertaDTO
+from src.mappers.oferta_mapper import OfertaMapper
 
 
 class OfertaRepository:
@@ -9,7 +10,7 @@ class OfertaRepository:
         self.db = db
 
     def create(self, oferta_data: CreateOfertaDTO) -> Oferta:
-        oferta = Oferta(**oferta_data.model_dump())
+        oferta = OfertaMapper.to_model(oferta_data)
         self.db.add(oferta)
         self.db.commit()
         self.db.refresh(oferta)
@@ -33,8 +34,7 @@ class OfertaRepository:
         )
 
     def update(self, oferta: Oferta, oferta_data: UpdateOfertaDTO) -> Oferta:
-        for field, value in oferta_data.model_dump(exclude_unset=True).items():
-            setattr(oferta, field, value)
+        OfertaMapper.apply_update(oferta, oferta_data)
 
         self.db.commit()
         self.db.refresh(oferta)

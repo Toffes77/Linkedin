@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 
 from src.db.models.experiencia_model import Experiencia
 from src.dtos.experiencia_dto import CreateExperienciaDTO, UpdateExperienciaDTO
+from src.mappers.experiencia_mapper import ExperienciaMapper
 
 
 class ExperienciaRepository:
@@ -9,7 +10,7 @@ class ExperienciaRepository:
         self.db = db
 
     def create(self, experiencia_data: CreateExperienciaDTO) -> Experiencia:
-        experiencia = Experiencia(**experiencia_data.model_dump())
+        experiencia = ExperienciaMapper.to_model(experiencia_data)
         self.db.add(experiencia)
         self.db.commit()
         self.db.refresh(experiencia)
@@ -30,8 +31,7 @@ class ExperienciaRepository:
         experiencia: Experiencia,
         experiencia_data: UpdateExperienciaDTO,
     ) -> Experiencia:
-        for field, value in experiencia_data.model_dump(exclude_unset=True).items():
-            setattr(experiencia, field, value)
+        ExperienciaMapper.apply_update(experiencia, experiencia_data)
 
         self.db.commit()
         self.db.refresh(experiencia)

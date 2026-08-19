@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from src.db.models.reaciones_model import Reacciones
 from src.dtos.reacciones_dto import CreateReaccionDTO, UpdateReaccionDTO
+from src.mappers.reaccion_mapper import ReaccionMapper
 
 
 class ReaccionRepository:
@@ -10,7 +11,7 @@ class ReaccionRepository:
         self.db = db
 
     def create(self, reaccion_data: CreateReaccionDTO) -> Reacciones:
-        reaccion = Reacciones(**reaccion_data.model_dump())
+        reaccion = ReaccionMapper.to_model(reaccion_data)
         self.db.add(reaccion)
         self.db.commit()
         self.db.refresh(reaccion)
@@ -49,8 +50,7 @@ class ReaccionRepository:
         reaccion: Reacciones,
         reaccion_data: UpdateReaccionDTO,
     ) -> Reacciones:
-        for field, value in reaccion_data.model_dump(exclude_unset=True).items():
-            setattr(reaccion, field, value)
+        ReaccionMapper.apply_update(reaccion, reaccion_data)
 
         self.db.commit()
         self.db.refresh(reaccion)

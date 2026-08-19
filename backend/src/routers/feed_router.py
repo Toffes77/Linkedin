@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from src.db.connection import get_db
 from src.dtos.publicacion_dto import PublicacionResponseDTO
+from src.mappers.publicacion_mapper import PublicacionMapper
 from src.schemas.publicación_schemas import GetPublicacionSchema
 from src.services.feed_service import FeedService
 
@@ -22,4 +23,4 @@ def get_feed(
         usuario_id,
         page=page,
     )
-    return [GetPublicacionSchema.model_validate(publicacion) for publicacion in publicaciones]
+    return [PublicacionMapper.to_response_schema(publicacion) for publicacion in publicaciones]

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, selectinload
 from src.db.models.conexiones_model import Conexion
 from src.db.models.usuario_model import Usuario
 from src.dtos.conexiones_dto import CreateConexionDTO, UpdateConexionDTO
+from src.mappers.conexion_mapper import ConexionMapper
 
 
 class ConexionRepository:
@@ -11,7 +12,7 @@ class ConexionRepository:
         self.db = db
 
     def create(self, conexion_data: CreateConexionDTO) -> Conexion:
-        conexion = Conexion(**conexion_data.model_dump())
+        conexion = ConexionMapper.to_model(conexion_data)
         self.db.add(conexion)
         self.db.commit()
         self.db.refresh(conexion)
@@ -124,8 +125,7 @@ class ConexionRepository:
         conexion: Conexion,
         conexion_data: UpdateConexionDTO,
     ) -> Conexion:
-        for field, value in conexion_data.model_dump(exclude_unset=True).items():
-            setattr(conexion, field, value)
+        ConexionMapper.apply_update(conexion, conexion_data)
 
         self.db.commit()
         self.db.refresh(conexion)

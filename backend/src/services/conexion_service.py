@@ -6,6 +6,8 @@ from src.dtos.conexiones_dto import (
     UpdateConexionDTO,
 )
 from src.dtos.usuario_dto import UsuarioResponseDTO
+from src.mappers.conexion_mapper import ConexionMapper
+from src.mappers.usuario_mapper import UsuarioMapper
 from src.repositories.conexion_repository import ConexionRepository
 from src.repositories.usuario_repository import UsuarioRepository
 from src.utils.errors import ConflictError, ForbiddenError, NotFoundError
@@ -42,7 +44,7 @@ class ConexionService:
             raise ConflictError("Ya existe una conexión entre los usuarios.")
 
         conexion = self.repository.create(conexion_data)
-        return ConexionResponseDTO.model_validate(conexion)
+        return ConexionMapper.to_response_dto(conexion)
 
     def get_by_id(
         self,
@@ -53,15 +55,12 @@ class ConexionService:
         if conexion is None:
             raise NotFoundError("Conexión no encontrada.")
 
-        return ConexionResponseDTO.model_validate(conexion)
+        return ConexionMapper.to_response_dto(conexion)
 
     def get_by_usuario(self, usuario_id: int) -> list[ConexionResponseDTO]:
         self._validar_usuario(usuario_id)
         conexiones = self.repository.get_by_usuario(usuario_id)
-        return [
-            ConexionResponseDTO.model_validate(conexion)
-            for conexion in conexiones
-        ]
+        return [ConexionMapper.to_response_dto(conexion) for conexion in conexiones]
 
     def get_second_degree_suggestions(
         self,
@@ -70,7 +69,7 @@ class ConexionService:
         self._validar_usuario(usuario_id)
         usuarios = self.repository.get_second_degree_suggestions(usuario_id)
         return [
-            UsuarioResponseDTO.model_validate(usuario)
+            UsuarioMapper.to_response_dto(usuario)
             for usuario in usuarios
         ]
 
@@ -97,7 +96,7 @@ class ConexionService:
             raise ConflictError("La conexión debe aceptarse o rechazarse.")
 
         conexion_actualizada = self.repository.update(conexion, conexion_data)
-        return ConexionResponseDTO.model_validate(conexion_actualizada)
+        return ConexionMapper.to_response_dto(conexion_actualizada)
 
     def _validar_usuario(self, usuario_id: int) -> None:
         if self.usuario_repository.get_by_id(usuario_id) is None:

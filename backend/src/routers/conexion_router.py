@@ -5,9 +5,8 @@ from src.db.connection import get_db
 from src.db.models.usuario_model import Usuario
 from src.dtos.conexiones_dto import (
     ConexionResponseDTO,
-    CreateConexionDTO,
-    UpdateConexionDTO,
 )
+from src.mappers.conexion_mapper import ConexionMapper
 from src.schemas.conexiones_schema import (
     CreateConexionSchema,
     GetConexionSchema,
@@ -25,9 +24,9 @@ def create_conexion(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    dto = CreateConexionDTO(**payload.model_dump())
+    dto = ConexionMapper.to_create_dto(payload)
     conexion: ConexionResponseDTO = ConexionService(db).create(dto, current_user.id)
-    return GetConexionSchema.model_validate(conexion)
+    return ConexionMapper.to_response_schema(conexion)
 
 
 @router.patch("/{usuario_a}/{usuario_b}", response_model=GetConexionSchema)
@@ -38,11 +37,11 @@ def update_conexion(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    dto = UpdateConexionDTO(**payload.model_dump())
+    dto = ConexionMapper.to_update_dto(payload)
     conexion: ConexionResponseDTO = ConexionService(db).update(
         usuario_a,
         usuario_b,
         dto,
         current_user.id,
     )
-    return GetConexionSchema.model_validate(conexion)
+    return ConexionMapper.to_response_schema(conexion)

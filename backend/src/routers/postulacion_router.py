@@ -4,10 +4,9 @@ from sqlalchemy.orm import Session
 from src.db.connection import get_db
 from src.db.models.usuario_model import Usuario
 from src.dtos.postulacion_dto import (
-    CreatePostulacionDTO,
     PostulacionResponseDTO,
-    UpdatePostulacionDTO,
 )
+from src.mappers.postulacion_mapper import PostulacionMapper
 from src.middlewares.auth_middleware import get_current_user
 from src.schemas.postulacion_schema import (
     CreatePostulacionSchema,
@@ -29,12 +28,9 @@ def create_postulacion(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    dto = CreatePostulacionDTO(
-        oferta_id=payload.oferta_id,
-        usuario_id=current_user.id,
-    )
+    dto = PostulacionMapper.to_create_dto(payload, current_user.id)
     postulacion: PostulacionResponseDTO = PostulacionService(db).create(dto)
-    return GetPostulacionSchema.model_validate(postulacion)
+    return PostulacionMapper.to_response_schema(postulacion)
 
 
 @router.get("/ofertas/{oferta_id}/postulaciones", response_model=list[GetPostulacionSchema])
@@ -47,10 +43,7 @@ def get_postulaciones_by_oferta(
         oferta_id,
         current_user.id,
     )
-    return [
-        GetPostulacionSchema.model_validate(postulacion)
-        for postulacion in postulaciones
-    ]
+    return [PostulacionMapper.to_response_schema(postulacion) for postulacion in postulaciones]
 
 
 @router.get("/usuarios/{usuario_id}/postulaciones", response_model=list[GetPostulacionSchema])
@@ -58,10 +51,7 @@ def get_postulaciones_by_usuario(usuario_id: int, db: Session = Depends(get_db))
     postulaciones: list[PostulacionResponseDTO] = PostulacionService(db).get_by_usuario(
         usuario_id
     )
-    return [
-        GetPostulacionSchema.model_validate(postulacion)
-        for postulacion in postulaciones
-    ]
+    return [PostulacionMapper.to_response_schema(postulacion) for postulacion in postulaciones]
 
 
 @router.get("/postulaciones/{postulacion_id}", response_model=GetPostulacionSchema)
@@ -69,7 +59,7 @@ def get_postulacion(postulacion_id: int, db: Session = Depends(get_db)):
     postulacion: PostulacionResponseDTO = PostulacionService(db).get_by_id(
         postulacion_id
     )
-    return GetPostulacionSchema.model_validate(postulacion)
+    return PostulacionMapper.to_response_schema(postulacion)
 
 
 @router.patch("/postulaciones/{postulacion_id}", response_model=GetPostulacionSchema)
@@ -79,10 +69,10 @@ def update_postulacion(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    dto = UpdatePostulacionDTO(**payload.model_dump())
+    dto = PostulacionMapper.to_update_dto(payload)
     postulacion: PostulacionResponseDTO = PostulacionService(db).update(
         postulacion_id,
         dto,
         current_user.id,
     )
-    return GetPostulacionSchema.model_validate(postulacion)
+    return PostulacionMapper.to_response_schema(postulacion)

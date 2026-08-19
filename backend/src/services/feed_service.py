@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from src.dtos.publicacion_dto import PublicacionResponseDTO
+from src.mappers.publicacion_mapper import PublicacionMapper
 from src.repositories.conexion_repository import ConexionRepository
 from src.repositories.publicacion_repository import PublicacionRepository
 from src.repositories.usuario_repository import UsuarioRepository
@@ -52,6 +53,6 @@ class FeedService:
         inicio = (page - 1) * page_size
         fin = inicio + page_size
         return [
-            PublicacionResponseDTO.model_validate(publicacion)
+            PublicacionMapper.to_response_dto(publicacion)
             for publicacion in publicaciones[inicio:fin]
         ]

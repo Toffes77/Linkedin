@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.db.connection import get_db
-from src.dtos.usuario_dto import CreateUsuarioDTO, UsuarioResponseDTO
+from src.dtos.usuario_dto import UsuarioResponseDTO
+from src.mappers.usuario_mapper import UsuarioMapper
 from src.schemas.usuario_schema import CreateUsuarioSchema, GetUsuarioSchema
 from src.services.conexion_service import ConexionService
 from src.services.usuario_service import UsuarioService
@@ -15,21 +16,21 @@ def create_usuario(
     payload: CreateUsuarioSchema,
     db: Session = Depends(get_db),
 ):
-    dto = CreateUsuarioDTO(**payload.model_dump())
+    dto = UsuarioMapper.to_create_dto(payload)
     usuario: UsuarioResponseDTO = UsuarioService(db).create(dto)
-    return GetUsuarioSchema.model_validate(usuario)
+    return UsuarioMapper.to_response_schema(usuario)
 
 
 @router.get("/usuarios/{usuario_id}", response_model=GetUsuarioSchema)
 def get_usuario(usuario_id: int, db: Session = Depends(get_db)):
     usuario: UsuarioResponseDTO = UsuarioService(db).get_by_id(usuario_id)
-    return GetUsuarioSchema.model_validate(usuario)
+    return UsuarioMapper.to_response_schema(usuario)
 
 
 @router.get("/usuarios/{usuario_id}/sugerencias", response_model=list[GetUsuarioSchema])
 def get_sugerencias(usuario_id: int, db: Session = Depends(get_db)):
     usuarios = ConexionService(db).get_second_degree_suggestions(usuario_id)
-    return [GetUsuarioSchema.model_validate(usuario) for usuario in usuarios]
+    return [UsuarioMapper.to_response_schema(usuario) for usuario in usuarios]
 
 
 @router.get("/buscar/usuarios", response_model=list[GetUsuarioSchema])
@@ -44,4 +45,4 @@ def buscar_usuarios(
     db: Session = Depends(get_db),
 ):
     usuarios = UsuarioService(db).search(q, ciudad)
-    return [GetUsuarioSchema.model_validate(usuario) for usuario in usuarios]
+    return [UsuarioMapper.to_response_schema(usuario) for usuario in usuarios]
