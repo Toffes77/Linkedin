@@ -22,6 +22,19 @@ CREATE TABLE Empresa (
     sitio_web VARCHAR(255)
 );
 
+CREATE TYPE rol_empresa AS ENUM ('OWNER', 'RECRUITER');
+
+CREATE TABLE empresa_usuario (
+    empresa_id INT NOT NULL,
+    usuario_id INT NOT NULL,
+    rol rol_empresa NOT NULL,
+
+    PRIMARY KEY (empresa_id, usuario_id),
+
+    FOREIGN KEY (empresa_id) REFERENCES Empresa(id),
+    FOREIGN KEY (usuario_id) REFERENCES Usuario(id)
+);
+
 -- ============================================================
 -- EXPERIENCIA
 -- ============================================================

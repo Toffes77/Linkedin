@@ -13,3 +13,8 @@ class Empresa(Base):
 
     experiencias = relationship("Experiencia", back_populates="empresa")
     ofertas = relationship("Oferta", back_populates="empresa")
+    usuarios_empresa = relationship(
+        "EmpresaUsuario",
+        back_populates="empresa",
+        cascade="all, delete-orphan",
+    )

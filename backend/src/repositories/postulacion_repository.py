@@ -75,3 +75,11 @@ class PostulacionRepository:
             )
             .scalar()
         )
+
+    def count_grouped_by_estado(self, oferta_id: int) -> list[tuple[str, int]]:
+        return (
+            self.db.query(Postulacion.estado, func.count(Postulacion.id))
+            .filter(Postulacion.oferta_id == oferta_id)
+            .group_by(Postulacion.estado)
+            .all()
+        )

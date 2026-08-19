@@ -25,3 +25,10 @@ class OfertaResponseDTO(BaseModel):
     descripcion: str
     publicada: bool
     fecha_publicacion: datetime | None = None
+
+
+class OfertaEstadisticasDTO(BaseModel):
+    oferta_id: int
+    total_postulaciones: int
+    postulaciones_por_estado: dict[str, int]
+    dias_desde_publicacion: int | None = None

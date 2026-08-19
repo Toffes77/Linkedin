@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from src.db.models.empresa_model import Empresa
+from src.db.models.empresa_usuario_model import EmpresaUsuario, RolEmpresa
 from src.dtos.empresa_dto import CreateEmpresaDTO, UpdateEmpresaDTO
 
 
@@ -14,6 +15,29 @@ class EmpresaRepository:
         self.db.commit()
         self.db.refresh(empresa)
         return empresa
+
+    def create_with_owner(
+        self,
+        empresa_data: CreateEmpresaDTO,
+        usuario_id: int,
+    ) -> Empresa:
+        try:
+            empresa = Empresa(**empresa_data.model_dump(mode="json"))
+            self.db.add(empresa)
+            self.db.flush()
+            self.db.add(
+                EmpresaUsuario(
+                    empresa_id=empresa.id,
+                    usuario_id=usuario_id,
+                    rol=RolEmpresa.OWNER,
+                )
+            )
+            self.db.commit()
+            self.db.refresh(empresa)
+            return empresa
+        except Exception:
+            self.db.rollback()
+            raise
 
     def get_by_id(self, empresa_id: int) -> Empresa | None:
         return self.db.query(Empresa).filter(Empresa.id == empresa_id).first()

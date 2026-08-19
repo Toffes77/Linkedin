@@ -1,7 +1,8 @@
-from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy import func, or_, select, union, union_all
+from sqlalchemy.orm import Session, selectinload
 
 from src.db.models.conexiones_model import Conexion
+from src.db.models.usuario_model import Usuario
 from src.dtos.conexiones_dto import CreateConexionDTO, UpdateConexionDTO
 
 
@@ -55,6 +56,66 @@ class ConexionRepository:
                     Conexion.usuario_b == usuario_id,
                 ),
             )
+            .all()
+        )
+
+    def get_second_degree_suggestions(self, usuario_id: int) -> list[Usuario]:
+        conexiones_aceptadas = union_all(
+            select(
+                Conexion.usuario_a.label("usuario_id"),
+                Conexion.usuario_b.label("conexion_id"),
+            ).where(Conexion.estado == "aceptada"),
+            select(
+                Conexion.usuario_b.label("usuario_id"),
+                Conexion.usuario_a.label("conexion_id"),
+            ).where(Conexion.estado == "aceptada"),
+        ).subquery("conexiones_aceptadas")
+
+        conexiones_directas = conexiones_aceptadas.alias("conexiones_directas")
+        conexiones_segundo_grado = conexiones_aceptadas.alias(
+            "conexiones_segundo_grado"
+        )
+
+        relaciones_directas = union(
+            select(Conexion.usuario_a.label("usuario_id")).where(
+                Conexion.usuario_b == usuario_id,
+                Conexion.estado.in_(("aceptada", "pendiente")),
+            ),
+            select(Conexion.usuario_b.label("usuario_id")).where(
+                Conexion.usuario_a == usuario_id,
+                Conexion.estado.in_(("aceptada", "pendiente")),
+            ),
+        ).subquery("relaciones_directas")
+
+        candidatos = (
+            select(
+                conexiones_segundo_grado.c.conexion_id.label("usuario_id"),
+                func.count(
+                    func.distinct(conexiones_directas.c.conexion_id)
+                ).label("conexiones_comunes"),
+            )
+            .select_from(conexiones_directas)
+            .join(
+                conexiones_segundo_grado,
+                conexiones_segundo_grado.c.usuario_id
+                == conexiones_directas.c.conexion_id,
+            )
+            .where(
+                conexiones_directas.c.usuario_id == usuario_id,
+                conexiones_segundo_grado.c.conexion_id != usuario_id,
+                conexiones_segundo_grado.c.conexion_id.not_in(
+                    select(relaciones_directas.c.usuario_id)
+                ),
+            )
+            .group_by(conexiones_segundo_grado.c.conexion_id)
+            .subquery("candidatos")
+        )
+
+        return (
+            self.db.query(Usuario)
+            .join(candidatos, Usuario.id == candidatos.c.usuario_id)
+            .options(selectinload(Usuario.experiencias))
+            .order_by(candidatos.c.conexiones_comunes.desc(), Usuario.id)
             .all()
         )
 

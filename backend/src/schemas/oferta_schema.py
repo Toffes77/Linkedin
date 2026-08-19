@@ -25,3 +25,12 @@ class GetOfertaSchema(BaseModel):
     descripcion: str
     publicada: bool
     fecha_publicacion: datetime | None = None
+
+
+class GetOfertaEstadisticasSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    oferta_id: int
+    total_postulaciones: int
+    postulaciones_por_estado: dict[str, int]
+    dias_desde_publicacion: int | None = None

@@ -1,14 +1,16 @@
 from sqlalchemy.orm import Session
 
+from src.db.models.empresa_usuario_model import RolEmpresa
 from src.dtos.postulacion_dto import (
     CreatePostulacionDTO,
     PostulacionResponseDTO,
     UpdatePostulacionDTO,
 )
 from src.repositories.oferta_repository import OfertaRepository
+from src.repositories.empresa_usuario_repository import EmpresaUsuarioRepository
 from src.repositories.postulacion_repository import PostulacionRepository
 from src.repositories.usuario_repository import UsuarioRepository
-from src.utils.errors import ConflictError, NotFoundError
+from src.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 
 class PostulacionService:
@@ -16,6 +18,7 @@ class PostulacionService:
         self.repository = PostulacionRepository(db)
         self.oferta_repository = OfertaRepository(db)
         self.usuario_repository = UsuarioRepository(db)
+        self.empresa_usuario_repository = EmpresaUsuarioRepository(db)
 
     def create(
         self,
@@ -46,8 +49,13 @@ class PostulacionService:
 
         return PostulacionResponseDTO.model_validate(postulacion)
 
-    def get_by_oferta(self, oferta_id: int) -> list[PostulacionResponseDTO]:
-        self._obtener_oferta(oferta_id)
+    def get_by_oferta(
+        self,
+        oferta_id: int,
+        usuario_actual_id: int,
+    ) -> list[PostulacionResponseDTO]:
+        oferta = self._obtener_oferta(oferta_id)
+        self._requerir_gestor_empresa(oferta.empresa_id, usuario_actual_id)
         postulaciones = self.repository.get_by_oferta(oferta_id)
         return [
             PostulacionResponseDTO.model_validate(postulacion)
@@ -66,11 +74,14 @@ class PostulacionService:
         self,
         postulacion_id: int,
         postulacion_data: UpdatePostulacionDTO,
+        usuario_actual_id: int,
     ) -> PostulacionResponseDTO:
         postulacion = self.repository.get_by_id(postulacion_id)
         if postulacion is None:
             raise NotFoundError("Postulación no encontrada.")
 
+        oferta = self._obtener_oferta(postulacion.oferta_id)
+        self._requerir_gestor_empresa(oferta.empresa_id, usuario_actual_id)
         self._validar_transicion(postulacion.estado, postulacion_data.estado)
         postulacion_actualizada = self.repository.update(
             postulacion,
@@ -88,6 +99,14 @@ class PostulacionService:
             raise NotFoundError("Oferta no encontrada.")
 
         return oferta
+
+    def _requerir_gestor_empresa(self, empresa_id: int, usuario_id: int) -> None:
+        if not self.empresa_usuario_repository.has_any_role(
+            empresa_id,
+            usuario_id,
+            (RolEmpresa.OWNER, RolEmpresa.RECRUITER),
+        ):
+            raise ForbiddenError("No tiene permisos para gestionar postulaciones.")
 
     @staticmethod
     def _validar_transicion(estado_actual: str, nuevo_estado: str) -> None:

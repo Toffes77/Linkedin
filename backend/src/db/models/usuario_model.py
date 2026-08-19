@@ -33,3 +33,8 @@ class Usuario(Base):
         foreign_keys="Conexion.usuario_b",
         back_populates="usuario_b_rel"
     )
+    empresas_usuario = relationship(
+        "EmpresaUsuario",
+        back_populates="usuario",
+        cascade="all, delete-orphan",
+    )

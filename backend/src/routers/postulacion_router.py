@@ -38,9 +38,14 @@ def create_postulacion(
 
 
 @router.get("/ofertas/{oferta_id}/postulaciones", response_model=list[GetPostulacionSchema])
-def get_postulaciones_by_oferta(oferta_id: int, db: Session = Depends(get_db)):
+def get_postulaciones_by_oferta(
+    oferta_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
     postulaciones: list[PostulacionResponseDTO] = PostulacionService(db).get_by_oferta(
-        oferta_id
+        oferta_id,
+        current_user.id,
     )
     return [
         GetPostulacionSchema.model_validate(postulacion)
@@ -78,5 +83,6 @@ def update_postulacion(
     postulacion: PostulacionResponseDTO = PostulacionService(db).update(
         postulacion_id,
         dto,
+        current_user.id,
     )
     return GetPostulacionSchema.model_validate(postulacion)

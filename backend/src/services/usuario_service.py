@@ -34,3 +34,14 @@ class UsuarioService:
 
     def get_by_email(self, email: str) -> Usuario | None:
         return self.repository.get_by_email(email)
+
+    def search(
+        self,
+        texto: str,
+        ciudad: str | None = None,
+    ) -> list[UsuarioResponseDTO]:
+        usuarios = self.repository.search(texto, ciudad)
+        return [
+            UsuarioResponseDTO.model_validate(usuario)
+            for usuario in usuarios
+        ]

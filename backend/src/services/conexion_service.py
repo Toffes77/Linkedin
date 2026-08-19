@@ -5,6 +5,7 @@ from src.dtos.conexiones_dto import (
     CreateConexionDTO,
     UpdateConexionDTO,
 )
+from src.dtos.usuario_dto import UsuarioResponseDTO
 from src.repositories.conexion_repository import ConexionRepository
 from src.repositories.usuario_repository import UsuarioRepository
 from src.utils.errors import ConflictError, ForbiddenError, NotFoundError
@@ -60,6 +61,17 @@ class ConexionService:
         return [
             ConexionResponseDTO.model_validate(conexion)
             for conexion in conexiones
+        ]
+
+    def get_second_degree_suggestions(
+        self,
+        usuario_id: int,
+    ) -> list[UsuarioResponseDTO]:
+        self._validar_usuario(usuario_id)
+        usuarios = self.repository.get_second_degree_suggestions(usuario_id)
+        return [
+            UsuarioResponseDTO.model_validate(usuario)
+            for usuario in usuarios
         ]
 
     def update(

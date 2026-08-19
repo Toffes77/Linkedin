@@ -1,4 +1,5 @@
-from fastapi import Depends, Header
+from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from src.db.connection import get_db
@@ -8,15 +9,17 @@ from src.utils.errors import UnauthorizedError
 from src.utils.jwt import decode_token
 
 
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
 def get_current_user(
-    authorization: str | None = Header(default=None),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> Usuario:
-    if not authorization or not authorization.lower().startswith("bearer "):
+    if credentials is None or credentials.scheme.lower() != "bearer":
         raise UnauthorizedError("Missing or malformed Authorization header")
 
-    token = authorization.split(" ", 1)[1].strip()
-    payload = decode_token(token)
+    payload = decode_token(credentials.credentials)
 
     try:
         user_id = int(payload["sub"])
