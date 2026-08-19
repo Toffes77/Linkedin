@@ -20,3 +20,4 @@ class EmpresaResponseDTO(BaseModel):
     nombre: str
     industria: str | None = None
     sitio_web: str | None = None
+    foto_perfil_url: str | None = None

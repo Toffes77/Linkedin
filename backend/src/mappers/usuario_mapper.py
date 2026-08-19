@@ -1,8 +1,16 @@
 from src.db.models.usuario_model import Usuario
-from src.dtos.usuario_dto import CreateUsuarioDTO, UpdateUsuarioDTO, UsuarioResponseDTO
+from src.dtos.usuario_dto import (
+    CreateUsuarioDTO,
+    PasswordUpdateResponseDTO,
+    UpdatePasswordDTO,
+    UpdateUsuarioDTO,
+    UsuarioResponseDTO,
+)
 from src.schemas.usuario_schema import (
     CreateUsuarioSchema,
     GetUsuarioSchema,
+    PasswordUpdateResponseSchema,
+    UpdatePasswordSchema,
     UpdateUsuarioSchema,
 )
 
@@ -15,6 +23,16 @@ class UsuarioMapper:
     @staticmethod
     def to_update_dto(schema: UpdateUsuarioSchema) -> UpdateUsuarioDTO:
         return UpdateUsuarioDTO(**schema.model_dump(exclude_unset=True))
+
+    @staticmethod
+    def to_update_password_dto(schema: UpdatePasswordSchema) -> UpdatePasswordDTO:
+        return UpdatePasswordDTO(**schema.model_dump())
+
+    @staticmethod
+    def to_password_update_response_schema(
+        dto: PasswordUpdateResponseDTO,
+    ) -> PasswordUpdateResponseSchema:
+        return PasswordUpdateResponseSchema(**dto.model_dump())
 
     @staticmethod
     def to_model(data: CreateUsuarioDTO, password_hash: str) -> Usuario:

@@ -1,12 +1,20 @@
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from src.db.connection import get_db
-from src.dtos.usuario_dto import UsuarioResponseDTO
+from src.db.models.usuario_model import Usuario
+from src.dtos.usuario_dto import PasswordUpdateResponseDTO, UsuarioResponseDTO
 from src.mappers.usuario_mapper import UsuarioMapper
-from src.schemas.usuario_schema import CreateUsuarioSchema, GetUsuarioSchema
+from src.schemas.usuario_schema import (
+    CreateUsuarioSchema,
+    GetUsuarioSchema,
+    PasswordUpdateResponseSchema,
+    UpdatePasswordSchema,
+    UpdateUsuarioSchema,
+)
 from src.services.conexion_service import ConexionService
 from src.services.usuario_service import UsuarioService
+from src.middlewares.auth_middleware import get_current_user
 
 router = APIRouter(tags=["usuarios"])
 
@@ -25,6 +33,51 @@ def create_usuario(
 def get_usuario(usuario_id: int, db: Session = Depends(get_db)):
     usuario: UsuarioResponseDTO = UsuarioService(db).get_by_id(usuario_id)
     return UsuarioMapper.to_response_schema(usuario)
+
+
+@router.put("/usuarios/me", response_model=GetUsuarioSchema)
+def update_my_profile(
+    payload: UpdateUsuarioSchema,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    dto = UsuarioMapper.to_update_dto(payload)
+    usuario: UsuarioResponseDTO = UsuarioService(db).update_profile(
+        current_user.id,
+        dto,
+    )
+    return UsuarioMapper.to_response_schema(usuario)
+
+
+@router.put("/usuarios/me/foto-perfil", response_model=GetUsuarioSchema)
+async def update_my_profile_photo(
+    foto: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    usuario: UsuarioResponseDTO = UsuarioService(db).update_profile_photo(
+        current_user.id,
+        foto.filename,
+        await foto.read(),
+    )
+    return UsuarioMapper.to_response_schema(usuario)
+
+
+@router.put(
+    "/usuarios/me/password",
+    response_model=PasswordUpdateResponseSchema,
+)
+def update_my_password(
+    payload: UpdatePasswordSchema,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    dto = UsuarioMapper.to_update_password_dto(payload)
+    response: PasswordUpdateResponseDTO = UsuarioService(db).update_password(
+        current_user.id,
+        dto,
+    )
+    return UsuarioMapper.to_password_update_response_schema(response)
 
 
 @router.get("/usuarios/{usuario_id}/sugerencias", response_model=list[GetUsuarioSchema])

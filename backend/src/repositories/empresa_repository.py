@@ -50,3 +50,9 @@ class EmpresaRepository:
         self.db.commit()
         self.db.refresh(empresa)
         return empresa
+
+    def update_profile_photo(self, empresa: Empresa, foto_perfil_url: str) -> Empresa:
+        empresa.foto_perfil_url = foto_perfil_url
+        self.db.commit()
+        self.db.refresh(empresa)
+        return empresa

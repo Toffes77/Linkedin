@@ -10,6 +10,7 @@ class Empresa(Base):
     nombre = Column(String(100), nullable=False)
     industria = Column(String(100))
     sitio_web = Column(String(255))
+    foto_perfil_url = Column(String(255), nullable=True)
 
     experiencias = relationship("Experiencia", back_populates="empresa")
     ofertas = relationship("Oferta", back_populates="empresa")

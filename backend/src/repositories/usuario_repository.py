@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from src.db.models.experiencia_model import Experiencia
 from src.db.models.usuario_model import Usuario
+from src.dtos.usuario_dto import UpdateUsuarioDTO
 
 
 class UsuarioRepository:
@@ -40,6 +41,34 @@ class UsuarioRepository:
 
     def update(self, usuario: Usuario) -> Usuario:
         self.db.add(usuario)
+        self.db.commit()
+        self.db.refresh(usuario)
+        return usuario
+
+    def update_profile(
+        self,
+        usuario: Usuario,
+        usuario_data: UpdateUsuarioDTO,
+    ) -> Usuario:
+        if usuario_data.nombre is not None:
+            usuario.nombre = usuario_data.nombre
+        if usuario_data.headline is not None:
+            usuario.headline = usuario_data.headline
+        if usuario_data.ciudad is not None:
+            usuario.ciudad = usuario_data.ciudad
+
+        self.db.commit()
+        self.db.refresh(usuario)
+        return usuario
+
+    def update_profile_photo(self, usuario: Usuario, foto_perfil_url: str) -> Usuario:
+        usuario.foto_perfil_url = foto_perfil_url
+        self.db.commit()
+        self.db.refresh(usuario)
+        return usuario
+
+    def update_password_hash(self, usuario: Usuario, password_hash: str) -> Usuario:
+        usuario.password_hash = password_hash
         self.db.commit()
         self.db.refresh(usuario)
         return usuario

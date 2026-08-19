@@ -11,12 +11,27 @@ class CreateUsuarioDTO(BaseModel):
     ciudad: str = Field(min_length=1, max_length=100)
 
 
-class UpdateUsuarioDTO(BaseModel):
+class LegacyUpdateUsuarioDTO(BaseModel):
     email: EmailStr | None = Field(default=None, max_length=100)
     password: str | None = Field(default=None, min_length=8)
     nombre: str | None = Field(default=None, min_length=1, max_length=100)
     headline: str | None = Field(default=None, min_length=1, max_length=200)
     ciudad: str | None = Field(default=None, min_length=1, max_length=100)
+
+
+class UpdateUsuarioDTO(BaseModel):
+    nombre: str | None = Field(default=None, min_length=1, max_length=100)
+    headline: str | None = Field(default=None, min_length=1, max_length=200)
+    ciudad: str | None = Field(default=None, min_length=1, max_length=100)
+
+
+class UpdatePasswordDTO(BaseModel):
+    password_actual: str
+    password_nueva: str
+
+
+class PasswordUpdateResponseDTO(BaseModel):
+    message: str
 
 
 class ExperienciaUsuarioDTO(BaseModel):
@@ -36,4 +51,5 @@ class UsuarioResponseDTO(BaseModel):
     nombre: str
     headline: str
     ciudad: str
+    foto_perfil_url: str | None = None
     experiencias: list[ExperienciaUsuarioDTO]

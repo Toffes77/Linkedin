@@ -10,6 +10,11 @@ from src.repositories.empresa_repository import EmpresaRepository
 from src.repositories.empresa_usuario_repository import EmpresaUsuarioRepository
 from src.db.models.empresa_usuario_model import RolEmpresa
 from src.utils.errors import ForbiddenError, NotFoundError
+from src.utils.image_storage import (
+    delete_managed_image,
+    save_image,
+    validate_and_get_extension,
+)
 
 
 class EmpresaService:
@@ -50,4 +55,36 @@ class EmpresaService:
             raise ForbiddenError("No tiene permisos para modificar la empresa.")
 
         empresa_actualizada = self.repository.update(empresa, empresa_data)
+        return EmpresaMapper.to_response_dto(empresa_actualizada)
+
+    def update_profile_photo(
+        self,
+        empresa_id: int,
+        usuario_actual_id: int,
+        filename: str | None,
+        content: bytes,
+    ) -> EmpresaResponseDTO:
+        empresa = self.repository.get_by_id(empresa_id)
+        if empresa is None:
+            raise NotFoundError("Empresa no encontrada.")
+
+        if not self.empresa_usuario_repository.has_any_role(
+            empresa_id,
+            usuario_actual_id,
+            (RolEmpresa.OWNER,),
+        ):
+            raise ForbiddenError("No tiene permisos para modificar la empresa.")
+
+        extension = validate_and_get_extension(filename, content)
+        previous_url = empresa.foto_perfil_url
+        photo_url = save_image("empresa", empresa.id, extension, content)
+        try:
+            empresa_actualizada = self.repository.update_profile_photo(empresa, photo_url)
+        except Exception:
+            if photo_url != previous_url:
+                delete_managed_image(photo_url, "empresa", empresa.id)
+            raise
+
+        if previous_url != photo_url:
+            delete_managed_image(previous_url, "empresa", empresa.id)
         return EmpresaMapper.to_response_dto(empresa_actualizada)

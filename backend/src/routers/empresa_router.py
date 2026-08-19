@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, UploadFile, status
 from sqlalchemy.orm import Session
 
 from src.db.connection import get_db
@@ -57,6 +57,22 @@ def update_empresa(
         empresa_id,
         dto,
         current_user.id,
+    )
+    return EmpresaMapper.to_response_schema(empresa)
+
+
+@router.put("/{empresa_id}/foto-perfil", response_model=GetEmpresaSchema)
+async def update_empresa_profile_photo(
+    empresa_id: int,
+    foto: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    empresa: EmpresaResponseDTO = EmpresaService(db).update_profile_photo(
+        empresa_id,
+        current_user.id,
+        foto.filename,
+        await foto.read(),
     )
     return EmpresaMapper.to_response_schema(empresa)
 

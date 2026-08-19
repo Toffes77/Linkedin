@@ -9,6 +9,7 @@ CREATE TABLE Usuario (
     password_hash VARCHAR(255) NOT NULL,
     headline VARCHAR(200) NOT NULL,
     ciudad VARCHAR(100) NOT NULL,
+    foto_perfil_url VARCHAR(255),
     fecha_registro TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -19,7 +20,8 @@ CREATE TABLE Empresa (
     id SERIAL PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
     industria VARCHAR(100),
-    sitio_web VARCHAR(255)
+    sitio_web VARCHAR(255),
+    foto_perfil_url VARCHAR(255)
 );
 
 CREATE TYPE rol_empresa AS ENUM ('OWNER', 'RECRUITER');

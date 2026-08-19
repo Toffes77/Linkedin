@@ -18,7 +18,7 @@ class CreateUsuarioSchema(BaseModel):
         return value
 
 
-class UpdateUsuarioSchema(BaseModel):
+class LegacyUpdateUsuarioSchema(BaseModel):
     email: EmailStr | None = Field(default=None, max_length=100)
     password: str | None = Field(default=None, min_length=8)
     nombre: str | None = Field(default=None, min_length=1, max_length=100)
@@ -31,6 +31,23 @@ class UpdateUsuarioSchema(BaseModel):
         if value is not None and len(value) < 8:
             raise ValueError("La contraseña debe tener al menos 8 caracteres")
         return value
+
+
+class UpdateUsuarioSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    nombre: str | None = Field(default=None, min_length=1, max_length=100)
+    headline: str | None = Field(default=None, min_length=1, max_length=200)
+    ciudad: str | None = Field(default=None, min_length=1, max_length=100)
+
+
+class UpdatePasswordSchema(BaseModel):
+    password_actual: str
+    password_nueva: str = Field(min_length=8)
+
+
+class PasswordUpdateResponseSchema(BaseModel):
+    message: str
 
 
 class ExperienciaUsuarioSchema(BaseModel):
@@ -50,4 +67,5 @@ class GetUsuarioSchema(BaseModel):
     nombre: str
     headline: str
     ciudad: str
+    foto_perfil_url: str | None = None
     experiencias: list[ExperienciaUsuarioSchema]
