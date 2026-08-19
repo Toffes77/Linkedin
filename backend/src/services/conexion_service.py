@@ -7,7 +7,7 @@ from src.dtos.conexiones_dto import (
 )
 from src.repositories.conexion_repository import ConexionRepository
 from src.repositories.usuario_repository import UsuarioRepository
-from src.utils.errors import ConflictError, NotFoundError
+from src.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 
 class ConexionService:
@@ -15,7 +15,16 @@ class ConexionService:
         self.repository = ConexionRepository(db)
         self.usuario_repository = UsuarioRepository(db)
 
-    def create(self, conexion_data: CreateConexionDTO) -> ConexionResponseDTO:
+    def create(
+        self,
+        conexion_data: CreateConexionDTO,
+        usuario_autenticado_id: int,
+    ) -> ConexionResponseDTO:
+        if conexion_data.usuario_a != usuario_autenticado_id:
+            raise ForbiddenError(
+                "No se puede solicitar una conexión en nombre de otro usuario."
+            )
+
         self._validar_usuario(conexion_data.usuario_a)
         self._validar_usuario(conexion_data.usuario_b)
 
@@ -58,6 +67,7 @@ class ConexionService:
         usuario_a: int,
         usuario_b: int,
         conexion_data: UpdateConexionDTO,
+        usuario_autenticado_id: int,
     ) -> ConexionResponseDTO:
         conexion = self.repository.get_by_id(usuario_a, usuario_b)
         if conexion is None:
@@ -65,6 +75,11 @@ class ConexionService:
 
         if conexion.estado != "pendiente":
             raise ConflictError("Solo se pueden modificar conexiones pendientes.")
+
+        if conexion.usuario_b != usuario_autenticado_id:
+            raise ForbiddenError(
+                "Solo el destinatario puede responder la solicitud de conexión."
+            )
 
         if conexion_data.estado not in ("aceptada", "rechazada"):
             raise ConflictError("La conexión debe aceptarse o rechazarse.")

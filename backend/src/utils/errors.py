@@ -8,6 +8,11 @@ class AppError(Exception):
         super().__init__(self.message)
 
 
+class BadRequestError(AppError):
+    status_code = 400
+    message = "Bad request"
+
+
 class NotFoundError(AppError):
     status_code = 404
     message = "Resource not found"

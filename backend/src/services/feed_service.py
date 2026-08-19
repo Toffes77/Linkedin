@@ -4,7 +4,7 @@ from src.dtos.publicacion_dto import PublicacionResponseDTO
 from src.repositories.conexion_repository import ConexionRepository
 from src.repositories.publicacion_repository import PublicacionRepository
 from src.repositories.usuario_repository import UsuarioRepository
-from src.utils.errors import NotFoundError
+from src.utils.errors import BadRequestError, NotFoundError
 
 
 class FeedService:
@@ -23,10 +23,10 @@ class FeedService:
             raise NotFoundError("Usuario no encontrado.")
 
         if page < 1:
-            raise ValueError("La página debe ser mayor o igual a 1.")
+            raise BadRequestError("La página debe ser mayor o igual a 1.")
 
         if page_size < 1:
-            raise ValueError("El tamaño de página debe ser mayor o igual a 1.")
+            raise BadRequestError("El tamaño de página debe ser mayor o igual a 1.")
 
         conexiones = self.conexion_repository.get_accepted_by_user(usuario_id)
         usuarios_conectados = {
