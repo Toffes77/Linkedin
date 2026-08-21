@@ -7,6 +7,7 @@ from src.utils.errors import UnauthorizedError
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_SECONDS = ACCESS_TOKEN_EXPIRE_MINUTES * 60
 
 
 def create_access_token(data: dict) -> str:

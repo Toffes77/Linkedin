@@ -1,0 +1,13 @@
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+import { usersApi } from "@/lib/api";
+
+export default function RegisterPage() {
+  const router = useRouter(); const [data, setData] = useState({ email: "", password: "", nombre: "", headline: "", ciudad: "" }); const [confirm, setConfirm] = useState(""); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const set = (key: keyof typeof data) => (value: string) => setData((old) => ({ ...old, [key]: value }));
+  async function submit(event: FormEvent) { event.preventDefault(); setError(""); if (data.password !== confirm) { setError("Las contraseñas no coinciden."); return; } setBusy(true); try { await usersApi.create(data); router.push("/login?registro=ok"); } catch (e) { setError(e instanceof Error ? e.message : "No se pudo crear la cuenta."); } finally { setBusy(false); } }
+  return <main className="register-page"><header className="auth-header"><Link href="/login"><Image src="/assets/Logo_Linkedin.png" alt="LinkedIn" width={130} height={32} className="wordmark"/></Link><nav><Link href="/login" className="active-auth">Iniciar sesión</Link></nav></header><section className="register-content"><h1>Unite a tu comunidad profesional</h1><form onSubmit={submit} className="register-form"><label>Nombre completo<input required maxLength={100} value={data.nombre} onChange={(e) => set("nombre")(e.target.value)}/></label><label>Email<input type="email" required maxLength={100} value={data.email} onChange={(e) => set("email")(e.target.value)}/></label><label>Titular profesional<input required maxLength={200} value={data.headline} onChange={(e) => set("headline")(e.target.value)}/></label><label>Ciudad<input required maxLength={100} value={data.ciudad} onChange={(e) => set("ciudad")(e.target.value)}/></label><label>Contraseña (8 caracteres como mínimo)<input type="password" required minLength={8} value={data.password} onChange={(e) => set("password")(e.target.value)}/></label><label>Confirmar contraseña<input type="password" required minLength={8} value={confirm} onChange={(e) => setConfirm(e.target.value)}/></label>{error && <p className="auth-error" role="alert">{error}</p>}<button className="auth-primary" disabled={busy}>{busy ? "Creando cuenta..." : "Aceptar y unirse"}</button><p>Al hacer clic en «Aceptar y unirse», aceptas las condiciones de uso y la política de privacidad.</p></form><p>¿Ya estás en LinkedIn? <Link href="/login">Iniciar sesión</Link></p></section></main>;
+}

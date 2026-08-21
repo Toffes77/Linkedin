@@ -29,6 +29,15 @@ def create_usuario(
     return UsuarioMapper.to_response_schema(usuario)
 
 
+@router.get("/usuarios/me", response_model=GetUsuarioSchema)
+def get_my_profile(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    usuario: UsuarioResponseDTO = UsuarioService(db).get_by_id(current_user.id)
+    return UsuarioMapper.to_response_schema(usuario)
+
+
 @router.get("/usuarios/{usuario_id}", response_model=GetUsuarioSchema)
 def get_usuario(usuario_id: int, db: Session = Depends(get_db)):
     usuario: UsuarioResponseDTO = UsuarioService(db).get_by_id(usuario_id)

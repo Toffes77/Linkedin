@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 from pydantic import ValidationError
 from fastapi.security import HTTPAuthorizationCredentials
+from starlette.requests import Request
 
 from src.dtos.usuario_dto import UpdatePasswordDTO, UpdateUsuarioDTO
 from src.middlewares.auth_middleware import get_current_user
@@ -107,7 +108,11 @@ class PasswordChangeTests(unittest.TestCase):
 
     def test_missing_jwt_is_unauthorized(self):
         with self.assertRaises(UnauthorizedError):
-            get_current_user(credentials=None, db=Mock())
+            get_current_user(
+                request=Request({"type": "http", "headers": []}),
+                credentials=None,
+                db=Mock(),
+            )
 
     def test_invalid_jwt_is_unauthorized(self):
         credentials = HTTPAuthorizationCredentials(
@@ -115,7 +120,11 @@ class PasswordChangeTests(unittest.TestCase):
             credentials="token-invalido",
         )
         with self.assertRaises(UnauthorizedError):
-            get_current_user(credentials=credentials, db=Mock())
+            get_current_user(
+                request=Request({"type": "http", "headers": []}),
+                credentials=credentials,
+                db=Mock(),
+            )
 
     def test_updates_only_allowed_profile_fields(self):
         previous_hash = self.usuario.password_hash
