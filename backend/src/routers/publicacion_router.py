@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.db.connection import get_db
@@ -16,6 +16,17 @@ from src.schemas.publicación_schemas import (
 from src.services.publicacion_service import PublicacionService
 
 router = APIRouter(prefix="/publicaciones", tags=["publicaciones"])
+
+
+@router.get("/autor/{usuario_id}", response_model=list[GetPublicacionSchema])
+def get_publicaciones_por_autor(
+    usuario_id: int,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    publicaciones = PublicacionService(db).get_by_autor(usuario_id, limit, offset)
+    return [PublicacionMapper.to_response_schema(publicacion) for publicacion in publicaciones]
 
 
 @router.post("", response_model=GetPublicacionSchema, status_code=status.HTTP_201_CREATED)

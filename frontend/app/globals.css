@@ -69,12 +69,15 @@ button:disabled { cursor:not-allowed; opacity:.58; }
 .main-nav>a.active { color:#111; }
 .main-nav>a.active:after { content:""; position:absolute; bottom:0; left:7px; right:7px; height:3px; background:#111; }
 .nav-disabled { opacity:.75; cursor:default; }
+.notification-badge { position:absolute; top:5px; right:22px; min-width:16px; height:16px; padding:0 4px; border-radius:9px; background:#c37d16; color:#fff; font-size:10px; line-height:16px; text-align:center; }
 .nav-profile { min-width:88px; cursor:pointer; }
 .profile-menu-wrap { position:relative; display:flex; }
 .profile-menu { position:absolute; right:0; top:62px; width:210px; padding:8px 0; background:#fff; border:1px solid var(--border); border-radius:0 0 8px 8px; box-shadow:0 4px 12px #0002; }
 .profile-menu a,.profile-menu button { width:100%; display:block; padding:10px 16px; border:0; background:white; text-align:left; font-size:14px; }
 .profile-menu a:hover,.profile-menu button:hover { background:#eee; }
 .business-nav { border-left:1px solid #ddd!important; min-width:130px!important; }
+.company-nav-icon { position:relative; display:block; width:28px; height:27px; overflow:hidden; }
+.company-nav-icon img { position:absolute; width:116px; height:87px; max-width:none; left:-44px; top:-24px; }
 
 /* Feed */
 .feed-grid { max-width:1535px; margin:auto; display:grid; grid-template-columns:285px minmax(520px,710px) 400px; gap:34px; align-items:start; }
@@ -160,6 +163,20 @@ button:disabled { cursor:not-allowed; opacity:.58; }
 .invitation-bar { min-height:70px; padding:20px; display:flex; align-items:center; justify-content:space-between; }
 .invitation-bar h2 { margin:0; font-size:20px; }
 .invitation-bar span { color:var(--muted); }
+.invitations { margin-bottom:16px; padding:20px; }
+.invitations header { margin-bottom:12px; }
+.invitations h2 { margin:0; font-size:20px; }
+.invitation-row { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:13px; padding:13px 0; border-top:1px solid #eee; }
+.invitation-row p,.invitation-row small { display:block; margin:3px 0 0; color:var(--muted); }
+.invitation-actions { display:flex; gap:8px; }
+.notifications-list { padding:20px; }
+.notifications-list h1 { margin-top:0; }
+.notification-item { display:grid; grid-template-columns:12px 1fr; gap:10px; padding:16px 8px; color:inherit; border-top:1px solid #eee; }
+.notification-item:hover { background:#f6faff; }
+.notification-item small { display:block; margin-top:5px; color:var(--muted); }
+.notification-dot { width:8px; height:8px; margin-top:6px; border-radius:50%; }
+.notification-item.unread { background:#eef7ff; }
+.notification-item.unread .notification-dot { background:#0a66c2; }
 .suggestions { padding:18px 16px; overflow:hidden; }
 .suggestions header { display:flex; justify-content:space-between; margin-bottom:22px; }
 .suggestions h2 { margin:0; font-size:22px; }
@@ -238,6 +255,37 @@ button:disabled { cursor:not-allowed; opacity:.58; }
 .checkbox input { min-height:auto!important; width:18px; }
 .member-row { display:grid; grid-template-columns:1fr 150px auto; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid #eee; }
 .member-row select { padding:8px; }
+
+/* Companies directory */
+.companies-page { max-width:1128px; margin:auto; display:grid; gap:16px; }
+.companies-heading { padding:24px 28px; display:flex; align-items:center; justify-content:space-between; gap:20px; }
+.companies-heading h1 { margin:0 0 5px; font-size:27px; }
+.companies-heading p { margin:0; color:var(--muted); }
+.company-search { min-height:72px; padding:12px 18px; display:flex; align-items:center; gap:12px; }
+.company-search>svg { width:23px; color:#555; }
+.company-search input { flex:1; min-width:0; height:44px; border:0; outline:0; font-size:16px; }
+.company-group { padding:0 24px 24px; overflow:hidden; }
+.company-group>header { min-height:82px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #e6e6e6; }
+.company-group>header>div { display:flex; align-items:center; gap:12px; }
+.company-group h2 { margin:0 0 3px; font-size:21px; }
+.company-group header p { margin:0; color:var(--muted); font-size:13px; }
+.company-group>header>span { color:var(--muted); font-size:15px; }
+.role-mark { width:38px; height:38px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-weight:700; }
+.owner-mark { background:#e8f3ff; color:var(--blue); }
+.recruiter-mark { background:#e7f1ec; color:#057642; }
+.company-card-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; padding-top:18px; }
+.company-list-card { min-height:110px; display:flex; align-items:center; gap:16px; padding:18px; border:1px solid var(--border); border-radius:8px; background:white; transition:.15s; }
+.company-list-card:hover { background:#f7f7f7; box-shadow:0 1px 3px #0002; }
+.company-card-logo { width:72px; height:72px; flex:none; display:flex; align-items:center; justify-content:center; overflow:hidden; border:1px solid #ddd; background:#f3f6f8; color:#53697b; font-size:30px; font-weight:700; }
+.company-card-logo img { width:100%; height:100%; object-fit:cover; }
+.company-card-copy { min-width:0; }
+.company-card-copy h3 { margin:0 0 6px; font-size:18px; }
+.company-card-copy p { margin:0 0 5px; color:#555; }
+.company-card-copy span { display:block; color:var(--muted); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.company-card-arrow { margin-left:auto; color:#666; font-size:30px; }
+.company-empty { padding:34px 10px 12px; color:var(--muted); text-align:center; }
+.company-loading { display:grid; gap:16px; }
+.company-loading>div { height:210px; }
 
 /* Jobs */
 .jobs-layout { max-width:1128px; margin:auto; display:grid; grid-template-columns:270px 1fr; gap:20px; align-items:start; }
@@ -321,6 +369,13 @@ button:disabled { cursor:not-allowed; opacity:.58; }
   .large-avatar { width:110px!important; height:110px!important; margin-top:-66px; }
   .settings-panel { padding:20px; }
   .inline-form.horizontal,.member-row,.application-row { grid-template-columns:1fr; }
+  .invitation-row { grid-template-columns:auto 1fr; }
+  .invitation-actions { grid-column:1 / -1; }
+  .companies-heading { align-items:flex-start; padding:20px; }
+  .company-search { flex-wrap:wrap; }
+  .company-search input { flex-basis:calc(100% - 40px); }
+  .company-card-grid { grid-template-columns:1fr; }
+  .company-group { padding:0 16px 18px; }
   .auth-header .wordmark { width:105px; }
   .auth-copy h1 { font-size:31px; }
   .register-content { margin:0 15px 40px; }

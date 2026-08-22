@@ -32,9 +32,11 @@ class PublicacionService:
 
         return PublicacionMapper.to_response_dto(publicacion)
 
-    def get_by_autor(self, autor_id: int) -> list[PublicacionResponseDTO]:
+    def get_by_autor(
+        self, autor_id: int, limit: int | None = None, offset: int = 0
+    ) -> list[PublicacionResponseDTO]:
         self._validar_usuario(autor_id)
-        publicaciones = self.repository.get_by_autor(autor_id)
+        publicaciones = self.repository.get_by_autor(autor_id, limit, offset)
         return [PublicacionMapper.to_response_dto(publicacion) for publicacion in publicaciones]
 
     def update(

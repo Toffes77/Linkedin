@@ -7,8 +7,10 @@ from src.dtos.empresa_usuario_dto import (
 from src.schemas.empresa_usuario_schema import (
     CreateEmpresaUsuarioSchema,
     GetEmpresaUsuarioSchema,
+    GetMiEmpresaSchema,
     UpdateEmpresaUsuarioSchema,
 )
+from src.dtos.empresa_usuario_dto import MiEmpresaResponseDTO
 
 
 class EmpresaUsuarioMapper:
@@ -50,3 +52,7 @@ class EmpresaUsuarioMapper:
     @staticmethod
     def to_response_schema(dto: EmpresaUsuarioResponseDTO) -> GetEmpresaUsuarioSchema:
         return GetEmpresaUsuarioSchema.model_validate(dto)
+
+    @staticmethod
+    def to_my_company_response_schema(dto: MiEmpresaResponseDTO) -> GetMiEmpresaSchema:
+        return GetMiEmpresaSchema.model_validate(dto)

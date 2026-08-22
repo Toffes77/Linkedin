@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from src.db.models.empresa_usuario_model import EmpresaUsuario, RolEmpresa
 
@@ -28,6 +28,15 @@ class EmpresaUsuarioRepository:
             .all()
         )
 
+    def get_by_usuario(self, usuario_id: int) -> list[EmpresaUsuario]:
+        return (
+            self.db.query(EmpresaUsuario)
+            .options(joinedload(EmpresaUsuario.empresa))
+            .filter(EmpresaUsuario.usuario_id == usuario_id)
+            .order_by(EmpresaUsuario.rol, EmpresaUsuario.empresa_id)
+            .all()
+        )
+
     def has_any_role(
         self,
         empresa_id: int,
@@ -44,6 +53,21 @@ class EmpresaUsuarioRepository:
             .first()
             is not None
         )
+
+    def get_user_ids_by_empresa_and_roles(
+        self,
+        empresa_id: int,
+        roles: tuple[RolEmpresa, ...],
+    ) -> list[int]:
+        return [
+            usuario_id
+            for (usuario_id,) in self.db.query(EmpresaUsuario.usuario_id)
+            .filter(
+                EmpresaUsuario.empresa_id == empresa_id,
+                EmpresaUsuario.rol.in_(roles),
+            )
+            .all()
+        ]
 
     def count_owners(self, empresa_id: int) -> int:
         return (

@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from src.dtos.usuario_dto import UsuarioResponseDTO
+
 
 EstadoConexion = Literal["pendiente", "aceptada", "rechazada"]
 
@@ -23,3 +25,17 @@ class ConexionResponseDTO(BaseModel):
     usuario_b: int
     fecha: datetime
     estado: EstadoConexion
+
+
+class ResumenRedResponseDTO(BaseModel):
+    invitaciones_enviadas: int
+    contactos: int
+    siguiendo: int
+
+
+class InvitacionRecibidaResponseDTO(BaseModel):
+    usuario_a: int
+    usuario_b: int
+    fecha: datetime
+    estado: EstadoConexion
+    usuario: UsuarioResponseDTO

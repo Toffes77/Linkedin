@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from src.config.env import settings
 from src.middlewares.error_middleware import app_error_handler
-from src.routers import auth_router, usuario_router, empresa_router, experiencia_router, conexion_router, publicacion_router, reacciones_router, feed_router, oferta_router, postulacion_router
+from src.routers import auth_router, usuario_router, empresa_router, experiencia_router, conexion_router, publicacion_router, reacciones_router, feed_router, oferta_router, postulacion_router, seguimiento_router, notificacion_router
 from src.utils.errors import AppError
 
 app = FastAPI(title="Initial Structure API")
@@ -35,6 +35,8 @@ app.include_router(reacciones_router.router, prefix="/api")
 app.include_router(feed_router.router, prefix="/api")
 app.include_router(oferta_router.router, prefix="/api")
 app.include_router(postulacion_router.router, prefix="/api")
+app.include_router(seguimiento_router.router, prefix="/api")
+app.include_router(notificacion_router.router, prefix="/api")
 
 
 @app.get("/health")

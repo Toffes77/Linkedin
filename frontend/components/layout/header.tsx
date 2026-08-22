@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import Image from "next/image";
 import { useAuth } from "@/components/auth-provider";
 import { Avatar } from "@/components/common/avatar";
 import { Icon } from "@/components/common/icons";
+import { notificationsApi } from "@/lib/api";
 
 const nav = [
   { href: "/feed", label: "Inicio", icon: "home" as const },
@@ -13,12 +15,18 @@ const nav = [
   { href: "/empleos", label: "Empleos", icon: "jobs" as const },
 ];
 
+function CompanyNavIcon() {
+  return <span className="company-nav-icon" aria-hidden="true"><Image src="/assets/empresas_logo.png" alt="" width={116} height={87}/></span>;
+}
+
 export function Header() {
   const { user, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
+  useEffect(() => { if (!user) return; notificationsApi.unreadCount().then(({ cantidad }) => setUnread(cantidad)).catch(() => setUnread(0)); }, [user, pathname]);
   function search(event: FormEvent) { event.preventDefault(); if (query.trim()) router.push(`/buscar?q=${encodeURIComponent(query.trim())}`); }
   async function signOut() { await logout(); router.replace("/login"); }
   return <header className="site-header">
@@ -31,7 +39,8 @@ export function Header() {
       </form>
       <nav className="main-nav" aria-label="Navegación principal">
         {nav.map((item) => <Link key={item.href} href={item.href} className={pathname.startsWith(item.href) ? "active" : ""}><Icon name={item.icon} /><span>{item.label}</span></Link>)}
-        <span className="nav-disabled" title="No disponible en la API"><Icon name="bell"/><span>Notificaciones</span></span>
+        <Link href="/empresas" className={pathname === "/empresas" || pathname.startsWith("/empresas/") ? "active" : ""}><CompanyNavIcon/><span>Empresas</span></Link>
+        <Link href="/notificaciones" className={pathname === "/notificaciones" ? "active notifications-nav" : "notifications-nav"}><Icon name="bell"/>{unread > 0 && <b className="notification-badge">{unread > 99 ? "99+" : unread}</b>}<span>Notificaciones</span></Link>
         <div className="profile-menu-wrap">
           <button className="nav-profile" onClick={() => setOpen(!open)} aria-expanded={open}>
             {user && <Avatar name={user.nombre} src={user.foto_perfil_url} size={25}/>}<span>Yo ▾</span>

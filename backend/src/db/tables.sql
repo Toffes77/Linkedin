@@ -149,3 +149,42 @@ CREATE TABLE reacciones (
         'interesante'
     ))
 );
+
+-- ============================================================
+-- NOTIFICACION
+-- ============================================================
+CREATE TABLE notificacion (
+    id SERIAL PRIMARY KEY,
+    usuario_id INT NOT NULL,
+    tipo VARCHAR(30) NOT NULL,
+    mensaje VARCHAR(500) NOT NULL,
+    leida BOOLEAN NOT NULL DEFAULT FALSE,
+    fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    postulacion_id INT,
+    oferta_id INT,
+
+    FOREIGN KEY (usuario_id) REFERENCES Usuario(id),
+    FOREIGN KEY (postulacion_id) REFERENCES Postulacion(id),
+    FOREIGN KEY (oferta_id) REFERENCES Oferta(id),
+
+    CHECK (tipo IN ('POSTULACION_NUEVA', 'POSTULACION_ESTADO'))
+);
+
+CREATE INDEX idx_notificacion_usuario_fecha
+    ON notificacion (usuario_id, fecha DESC);
+
+-- ============================================================
+-- SEGUIMIENTO (N a M DIRECCIONAL)
+-- ============================================================
+CREATE TABLE seguimiento (
+    seguidor_id INT NOT NULL,
+    seguido_id INT NOT NULL,
+    fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (seguidor_id, seguido_id),
+
+    FOREIGN KEY (seguidor_id) REFERENCES Usuario(id),
+    FOREIGN KEY (seguido_id) REFERENCES Usuario(id),
+
+    CHECK (seguidor_id <> seguido_id)
+);

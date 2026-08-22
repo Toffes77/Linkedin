@@ -6,26 +6,30 @@ from src.dtos.postulacion_dto import (
     PostulacionResponseDTO,
     UpdatePostulacionDTO,
 )
+from src.dtos.notificacion_dto import CreateNotificacionDTO
 from src.mappers.postulacion_mapper import PostulacionMapper
 from src.repositories.oferta_repository import OfertaRepository
 from src.repositories.empresa_usuario_repository import EmpresaUsuarioRepository
 from src.repositories.postulacion_repository import PostulacionRepository
 from src.repositories.usuario_repository import UsuarioRepository
+from src.services.notificacion_service import NotificacionService
 from src.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 
 class PostulacionService:
     def __init__(self, db: Session):
+        self.db = db
         self.repository = PostulacionRepository(db)
         self.oferta_repository = OfertaRepository(db)
         self.usuario_repository = UsuarioRepository(db)
         self.empresa_usuario_repository = EmpresaUsuarioRepository(db)
+        self.notificacion_service = NotificacionService(db)
 
     def create(
         self,
         postulacion_data: CreatePostulacionDTO,
     ) -> PostulacionResponseDTO:
-        self._validar_usuario(postulacion_data.usuario_id)
+        postulante = self._obtener_usuario(postulacion_data.usuario_id)
         oferta = self._obtener_oferta(postulacion_data.oferta_id)
 
         if not oferta.publicada:
@@ -40,7 +44,30 @@ class PostulacionService:
         ):
             raise ConflictError("El usuario ya se postuló a esta oferta.")
 
-        postulacion = self.repository.create(postulacion_data)
+        try:
+            postulacion = self.repository.create(postulacion_data, commit=False)
+            receptores = self.empresa_usuario_repository.get_user_ids_by_empresa_and_roles(
+                oferta.empresa_id,
+                (RolEmpresa.OWNER, RolEmpresa.RECRUITER),
+            )
+            self.notificacion_service.create_many(
+                [
+                    CreateNotificacionDTO(
+                        usuario_id=receptor_id,
+                        tipo="POSTULACION_NUEVA",
+                        mensaje=f'{postulante.nombre} se postuló a "{oferta.titulo}".',
+                        postulacion_id=postulacion.id,
+                        oferta_id=oferta.id,
+                    )
+                    for receptor_id in receptores
+                ],
+                commit=False,
+            )
+            self.db.commit()
+            self.db.refresh(postulacion)
+        except Exception:
+            self.db.rollback()
+            raise
         return PostulacionMapper.to_response_dto(postulacion)
 
     def get_by_id(self, postulacion_id: int) -> PostulacionResponseDTO:
@@ -78,15 +105,43 @@ class PostulacionService:
         oferta = self._obtener_oferta(postulacion.oferta_id)
         self._requerir_gestor_empresa(oferta.empresa_id, usuario_actual_id)
         self._validar_transicion(postulacion.estado, postulacion_data.estado)
-        postulacion_actualizada = self.repository.update(
-            postulacion,
-            postulacion_data,
-        )
+        try:
+            postulacion_actualizada = self.repository.update(
+                postulacion,
+                postulacion_data,
+                commit=False,
+            )
+            self.notificacion_service.create_many(
+                [
+                    CreateNotificacionDTO(
+                        usuario_id=postulacion_actualizada.usuario_id,
+                        tipo="POSTULACION_ESTADO",
+                        mensaje=(
+                            f'Tu postulación para "{oferta.titulo}" cambió a '
+                            f'"{postulacion_actualizada.estado.upper()}".'
+                        ),
+                        postulacion_id=postulacion_actualizada.id,
+                        oferta_id=oferta.id,
+                    )
+                ],
+                commit=False,
+            )
+            self.db.commit()
+            self.db.refresh(postulacion_actualizada)
+        except Exception:
+            self.db.rollback()
+            raise
         return PostulacionMapper.to_response_dto(postulacion_actualizada)
 
     def _validar_usuario(self, usuario_id: int) -> None:
         if self.usuario_repository.get_by_id(usuario_id) is None:
             raise NotFoundError("Usuario no encontrado.")
+
+    def _obtener_usuario(self, usuario_id: int):
+        usuario = self.usuario_repository.get_by_id(usuario_id)
+        if usuario is None:
+            raise NotFoundError("Usuario no encontrado.")
+        return usuario
 
     def _obtener_oferta(self, oferta_id: int):
         oferta = self.oferta_repository.get_by_id(oferta_id)

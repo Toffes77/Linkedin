@@ -27,6 +27,7 @@ class PostulacionResponseDTO(BaseModel):
 
     id: int
     oferta_id: int
+    oferta_titulo: str
     usuario_id: int
     fecha: datetime
     estado: EstadoPostulacion

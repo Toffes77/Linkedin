@@ -34,6 +34,18 @@ class Usuario(Base):
         foreign_keys="Conexion.usuario_b",
         back_populates="usuario_b_rel"
     )
+    seguimientos_realizados = relationship(
+        "Seguimiento",
+        foreign_keys="Seguimiento.seguidor_id",
+        back_populates="seguidor",
+        cascade="all, delete-orphan",
+    )
+    seguidores = relationship(
+        "Seguimiento",
+        foreign_keys="Seguimiento.seguido_id",
+        back_populates="seguido",
+        cascade="all, delete-orphan",
+    )
     empresas_usuario = relationship(
         "EmpresaUsuario",
         back_populates="usuario",

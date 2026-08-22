@@ -44,6 +44,14 @@ class EmpresaRepository:
     def get_by_id(self, empresa_id: int) -> Empresa | None:
         return self.db.query(Empresa).filter(Empresa.id == empresa_id).first()
 
+    def search_by_name(self, nombre: str) -> list[Empresa]:
+        return (
+            self.db.query(Empresa)
+            .filter(Empresa.nombre.ilike(f"%{nombre}%"))
+            .order_by(Empresa.nombre)
+            .all()
+        )
+
     def update(self, empresa: Empresa, empresa_data: UpdateEmpresaDTO) -> Empresa:
         EmpresaMapper.apply_update(empresa, empresa_data)
 

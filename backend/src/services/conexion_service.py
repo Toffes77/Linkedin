@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from src.dtos.conexiones_dto import (
     ConexionResponseDTO,
     CreateConexionDTO,
+    InvitacionRecibidaResponseDTO,
+    ResumenRedResponseDTO,
     UpdateConexionDTO,
 )
 from src.dtos.usuario_dto import UsuarioResponseDTO
@@ -10,6 +12,7 @@ from src.mappers.conexion_mapper import ConexionMapper
 from src.mappers.usuario_mapper import UsuarioMapper
 from src.repositories.conexion_repository import ConexionRepository
 from src.repositories.usuario_repository import UsuarioRepository
+from src.repositories.seguimiento_repository import SeguimientoRepository
 from src.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 
@@ -17,6 +20,22 @@ class ConexionService:
     def __init__(self, db: Session):
         self.repository = ConexionRepository(db)
         self.usuario_repository = UsuarioRepository(db)
+        self.seguimiento_repository = SeguimientoRepository(db)
+
+    def get_resumen_red(self, usuario_id: int) -> ResumenRedResponseDTO:
+        return ResumenRedResponseDTO(
+            invitaciones_enviadas=self.repository.count_pending_sent(usuario_id),
+            contactos=self.repository.count_accepted_by_user(usuario_id),
+            siguiendo=self.seguimiento_repository.count_following(usuario_id),
+        )
+
+    def get_invitaciones_recibidas(
+        self, usuario_id: int
+    ) -> list[InvitacionRecibidaResponseDTO]:
+        return [
+            ConexionMapper.to_invitacion_response_dto(conexion)
+            for conexion in self.repository.get_pending_received_by_user(usuario_id)
+        ]
 
     def create(
         self,

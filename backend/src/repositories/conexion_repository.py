@@ -1,5 +1,5 @@
 from sqlalchemy import func, or_, select, union, union_all
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, selectinload, joinedload
 
 from src.db.models.conexiones_model import Conexion
 from src.db.models.usuario_model import Usuario
@@ -57,6 +57,34 @@ class ConexionRepository:
                     Conexion.usuario_b == usuario_id,
                 ),
             )
+            .all()
+        )
+
+    def count_pending_sent(self, usuario_id: int) -> int:
+        return (
+            self.db.query(Conexion)
+            .filter(Conexion.usuario_a == usuario_id, Conexion.estado == "pendiente")
+            .count()
+        )
+
+    def count_accepted_by_user(self, usuario_id: int) -> int:
+        return (
+            self.db.query(Conexion)
+            .filter(
+                Conexion.estado == "aceptada",
+                or_(Conexion.usuario_a == usuario_id, Conexion.usuario_b == usuario_id),
+            )
+            .count()
+        )
+
+    def get_pending_received_by_user(self, usuario_id: int) -> list[Conexion]:
+        return (
+            self.db.query(Conexion)
+            .options(
+                joinedload(Conexion.usuario_a_rel).selectinload(Usuario.experiencias)
+            )
+            .filter(Conexion.usuario_b == usuario_id, Conexion.estado == "pendiente")
+            .order_by(Conexion.fecha.desc())
             .all()
         )
 

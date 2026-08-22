@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from src.db.connection import get_db
@@ -13,6 +13,7 @@ from src.schemas.empresa_schema import (
 )
 from src.dtos.empresa_usuario_dto import (
     EmpresaUsuarioResponseDTO,
+    MiEmpresaResponseDTO,
 )
 from src.mappers.empresa_mapper import EmpresaMapper
 from src.mappers.empresa_usuario_mapper import EmpresaUsuarioMapper
@@ -20,12 +21,36 @@ from src.middlewares.auth_middleware import get_current_user
 from src.schemas.empresa_usuario_schema import (
     CreateEmpresaUsuarioSchema,
     GetEmpresaUsuarioSchema,
+    GetMiEmpresaSchema,
     UpdateEmpresaUsuarioSchema,
 )
 from src.services.empresa_service import EmpresaService
 from src.services.empresa_usuario_service import EmpresaUsuarioService
 
 router = APIRouter(prefix="/empresas", tags=["empresas"])
+
+
+@router.get("", response_model=list[GetEmpresaSchema])
+def search_empresas(
+    q: str = Query(min_length=1, max_length=100, pattern=r".*\S.*"),
+    db: Session = Depends(get_db),
+):
+    empresas = EmpresaService(db).search(q)
+    return [EmpresaMapper.to_response_schema(empresa) for empresa in empresas]
+
+
+@router.get("/me", response_model=list[GetMiEmpresaSchema])
+def get_my_empresas(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    empresas: list[MiEmpresaResponseDTO] = EmpresaUsuarioService(
+        db
+    ).get_by_current_user(current_user.id)
+    return [
+        EmpresaUsuarioMapper.to_my_company_response_schema(empresa)
+        for empresa in empresas
+    ]
 
 
 @router.post("", response_model=GetEmpresaSchema, status_code=status.HTTP_201_CREATED)

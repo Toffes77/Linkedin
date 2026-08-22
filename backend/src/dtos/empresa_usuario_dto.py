@@ -1,6 +1,7 @@
 from pydantic import BaseModel, ConfigDict
 
 from src.db.models.empresa_usuario_model import RolEmpresa
+from src.dtos.empresa_dto import EmpresaResponseDTO
 
 
 class CreateEmpresaUsuarioDTO(BaseModel):
@@ -17,4 +18,9 @@ class EmpresaUsuarioResponseDTO(BaseModel):
 
     empresa_id: int
     usuario_id: int
+    rol: RolEmpresa
+
+
+class MiEmpresaResponseDTO(BaseModel):
+    empresa: EmpresaResponseDTO
     rol: RolEmpresa

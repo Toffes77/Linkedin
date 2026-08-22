@@ -35,8 +35,15 @@ class PostulacionMapper:
 
     @staticmethod
     def to_response_dto(postulacion: Postulacion) -> PostulacionResponseDTO:
-        return PostulacionResponseDTO.model_validate(postulacion)
+        return PostulacionResponseDTO(
+            id=postulacion.id,
+            oferta_id=postulacion.oferta_id,
+            oferta_titulo=postulacion.oferta.titulo,
+            usuario_id=postulacion.usuario_id,
+            fecha=postulacion.fecha,
+            estado=postulacion.estado,
+        )
 
     @staticmethod
     def to_response_schema(dto: PostulacionResponseDTO) -> GetPostulacionSchema:
-        return GetPostulacionSchema.model_validate(dto)
+        return GetPostulacionSchema(**dto.model_dump())

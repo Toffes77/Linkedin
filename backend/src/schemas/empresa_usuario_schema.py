@@ -1,6 +1,7 @@
 from pydantic import BaseModel, ConfigDict
 
 from src.db.models.empresa_usuario_model import RolEmpresa
+from src.schemas.empresa_schema import GetEmpresaSchema
 
 
 class CreateEmpresaUsuarioSchema(BaseModel):
@@ -17,4 +18,11 @@ class GetEmpresaUsuarioSchema(BaseModel):
 
     empresa_id: int
     usuario_id: int
+    rol: RolEmpresa
+
+
+class GetMiEmpresaSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    empresa: GetEmpresaSchema
     rol: RolEmpresa

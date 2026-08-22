@@ -4,9 +4,11 @@ from src.db.models.empresa_usuario_model import EmpresaUsuario, RolEmpresa
 from src.dtos.empresa_usuario_dto import (
     CreateEmpresaUsuarioDTO,
     EmpresaUsuarioResponseDTO,
+    MiEmpresaResponseDTO,
     UpdateEmpresaUsuarioDTO,
 )
 from src.mappers.empresa_usuario_mapper import EmpresaUsuarioMapper
+from src.mappers.empresa_mapper import EmpresaMapper
 from src.repositories.empresa_repository import EmpresaRepository
 from src.repositories.empresa_usuario_repository import EmpresaUsuarioRepository
 from src.repositories.usuario_repository import UsuarioRepository
@@ -28,6 +30,16 @@ class EmpresaUsuarioService:
         self._requerir_owner(empresa_id, usuario_actual_id)
         relaciones = self.repository.get_by_empresa(empresa_id)
         return [EmpresaUsuarioMapper.to_response_dto(relacion) for relacion in relaciones]
+
+    def get_by_current_user(self, usuario_id: int) -> list[MiEmpresaResponseDTO]:
+        relaciones = self.repository.get_by_usuario(usuario_id)
+        return [
+            MiEmpresaResponseDTO(
+                empresa=EmpresaMapper.to_response_dto(relacion.empresa),
+                rol=relacion.rol,
+            )
+            for relacion in relaciones
+        ]
 
     def create(
         self,

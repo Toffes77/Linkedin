@@ -1,5 +1,5 @@
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from src.db.models.postulacion_model import Postulacion
 from src.dtos.postulacion_dto import CreatePostulacionDTO, UpdatePostulacionDTO
@@ -10,19 +10,33 @@ class PostulacionRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create(self, postulacion_data: CreatePostulacionDTO) -> Postulacion:
+    def create(
+        self,
+        postulacion_data: CreatePostulacionDTO,
+        *,
+        commit: bool = True,
+    ) -> Postulacion:
         postulacion = PostulacionMapper.to_model(postulacion_data)
         self.db.add(postulacion)
-        self.db.commit()
-        self.db.refresh(postulacion)
+        if commit:
+            self.db.commit()
+            self.db.refresh(postulacion)
+        else:
+            self.db.flush()
         return postulacion
 
     def get_by_id(self, postulacion_id: int) -> Postulacion | None:
-        return self.db.get(Postulacion, postulacion_id)
+        return (
+            self.db.query(Postulacion)
+            .options(joinedload(Postulacion.oferta))
+            .filter(Postulacion.id == postulacion_id)
+            .first()
+        )
 
     def get_by_oferta(self, oferta_id: int) -> list[Postulacion]:
         return (
             self.db.query(Postulacion)
+            .options(joinedload(Postulacion.oferta))
             .filter(Postulacion.oferta_id == oferta_id)
             .all()
         )
@@ -30,6 +44,7 @@ class PostulacionRepository:
     def get_by_usuario(self, usuario_id: int) -> list[Postulacion]:
         return (
             self.db.query(Postulacion)
+            .options(joinedload(Postulacion.oferta))
             .filter(Postulacion.usuario_id == usuario_id)
             .all()
         )
@@ -52,11 +67,16 @@ class PostulacionRepository:
         self,
         postulacion: Postulacion,
         postulacion_data: UpdatePostulacionDTO,
+        *,
+        commit: bool = True,
     ) -> Postulacion:
         PostulacionMapper.apply_update(postulacion, postulacion_data)
 
-        self.db.commit()
-        self.db.refresh(postulacion)
+        if commit:
+            self.db.commit()
+            self.db.refresh(postulacion)
+        else:
+            self.db.flush()
         return postulacion
 
     def count_by_oferta(self, oferta_id: int) -> int:
