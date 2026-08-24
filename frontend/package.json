@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:company-members": "node --experimental-strip-types --test lib/company-members.test.ts"
   },
   "dependencies": {
     "next": "16.2.4",

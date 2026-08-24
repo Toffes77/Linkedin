@@ -9,6 +9,7 @@ export type User = { id: number; nombre: string; headline: string; ciudad: strin
 export type Company = { id: number; nombre: string; industria: string | null; sitio_web: string | null; foto_perfil_url: string | null };
 export type CompanyRole = "OWNER" | "RECRUITER" | "COLLABORATOR";
 export type CompanyMember = { empresa_id: number; usuario_id: number; rol: CompanyRole };
+export type CompanyTeamMember = { usuario_id: number; nombre: string; headline: string; foto_perfil_url: string | null; rol: CompanyRole };
 export type MyCompany = { empresa: Company; rol: CompanyRole };
 export type Connection = { usuario_a: number; usuario_b: number; fecha: string; estado: "pendiente" | "aceptada" | "rechazada" };
 export type ConnectionState = "SIN_CONEXION" | "PENDIENTE_ENVIADA" | "PENDIENTE_RECIBIDA" | "CONECTADO" | "RECHAZADA";
@@ -20,11 +21,16 @@ export type Post = { id: number; autor_id: number; texto: string; fecha: string 
 export type ReactionType = "like" | "celebrar" | "apoyar" | "interesante";
 export type Reaction = { usuario_id: number; publicacion_id: number; tipo: ReactionType };
 export type ReactionCounts = Record<ReactionType, number>;
+export type CommentAuthor = { id: number; nombre: string; headline: string | null; foto_perfil_url: string | null };
+export type Comment = { id: number; publicacion_id: number; usuario_id: number; contenido: string; fecha: string; comentario_padre_id: number | null; autor: CommentAuthor; cantidad_respuestas: number; respuestas: Comment[] };
 export type Job = { id: number; empresa_id: number; titulo: string; descripcion: string; publicada: boolean; fecha_publicacion: string | null };
 export type ApplicationStatus = "nueva" | "vista" | "entrevista" | "contratado" | "rechazada";
 export type Application = { id: number; oferta_id: number; oferta_titulo: string; usuario_id: number; fecha: string; estado: ApplicationStatus };
 export type NotificationType = "POSTULACION_NUEVA" | "POSTULACION_ESTADO" | "NUEVO_SEGUIDOR" | "NUEVA_INVITACION_CONEXION" | "CONEXION_ACEPTADA";
 export type Notification = { id: number; usuario_id: number; tipo: NotificationType; mensaje: string; leida: boolean; fecha: string; postulacion_id: number | null; oferta_id: number | null; usuario_origen_id: number | null };
+export type MessageContact = { usuario_id: number; nombre: string; headline: string; foto_perfil_url: string | null; conversacion_id: number | null; ultimo_mensaje: string | null; ultimo_mensaje_autor_id: number | null; fecha_ultimo_mensaje: string | null; no_leidos: number };
+export type Conversation = { id: number; usuario_id: number; fecha_creacion: string };
+export type PrivateMessage = { id: number; conversacion_id: number; autor_id: number; contenido: string; fecha: string };
 export type JobStats = { oferta_id: number; total_postulaciones: number; postulaciones_por_estado: Record<ApplicationStatus, number>; dias_desde_publicacion: number | null };
 
 type ApiOptions = Omit<RequestInit, "credentials"> & { json?: unknown };
@@ -107,6 +113,15 @@ export const notificationsApi = {
   markRead: (id: number) => apiFetch<Notification>(`/api/notificaciones/${id}/leida`, { method: "PATCH" }),
 };
 
+export const messagesApi = {
+  listConversations: () => apiFetch<MessageContact[]>("/api/conversaciones"),
+  getOrCreateConversation: (userId: number) => apiFetch<Conversation>("/api/conversaciones", { method: "POST", json: { usuario_id: userId } }),
+  getMessages: (conversationId: number, limit = 30, offset = 0) => apiFetch<PrivateMessage[]>(`/api/conversaciones/${conversationId}/mensajes?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`),
+  sendMessage: (conversationId: number, content: string) => apiFetch<PrivateMessage>(`/api/conversaciones/${conversationId}/mensajes`, { method: "POST", json: { contenido: content } }),
+  markAsRead: (conversationId: number) => apiFetch<void>(`/api/conversaciones/${conversationId}/leer`, { method: "POST" }),
+  unreadCount: () => apiFetch<{ cantidad: number }>("/api/conversaciones/no-leidos/count"),
+};
+
 export const followsApi = {
   status: (userId: number) => apiFetch<{ siguiendo: boolean }>(`/api/usuarios/${userId}/seguimiento`),
   follow: (userId: number) => apiFetch<Follow>(`/api/usuarios/${userId}/seguir`, { method: "POST" }),
@@ -124,6 +139,14 @@ export const postsApi = {
   changeReaction: (postId: number, tipo: ReactionType) => apiFetch<Reaction>(`/api/publicaciones/${postId}/reacciones`, { method: "PATCH", json: { tipo } }),
 };
 
+export const commentsApi = {
+  list: (postId: number) => apiFetch<Comment[]>(`/api/publicaciones/${postId}/comentarios`),
+  count: (postId: number) => apiFetch<{ cantidad: number }>(`/api/publicaciones/${postId}/comentarios/count`),
+  create: (postId: number, contenido: string) => apiFetch<Comment>(`/api/publicaciones/${postId}/comentarios`, { method: "POST", json: { contenido } }),
+  reply: (commentId: number, contenido: string) => apiFetch<Comment>(`/api/comentarios/${commentId}/respuestas`, { method: "POST", json: { contenido } }),
+  delete: (commentId: number) => apiFetch<void>(`/api/comentarios/${commentId}`, { method: "DELETE" }),
+};
+
 export const companiesApi = {
   mine: () => apiFetch<MyCompany[]>("/api/empresas/me"),
   search: (q: string) => apiFetch<Company[]>(`/api/empresas?${new URLSearchParams({ q })}`),
@@ -131,6 +154,7 @@ export const companiesApi = {
   create: (data: { nombre: string; industria: string | null; sitio_web: string | null }) => apiFetch<Company>("/api/empresas", { method: "POST", json: data }),
   update: (id: number, data: Partial<Pick<Company, "nombre" | "industria" | "sitio_web">>) => apiFetch<Company>(`/api/empresas/${id}`, { method: "PUT", json: data }),
   photo: (id: number, foto: File) => { const body = new FormData(); body.append("foto", foto); return apiFetch<Company>(`/api/empresas/${id}/foto-perfil`, { method: "PUT", body }); },
+  getMembers: (id: number) => apiFetch<CompanyTeamMember[]>(`/api/empresas/${id}/miembros`),
   members: (id: number) => apiFetch<CompanyMember[]>(`/api/empresas/${id}/usuarios`),
   addMember: (id: number, usuario_id: number, rol: CompanyRole) => apiFetch<CompanyMember>(`/api/empresas/${id}/usuarios`, { method: "POST", json: { usuario_id, rol } }),
   updateMember: (id: number, userId: number, rol: CompanyRole) => apiFetch<CompanyMember>(`/api/empresas/${id}/usuarios/${userId}`, { method: "PATCH", json: { rol } }),
