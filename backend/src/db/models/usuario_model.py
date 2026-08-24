@@ -24,6 +24,12 @@ class Usuario(Base):
     publicaciones = relationship("Publicacion", back_populates="autor")
     postulaciones = relationship("Postulacion", back_populates="usuario")
     reacciones = relationship("Reacciones", back_populates="usuario")
+    comentarios = relationship(
+        "Comentario",
+        back_populates="autor",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
     conexiones_enviadas = relationship(
         "Conexion",
         foreign_keys="Conexion.usuario_a",
@@ -48,6 +54,11 @@ class Usuario(Base):
     )
     empresas_usuario = relationship(
         "EmpresaUsuario",
+        back_populates="usuario",
+        cascade="all, delete-orphan",
+    )
+    conversaciones = relationship(
+        "ConversacionUsuario",
         back_populates="usuario",
         cascade="all, delete-orphan",
     )

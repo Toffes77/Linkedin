@@ -21,6 +21,14 @@ class EmpresaUsuarioResponseDTO(BaseModel):
     rol: RolEmpresa
 
 
+class MiembroEmpresaResponseDTO(BaseModel):
+    usuario_id: int
+    nombre: str
+    headline: str
+    foto_perfil_url: str | None = None
+    rol: RolEmpresa
+
+
 class MiEmpresaResponseDTO(BaseModel):
     empresa: EmpresaResponseDTO
     rol: RolEmpresa

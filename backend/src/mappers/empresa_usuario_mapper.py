@@ -2,11 +2,13 @@ from src.db.models.empresa_usuario_model import EmpresaUsuario, RolEmpresa
 from src.dtos.empresa_usuario_dto import (
     CreateEmpresaUsuarioDTO,
     EmpresaUsuarioResponseDTO,
+    MiembroEmpresaResponseDTO,
     UpdateEmpresaUsuarioDTO,
 )
 from src.schemas.empresa_usuario_schema import (
     CreateEmpresaUsuarioSchema,
     GetEmpresaUsuarioSchema,
+    GetMiembroEmpresaSchema,
     GetMiEmpresaSchema,
     UpdateEmpresaUsuarioSchema,
 )
@@ -52,6 +54,22 @@ class EmpresaUsuarioMapper:
     @staticmethod
     def to_response_schema(dto: EmpresaUsuarioResponseDTO) -> GetEmpresaUsuarioSchema:
         return GetEmpresaUsuarioSchema.model_validate(dto)
+
+    @staticmethod
+    def to_member_response_dto(model: EmpresaUsuario) -> MiembroEmpresaResponseDTO:
+        return MiembroEmpresaResponseDTO(
+            usuario_id=model.usuario_id,
+            nombre=model.usuario.nombre,
+            headline=model.usuario.headline,
+            foto_perfil_url=model.usuario.foto_perfil_url,
+            rol=model.rol,
+        )
+
+    @staticmethod
+    def to_member_response_schema(
+        dto: MiembroEmpresaResponseDTO,
+    ) -> GetMiembroEmpresaSchema:
+        return GetMiembroEmpresaSchema.model_validate(dto)
 
     @staticmethod
     def to_my_company_response_schema(dto: MiEmpresaResponseDTO) -> GetMiEmpresaSchema:

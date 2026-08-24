@@ -68,6 +68,10 @@ class ConexionRepository:
             .all()
         )
 
+    def has_accepted_connection(self, usuario_a: int, usuario_b: int) -> bool:
+        conexion = self.get_by_usuarios(usuario_a, usuario_b)
+        return conexion is not None and conexion.estado == "aceptada"
+
     def count_pending_sent(self, usuario_id: int) -> int:
         return (
             self.db.query(Conexion)

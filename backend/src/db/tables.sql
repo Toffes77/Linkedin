@@ -69,6 +69,30 @@ CREATE TABLE Publicacion (
 );
 
 -- ============================================================
+-- COMENTARIOS Y RESPUESTAS
+-- ============================================================
+CREATE TABLE comentario (
+    id SERIAL PRIMARY KEY,
+    publicacion_id INT NOT NULL,
+    usuario_id INT NOT NULL,
+    contenido VARCHAR(1000) NOT NULL,
+    fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    comentario_padre_id INT,
+
+    FOREIGN KEY (publicacion_id) REFERENCES Publicacion(id) ON DELETE CASCADE,
+    FOREIGN KEY (usuario_id) REFERENCES Usuario(id) ON DELETE CASCADE,
+    FOREIGN KEY (comentario_padre_id) REFERENCES comentario(id) ON DELETE CASCADE,
+
+    CONSTRAINT comentario_contenido_check
+        CHECK (LENGTH(TRIM(contenido)) BETWEEN 1 AND 1000)
+);
+
+CREATE INDEX idx_comentario_publicacion_fecha
+    ON comentario (publicacion_id, fecha DESC, id DESC);
+CREATE INDEX idx_comentario_padre_fecha
+    ON comentario (comentario_padre_id, fecha, id);
+
+-- ============================================================
 -- OFERTAd
 -- ============================================================
 CREATE TABLE Oferta (
@@ -198,3 +222,54 @@ CREATE TABLE seguimiento (
 
     CHECK (seguidor_id <> seguido_id)
 );
+
+-- ============================================================
+-- MENSAJES PRIVADOS 1 A 1
+-- ============================================================
+CREATE TABLE conversacion (
+    id SERIAL PRIMARY KEY,
+    usuario_menor_id INT NOT NULL,
+    usuario_mayor_id INT NOT NULL,
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_ultimo_mensaje TIMESTAMP,
+
+    FOREIGN KEY (usuario_menor_id) REFERENCES Usuario(id),
+    FOREIGN KEY (usuario_mayor_id) REFERENCES Usuario(id),
+    CONSTRAINT conversacion_par_ordenado_check
+        CHECK (usuario_menor_id < usuario_mayor_id),
+    CONSTRAINT uq_conversacion_par_privado
+        UNIQUE (usuario_menor_id, usuario_mayor_id)
+);
+
+CREATE TABLE conversacion_usuario (
+    conversacion_id INT NOT NULL,
+    usuario_id INT NOT NULL,
+    ultima_lectura TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (conversacion_id, usuario_id),
+    FOREIGN KEY (conversacion_id) REFERENCES conversacion(id) ON DELETE CASCADE,
+    FOREIGN KEY (usuario_id) REFERENCES Usuario(id) ON DELETE CASCADE
+);
+
+CREATE TABLE mensaje (
+    id SERIAL PRIMARY KEY,
+    conversacion_id INT NOT NULL,
+    autor_id INT NOT NULL,
+    contenido VARCHAR(2000) NOT NULL,
+    fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (conversacion_id) REFERENCES conversacion(id) ON DELETE CASCADE,
+    CONSTRAINT fk_mensaje_autor_participante
+        FOREIGN KEY (conversacion_id, autor_id)
+        REFERENCES conversacion_usuario(conversacion_id, usuario_id)
+        ON DELETE CASCADE,
+    CONSTRAINT mensaje_contenido_check
+        CHECK (length(trim(contenido)) BETWEEN 1 AND 2000)
+);
+
+CREATE INDEX idx_conversacion_ultimo_mensaje
+    ON conversacion (fecha_ultimo_mensaje);
+CREATE INDEX idx_conversacion_usuario_usuario
+    ON conversacion_usuario (usuario_id, conversacion_id);
+CREATE INDEX idx_mensaje_conversacion_fecha
+    ON mensaje (conversacion_id, fecha, id);

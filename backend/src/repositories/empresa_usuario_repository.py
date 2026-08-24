@@ -1,6 +1,8 @@
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import case, func
+from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from src.db.models.empresa_usuario_model import EmpresaUsuario, RolEmpresa
+from src.db.models.usuario_model import Usuario
 
 
 class EmpresaUsuarioRepository:
@@ -33,6 +35,27 @@ class EmpresaUsuarioRepository:
             self.db.query(EmpresaUsuario)
             .filter(EmpresaUsuario.empresa_id == empresa_id)
             .order_by(EmpresaUsuario.usuario_id)
+            .all()
+        )
+
+    def get_public_members(self, empresa_id: int) -> list[EmpresaUsuario]:
+        role_priority = case(
+            (EmpresaUsuario.rol == RolEmpresa.OWNER, 0),
+            (EmpresaUsuario.rol == RolEmpresa.RECRUITER, 1),
+            (EmpresaUsuario.rol == RolEmpresa.COLLABORATOR, 2),
+            else_=3,
+        )
+        return (
+            self.db.query(EmpresaUsuario)
+            .join(EmpresaUsuario.usuario)
+            .options(contains_eager(EmpresaUsuario.usuario))
+            .filter(EmpresaUsuario.empresa_id == empresa_id)
+            .order_by(
+                role_priority,
+                func.lower(Usuario.nombre),
+                Usuario.nombre,
+                Usuario.id,
+            )
             .all()
         )
 

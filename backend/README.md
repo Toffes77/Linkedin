@@ -1,81 +1,36 @@
-# Initial Structure — FastAPI + SQLAlchemy + Pydantic
+# Backend
 
-Estructura base de un proyecto en capas (routers, services, repositories, models, schemas, dtos, mappers, middlewares).
+API del clon simplificado de LinkedIn construida con FastAPI, SQLAlchemy, Pydantic y PostgreSQL.
 
-## Importante: este repo es un TEMPLATE
+La documentación principal de instalación, variables de entorno, base de datos y funcionalidades está en [`../README.md`](../README.md). Las reglas operativas para agentes que modifiquen esta aplicación están en [`AGENTS.md`](AGENTS.md).
 
-**No clones este repo directamente ni intentes pushear.** El repo está protegido y solo el docente tiene permisos de escritura.
+## Inicio rápido
 
-### Cómo trabajar con esta plantilla
-
-1. Entrá al repo en GitHub.
-2. Hacé click en el botón verde **"Use this template" → "Create a new repository"** (o, si no aparece, usá **"Fork"**).
-3. Creá el nuevo repo en **tu cuenta personal** de GitHub.
-4. Cloná **tu copia** (no la del docente):
-   ```bash
-   git clone https://github.com/<TU_USUARIO>/<TU_REPO>.git
-   cd <TU_REPO>
-   ```
-5. A partir de ahí trabajás libremente sobre tu propio repo.
-
-> Si intentás `git push` y te dice `permission denied`, es porque clonaste el repo del docente en lugar de tu fork/template. Volvé al paso 2.
-
----
-
-## Setup
+Desde `backend/`:
 
 ```bash
-python -m venv venv
-source venv/bin/activate          # Linux/Mac
-# venv\Scripts\Activate.ps1       # Windows
-
+python -m venv .venv
 pip install -r requirements.txt
-cp .env.example .env               # editá con tus credenciales
-
-uvicorn src.app:app --reload
 ```
 
-Abrir http://localhost:8000/docs para ver Swagger.
+Crear `.env` desde `.env.example`, inicializar PostgreSQL con `src/db/tables.sql` si se trata de una base nueva y ejecutar:
 
----
-
-## Estructura de carpetas
-
-```
-src/
-├── db/
-│   ├── connection.py
-│   ├── models/          # SQLAlchemy
-│   ├── migrations/      # Alembic
-│   └── seeders/
-├── schemas/             # Pydantic (validación HTTP)
-├── dtos/                # Pydantic (transporte entre capas)
-├── mappers/             # Model ⇄ DTO
-├── repositories/        # queries
-├── services/            # lógica de negocio
-├── routers/             # endpoints FastAPI
-├── middlewares/
-├── config/
-├── utils/
-├── app.py               # crea app FastAPI
-└── main.py              # entry point
+```bash
+python -m src.main
 ```
 
----
+Swagger queda disponible en <http://localhost:8000/docs>.
 
-## Cómo está pensada la entrega
+## Arquitectura
 
-El módulo de **users** tiene un endpoint completo (`POST /users`) con todas las capas implementadas como ejemplo de la sintaxis.
+```text
+Router → Service → Repository → PostgreSQL
+```
 
-El resto de los métodos (`GET`, `PUT`, `DELETE`) y los demás dominios (`products`, `auth`) están con `...` / `pass` / comentarios `TODO`. **Tu trabajo es completarlos** siguiendo el patrón del ejemplo.
+Models SQLAlchemy, Schemas, DTOs y Mappers permanecen separados. Las queries deben vivir en Repository y las reglas de negocio/autorización en Service.
 
----
+## Tests
 
-## Reglas de la arquitectura
-
-1. `routers` no tocan la BD.
-2. `services` no tocan `Request` / `Response`.
-3. `repositories` no tienen lógica de negocio.
-4. `models` no salen del repository / service.
-5. `schemas` solo en routers.
-6. Al cliente siempre va un DTO, nunca un Model.
+```bash
+python -m unittest discover -s tests -v
+```

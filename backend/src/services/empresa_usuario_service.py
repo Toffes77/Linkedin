@@ -5,6 +5,7 @@ from src.dtos.empresa_usuario_dto import (
     CreateEmpresaUsuarioDTO,
     EmpresaUsuarioResponseDTO,
     MiEmpresaResponseDTO,
+    MiembroEmpresaResponseDTO,
     UpdateEmpresaUsuarioDTO,
 )
 from src.mappers.empresa_usuario_mapper import EmpresaUsuarioMapper
@@ -38,6 +39,14 @@ class EmpresaUsuarioService:
                 empresa=EmpresaMapper.to_response_dto(relacion.empresa),
                 rol=relacion.rol,
             )
+            for relacion in relaciones
+        ]
+
+    def get_public_members(self, empresa_id: int) -> list[MiembroEmpresaResponseDTO]:
+        self._validar_empresa(empresa_id)
+        relaciones = self.repository.get_public_members(empresa_id)
+        return [
+            EmpresaUsuarioMapper.to_member_response_dto(relacion)
             for relacion in relaciones
         ]
 

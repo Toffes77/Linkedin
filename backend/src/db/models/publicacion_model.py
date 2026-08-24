@@ -26,6 +26,12 @@ class Publicacion(Base):
 
     autor = relationship("Usuario", back_populates="publicaciones")
     reacciones = relationship("Reacciones", back_populates="publicacion")
+    comentarios = relationship(
+        "Comentario",
+        back_populates="publicacion",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     __table_args__ = (
         CheckConstraint(

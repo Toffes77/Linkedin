@@ -21,6 +21,16 @@ class GetEmpresaUsuarioSchema(BaseModel):
     rol: RolEmpresa
 
 
+class GetMiembroEmpresaSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    usuario_id: int
+    nombre: str
+    headline: str
+    foto_perfil_url: str | None = None
+    rol: RolEmpresa
+
+
 class GetMiEmpresaSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

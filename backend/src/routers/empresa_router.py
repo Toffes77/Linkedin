@@ -14,6 +14,7 @@ from src.schemas.empresa_schema import (
 from src.dtos.empresa_usuario_dto import (
     EmpresaUsuarioResponseDTO,
     MiEmpresaResponseDTO,
+    MiembroEmpresaResponseDTO,
 )
 from src.mappers.empresa_mapper import EmpresaMapper
 from src.mappers.empresa_usuario_mapper import EmpresaUsuarioMapper
@@ -21,6 +22,7 @@ from src.middlewares.auth_middleware import get_current_user
 from src.schemas.empresa_usuario_schema import (
     CreateEmpresaUsuarioSchema,
     GetEmpresaUsuarioSchema,
+    GetMiembroEmpresaSchema,
     GetMiEmpresaSchema,
     UpdateEmpresaUsuarioSchema,
 )
@@ -113,6 +115,20 @@ def get_usuarios_empresa(
         current_user.id,
     )
     return [EmpresaUsuarioMapper.to_response_schema(usuario) for usuario in usuarios]
+
+
+@router.get("/{empresa_id}/miembros", response_model=list[GetMiembroEmpresaSchema])
+def get_miembros_empresa(
+    empresa_id: int,
+    db: Session = Depends(get_db),
+):
+    miembros: list[MiembroEmpresaResponseDTO] = EmpresaUsuarioService(
+        db
+    ).get_public_members(empresa_id)
+    return [
+        EmpresaUsuarioMapper.to_member_response_schema(miembro)
+        for miembro in miembros
+    ]
 
 
 @router.post("/{empresa_id}/usuarios", response_model=GetEmpresaUsuarioSchema, status_code=status.HTTP_201_CREATED)
