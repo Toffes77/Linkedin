@@ -15,9 +15,13 @@ class Notificacion(Base):
     fecha = Column(DateTime, nullable=False, server_default=func.now())
     postulacion_id = Column(Integer, ForeignKey("postulacion.id"), nullable=True)
     oferta_id = Column(Integer, ForeignKey("oferta.id"), nullable=True)
+    usuario_origen_id = Column(Integer, ForeignKey("usuario.id"), nullable=True)
 
     __table_args__ = (
         CheckConstraint(
-            "tipo IN ('POSTULACION_NUEVA', 'POSTULACION_ESTADO')"
+            "tipo IN ('POSTULACION_NUEVA', 'POSTULACION_ESTADO', "
+            "'NUEVO_SEGUIDOR', 'NUEVA_INVITACION_CONEXION', "
+            "'CONEXION_ACEPTADA')",
+            name="notificacion_tipo_check",
         ),
     )

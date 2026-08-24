@@ -10,11 +10,20 @@ class SeguimientoRepository:
     def get(self, seguidor_id: int, seguido_id: int) -> Seguimiento | None:
         return self.db.get(Seguimiento, (seguidor_id, seguido_id))
 
-    def create(self, seguidor_id: int, seguido_id: int) -> Seguimiento:
+    def create(
+        self,
+        seguidor_id: int,
+        seguido_id: int,
+        *,
+        commit: bool = True,
+    ) -> Seguimiento:
         seguimiento = Seguimiento(seguidor_id=seguidor_id, seguido_id=seguido_id)
         self.db.add(seguimiento)
-        self.db.commit()
-        self.db.refresh(seguimiento)
+        if commit:
+            self.db.commit()
+            self.db.refresh(seguimiento)
+        else:
+            self.db.flush()
         return seguimiento
 
     def delete(self, seguimiento: Seguimiento) -> None:

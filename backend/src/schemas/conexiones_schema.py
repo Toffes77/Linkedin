@@ -7,6 +7,13 @@ from src.schemas.usuario_schema import GetUsuarioSchema
 
 
 EstadoConexion = Literal["pendiente", "aceptada", "rechazada"]
+EstadoRelacionConexion = Literal[
+    "SIN_CONEXION",
+    "PENDIENTE_ENVIADA",
+    "PENDIENTE_RECIBIDA",
+    "CONECTADO",
+    "RECHAZADA",
+]
 
 
 class CreateConexionSchema(BaseModel):
@@ -25,6 +32,12 @@ class GetConexionSchema(BaseModel):
     usuario_b: int
     fecha: datetime
     estado: EstadoConexion
+
+
+class EstadoConexionResponseSchema(BaseModel):
+    estado: EstadoRelacionConexion
+    usuario_a: int | None = None
+    usuario_b: int | None = None
 
 
 class ResumenRedResponseSchema(BaseModel):

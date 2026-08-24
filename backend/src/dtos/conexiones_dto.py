@@ -7,6 +7,13 @@ from src.dtos.usuario_dto import UsuarioResponseDTO
 
 
 EstadoConexion = Literal["pendiente", "aceptada", "rechazada"]
+EstadoRelacionConexion = Literal[
+    "SIN_CONEXION",
+    "PENDIENTE_ENVIADA",
+    "PENDIENTE_RECIBIDA",
+    "CONECTADO",
+    "RECHAZADA",
+]
 
 
 class CreateConexionDTO(BaseModel):
@@ -25,6 +32,12 @@ class ConexionResponseDTO(BaseModel):
     usuario_b: int
     fecha: datetime
     estado: EstadoConexion
+
+
+class EstadoConexionResponseDTO(BaseModel):
+    estado: EstadoRelacionConexion
+    usuario_a: int | None = None
+    usuario_b: int | None = None
 
 
 class ResumenRedResponseDTO(BaseModel):

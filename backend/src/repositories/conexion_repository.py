@@ -11,11 +11,19 @@ class ConexionRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create(self, conexion_data: CreateConexionDTO) -> Conexion:
+    def create(
+        self,
+        conexion_data: CreateConexionDTO,
+        *,
+        commit: bool = True,
+    ) -> Conexion:
         conexion = ConexionMapper.to_model(conexion_data)
         self.db.add(conexion)
-        self.db.commit()
-        self.db.refresh(conexion)
+        if commit:
+            self.db.commit()
+            self.db.refresh(conexion)
+        else:
+            self.db.flush()
         return conexion
 
     def get_by_id(self, usuario_a: int, usuario_b: int) -> Conexion | None:
@@ -152,9 +160,13 @@ class ConexionRepository:
         self,
         conexion: Conexion,
         conexion_data: UpdateConexionDTO,
+        *,
+        commit: bool = True,
     ) -> Conexion:
         ConexionMapper.apply_update(conexion, conexion_data)
-
-        self.db.commit()
-        self.db.refresh(conexion)
+        if commit:
+            self.db.commit()
+            self.db.refresh(conexion)
+        else:
+            self.db.flush()
         return conexion

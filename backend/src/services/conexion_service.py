@@ -3,24 +3,29 @@ from sqlalchemy.orm import Session
 from src.dtos.conexiones_dto import (
     ConexionResponseDTO,
     CreateConexionDTO,
+    EstadoConexionResponseDTO,
     InvitacionRecibidaResponseDTO,
     ResumenRedResponseDTO,
     UpdateConexionDTO,
 )
+from src.dtos.notificacion_dto import CreateNotificacionDTO
 from src.dtos.usuario_dto import UsuarioResponseDTO
 from src.mappers.conexion_mapper import ConexionMapper
 from src.mappers.usuario_mapper import UsuarioMapper
 from src.repositories.conexion_repository import ConexionRepository
 from src.repositories.usuario_repository import UsuarioRepository
 from src.repositories.seguimiento_repository import SeguimientoRepository
+from src.services.notificacion_service import NotificacionService
 from src.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 
 class ConexionService:
     def __init__(self, db: Session):
+        self.db = db
         self.repository = ConexionRepository(db)
         self.usuario_repository = UsuarioRepository(db)
         self.seguimiento_repository = SeguimientoRepository(db)
+        self.notificacion_service = NotificacionService(db)
 
     def get_resumen_red(self, usuario_id: int) -> ResumenRedResponseDTO:
         return ResumenRedResponseDTO(
@@ -47,7 +52,7 @@ class ConexionService:
                 "No se puede solicitar una conexión en nombre de otro usuario."
             )
 
-        self._validar_usuario(conexion_data.usuario_a)
+        usuario_origen = self._obtener_usuario(conexion_data.usuario_a)
         self._validar_usuario(conexion_data.usuario_b)
 
         if conexion_data.usuario_a == conexion_data.usuario_b:
@@ -62,8 +67,53 @@ class ConexionService:
         ):
             raise ConflictError("Ya existe una conexión entre los usuarios.")
 
-        conexion = self.repository.create(conexion_data)
+        try:
+            conexion = self.repository.create(conexion_data, commit=False)
+            self.notificacion_service.create_many(
+                [
+                    CreateNotificacionDTO(
+                        usuario_id=conexion_data.usuario_b,
+                        tipo="NUEVA_INVITACION_CONEXION",
+                        mensaje=f"{usuario_origen.nombre} quiere conectar con vos.",
+                        usuario_origen_id=conexion_data.usuario_a,
+                    )
+                ],
+                commit=False,
+            )
+            self.db.commit()
+            self.db.refresh(conexion)
+        except Exception:
+            self.db.rollback()
+            raise
         return ConexionMapper.to_response_dto(conexion)
+
+    def get_estado(
+        self,
+        usuario_autenticado_id: int,
+        otro_usuario_id: int,
+    ) -> EstadoConexionResponseDTO:
+        self._validar_usuario(otro_usuario_id)
+        conexion = self.repository.get_by_usuarios(
+            usuario_autenticado_id,
+            otro_usuario_id,
+        )
+        if conexion is None:
+            return EstadoConexionResponseDTO(estado="SIN_CONEXION")
+
+        if conexion.estado == "aceptada":
+            estado = "CONECTADO"
+        elif conexion.estado == "rechazada":
+            estado = "RECHAZADA"
+        elif conexion.usuario_a == usuario_autenticado_id:
+            estado = "PENDIENTE_ENVIADA"
+        else:
+            estado = "PENDIENTE_RECIBIDA"
+
+        return EstadoConexionResponseDTO(
+            estado=estado,
+            usuario_a=conexion.usuario_a,
+            usuario_b=conexion.usuario_b,
+        )
 
     def get_by_id(
         self,
@@ -114,9 +164,42 @@ class ConexionService:
         if conexion_data.estado not in ("aceptada", "rechazada"):
             raise ConflictError("La conexión debe aceptarse o rechazarse.")
 
-        conexion_actualizada = self.repository.update(conexion, conexion_data)
+        if conexion_data.estado == "rechazada":
+            conexion_actualizada = self.repository.update(conexion, conexion_data)
+            return ConexionMapper.to_response_dto(conexion_actualizada)
+
+        usuario_origen = self._obtener_usuario(usuario_autenticado_id)
+        try:
+            conexion_actualizada = self.repository.update(
+                conexion,
+                conexion_data,
+                commit=False,
+            )
+            self.notificacion_service.create_many(
+                [
+                    CreateNotificacionDTO(
+                        usuario_id=conexion.usuario_a,
+                        tipo="CONEXION_ACEPTADA",
+                        mensaje=(
+                            f"{usuario_origen.nombre} aceptó tu solicitud de conexión."
+                        ),
+                        usuario_origen_id=conexion.usuario_b,
+                    )
+                ],
+                commit=False,
+            )
+            self.db.commit()
+            self.db.refresh(conexion_actualizada)
+        except Exception:
+            self.db.rollback()
+            raise
         return ConexionMapper.to_response_dto(conexion_actualizada)
 
     def _validar_usuario(self, usuario_id: int) -> None:
-        if self.usuario_repository.get_by_id(usuario_id) is None:
+        self._obtener_usuario(usuario_id)
+
+    def _obtener_usuario(self, usuario_id: int):
+        usuario = self.usuario_repository.get_by_id(usuario_id)
+        if usuario is None:
             raise NotFoundError("Usuario no encontrado.")
+        return usuario

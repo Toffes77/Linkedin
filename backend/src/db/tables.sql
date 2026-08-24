@@ -24,7 +24,7 @@ CREATE TABLE Empresa (
     foto_perfil_url VARCHAR(255)
 );
 
-CREATE TYPE rol_empresa AS ENUM ('OWNER', 'RECRUITER');
+CREATE TYPE rol_empresa AS ENUM ('OWNER', 'RECRUITER', 'COLLABORATOR');
 
 CREATE TABLE empresa_usuario (
     empresa_id INT NOT NULL,
@@ -162,12 +162,22 @@ CREATE TABLE notificacion (
     fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     postulacion_id INT,
     oferta_id INT,
+    usuario_origen_id INT,
 
     FOREIGN KEY (usuario_id) REFERENCES Usuario(id),
     FOREIGN KEY (postulacion_id) REFERENCES Postulacion(id),
     FOREIGN KEY (oferta_id) REFERENCES Oferta(id),
+    FOREIGN KEY (usuario_origen_id) REFERENCES Usuario(id),
 
-    CHECK (tipo IN ('POSTULACION_NUEVA', 'POSTULACION_ESTADO'))
+    CONSTRAINT notificacion_tipo_check CHECK (
+        tipo IN (
+            'POSTULACION_NUEVA',
+            'POSTULACION_ESTADO',
+            'NUEVO_SEGUIDOR',
+            'NUEVA_INVITACION_CONEXION',
+            'CONEXION_ACEPTADA'
+        )
+    )
 );
 
 CREATE INDEX idx_notificacion_usuario_fecha

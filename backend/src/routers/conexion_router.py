@@ -5,10 +5,12 @@ from src.db.connection import get_db
 from src.db.models.usuario_model import Usuario
 from src.dtos.conexiones_dto import (
     ConexionResponseDTO,
+    EstadoConexionResponseDTO,
 )
 from src.mappers.conexion_mapper import ConexionMapper
 from src.schemas.conexiones_schema import (
     CreateConexionSchema,
+    EstadoConexionResponseSchema,
     GetConexionSchema,
     UpdateConexionSchema,
     ResumenRedResponseSchema,
@@ -42,6 +44,22 @@ def get_invitaciones_recibidas(
         ConexionMapper.to_invitacion_response_schema(invitation)
         for invitation in invitations
     ]
+
+
+@router.get(
+    "/estado/{usuario_id}",
+    response_model=EstadoConexionResponseSchema,
+)
+def get_estado_conexion(
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    estado: EstadoConexionResponseDTO = ConexionService(db).get_estado(
+        current_user.id,
+        usuario_id,
+    )
+    return ConexionMapper.to_estado_response_schema(estado)
 
 
 @router.post("", response_model=GetConexionSchema, status_code=status.HTTP_201_CREATED)

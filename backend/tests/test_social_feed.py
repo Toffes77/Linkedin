@@ -8,7 +8,9 @@ from fastapi.testclient import TestClient
 from src.app import app
 from src.db.connection import get_db
 from src.dtos.conexiones_dto import ResumenRedResponseDTO
+from src.dtos.seguimiento_dto import EstadoSeguimientoResponseDTO
 from src.mappers.conexion_mapper import ConexionMapper
+from src.mappers.seguimiento_mapper import SeguimientoMapper
 from src.middlewares.auth_middleware import get_current_user
 from src.services.conexion_service import ConexionService
 from src.services.feed_service import FeedService
@@ -103,15 +105,87 @@ class SocialFeedTests(unittest.TestCase):
         service = SeguimientoService(Mock())
         service.usuario_repository = Mock()
         service.usuario_repository.get_by_id.return_value = SimpleNamespace(id=2)
+        service.notificacion_service = Mock()
         existing = SimpleNamespace(seguidor_id=1, seguido_id=2, fecha=datetime.now())
         service.repository = Mock()
         service.repository.get.return_value = existing
 
         result = service.follow(1, 2)
         service.repository.create.assert_not_called()
+        service.notificacion_service.create_many.assert_not_called()
         self.assertEqual(result.seguido_id, 2)
         service.unfollow(1, 2)
         service.repository.delete.assert_called_once_with(existing)
+        service.notificacion_service.create_many.assert_not_called()
+
+    def test_follow_status_mapper_converts_dto_to_schema(self):
+        schema = SeguimientoMapper.to_status_schema(
+            EstadoSeguimientoResponseDTO(siguiendo=True)
+        )
+
+        self.assertEqual(schema.model_dump(), {"siguiendo": True})
+
+    def test_new_follow_creates_one_unread_notification_for_followed_user(self):
+        db = Mock()
+        service = SeguimientoService(db)
+        service.usuario_repository = Mock()
+        service.usuario_repository.get_by_id.side_effect = lambda user_id: {
+            1: SimpleNamespace(id=1, nombre="Juan Cruz"),
+            2: SimpleNamespace(id=2, nombre="Pedro"),
+        }.get(user_id)
+        service.repository = Mock()
+        service.repository.get.return_value = None
+        created_follow = SimpleNamespace(
+            seguidor_id=1,
+            seguido_id=2,
+            fecha=datetime.now(),
+        )
+        service.repository.create.return_value = created_follow
+        service.notificacion_service = Mock()
+
+        result = service.follow(1, 2)
+
+        service.repository.create.assert_called_once_with(1, 2, commit=False)
+        notifications = service.notificacion_service.create_many.call_args.args[0]
+        self.assertEqual(len(notifications), 1)
+        self.assertEqual(notifications[0].usuario_id, 2)
+        self.assertEqual(notifications[0].usuario_origen_id, 1)
+        self.assertEqual(notifications[0].tipo, "NUEVO_SEGUIDOR")
+        self.assertEqual(notifications[0].mensaje, "Juan Cruz empezó a seguirte.")
+        service.notificacion_service.create_many.assert_called_once_with(
+            notifications,
+            commit=False,
+        )
+        db.commit.assert_called_once_with()
+        db.refresh.assert_called_once_with(created_follow)
+        db.rollback.assert_not_called()
+        self.assertEqual(result.seguido_id, 2)
+
+    def test_notification_failure_rolls_back_new_follow(self):
+        db = Mock()
+        service = SeguimientoService(db)
+        service.usuario_repository = Mock()
+        service.usuario_repository.get_by_id.side_effect = lambda user_id: {
+            1: SimpleNamespace(id=1, nombre="Juan Cruz"),
+            2: SimpleNamespace(id=2, nombre="Pedro"),
+        }.get(user_id)
+        service.repository = Mock()
+        service.repository.get.return_value = None
+        service.repository.create.return_value = SimpleNamespace(
+            seguidor_id=1,
+            seguido_id=2,
+            fecha=datetime.now(),
+        )
+        service.notificacion_service = Mock()
+        service.notificacion_service.create_many.side_effect = RuntimeError(
+            "forced notification failure"
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "forced notification failure"):
+            service.follow(1, 2)
+
+        db.rollback.assert_called_once_with()
+        db.commit.assert_not_called()
 
     def test_cannot_follow_self(self):
         service = SeguimientoService(Mock())

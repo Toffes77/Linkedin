@@ -273,6 +273,7 @@ button:disabled { cursor:not-allowed; opacity:.58; }
 .role-mark { width:38px; height:38px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-weight:700; }
 .owner-mark { background:#e8f3ff; color:var(--blue); }
 .recruiter-mark { background:#e7f1ec; color:#057642; }
+.collaborator-mark { background:#eef3f8; color:#53697b; }
 .company-card-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; padding-top:18px; }
 .company-list-card { min-height:110px; display:flex; align-items:center; gap:16px; padding:18px; border:1px solid var(--border); border-radius:8px; background:white; transition:.15s; }
 .company-list-card:hover { background:#f7f7f7; box-shadow:0 1px 3px #0002; }
@@ -289,10 +290,16 @@ button:disabled { cursor:not-allowed; opacity:.58; }
 
 /* Jobs */
 .jobs-layout { max-width:1128px; margin:auto; display:grid; grid-template-columns:270px 1fr; gap:20px; align-items:start; }
-.jobs-sidebar { padding:20px 0; display:grid; }
+.jobs-sidebar { width:100%; min-width:0; padding:20px 0; display:grid; }
 .jobs-sidebar h2 { padding:0 22px; }
 .jobs-sidebar a { padding:13px 22px; font-weight:600; }
 .jobs-sidebar a:hover { background:#eee; }
+.jobs-search { width:100%; min-width:0; padding:4px 16px 16px; border-bottom:1px solid #e6e6e6; }
+.jobs-search-control { width:100%; min-width:0; max-width:100%; height:52px; display:flex; align-items:center; gap:12px; padding:0 16px; border:1px solid #c7c7c7; border-radius:999px; background:#fff; color:#191919; cursor:text; }
+.jobs-search-control:focus-within { border-color:var(--blue); outline:1px solid var(--blue); }
+.jobs-search-icon { width:22px; height:22px; flex:none; }
+.jobs-search input { min-width:0; height:100%; flex:1; padding:0; border:0; outline:0; background:transparent; color:var(--ink); font-size:18px; font-weight:400; }
+.jobs-search input::placeholder { color:#777; opacity:1; }
 .jobs-list { padding:24px; }
 .jobs-list>h1 { margin:0 0 20px; }
 .job-list-item { display:flex; gap:16px; padding:18px 0; border-bottom:1px solid #ddd; }

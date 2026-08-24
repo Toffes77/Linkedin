@@ -36,8 +36,8 @@ def create_oferta(
 
 
 @router.get("/ofertas/publicadas", response_model=list[GetOfertaSchema])
-def get_ofertas_publicadas(db: Session = Depends(get_db)):
-    ofertas: list[OfertaResponseDTO] = OfertaService(db).get_publicadas()
+def get_ofertas_publicadas(q: str | None = None, db: Session = Depends(get_db)):
+    ofertas: list[OfertaResponseDTO] = OfertaService(db).get_publicadas(q)
     return [OfertaMapper.to_response_schema(oferta) for oferta in ofertas]
 
 

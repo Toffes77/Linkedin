@@ -26,12 +26,11 @@ class OfertaRepository:
             .all()
         )
 
-    def get_publicadas(self) -> list[Oferta]:
-        return (
-            self.db.query(Oferta)
-            .filter(Oferta.publicada.is_(True))
-            .all()
-        )
+    def get_publicadas(self, titulo: str | None = None) -> list[Oferta]:
+        query = self.db.query(Oferta).filter(Oferta.publicada.is_(True))
+        if titulo:
+            query = query.filter(Oferta.titulo.ilike(f"%{titulo}%"))
+        return query.all()
 
     def update(self, oferta: Oferta, oferta_data: UpdateOfertaDTO) -> Oferta:
         OfertaMapper.apply_update(oferta, oferta_data)

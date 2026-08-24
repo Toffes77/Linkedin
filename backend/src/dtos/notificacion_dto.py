@@ -3,7 +3,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-TipoNotificacion = Literal["POSTULACION_NUEVA", "POSTULACION_ESTADO"]
+TipoNotificacion = Literal[
+    "POSTULACION_NUEVA",
+    "POSTULACION_ESTADO",
+    "NUEVO_SEGUIDOR",
+    "NUEVA_INVITACION_CONEXION",
+    "CONEXION_ACEPTADA",
+]
 
 
 class CreateNotificacionDTO(BaseModel):
@@ -12,6 +18,7 @@ class CreateNotificacionDTO(BaseModel):
     mensaje: str
     postulacion_id: int | None = None
     oferta_id: int | None = None
+    usuario_origen_id: int | None = None
 
 
 class NotificacionResponseDTO(BaseModel):
@@ -23,5 +30,6 @@ class NotificacionResponseDTO(BaseModel):
     mensaje: str
     leida: bool
     fecha: datetime
-    postulacion_id: int | None
-    oferta_id: int | None
+    postulacion_id: int | None = None
+    oferta_id: int | None = None
+    usuario_origen_id: int | None = None

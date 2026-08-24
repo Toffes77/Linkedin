@@ -7,10 +7,18 @@ class EmpresaUsuarioRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create(self, empresa_usuario: EmpresaUsuario) -> EmpresaUsuario:
+    def create(
+        self,
+        empresa_usuario: EmpresaUsuario,
+        *,
+        commit: bool = True,
+    ) -> EmpresaUsuario:
         self.db.add(empresa_usuario)
-        self.db.commit()
-        self.db.refresh(empresa_usuario)
+        if commit:
+            self.db.commit()
+            self.db.refresh(empresa_usuario)
+        else:
+            self.db.flush()
         return empresa_usuario
 
     def get_by_empresa_and_usuario(

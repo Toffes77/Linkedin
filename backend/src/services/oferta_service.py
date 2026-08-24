@@ -51,8 +51,9 @@ class OfertaService:
         ofertas = self.repository.get_by_empresa(empresa_id)
         return [OfertaMapper.to_response_dto(oferta) for oferta in ofertas]
 
-    def get_publicadas(self) -> list[OfertaResponseDTO]:
-        ofertas = self.repository.get_publicadas()
+    def get_publicadas(self, q: str | None = None) -> list[OfertaResponseDTO]:
+        titulo = q.strip() if q else None
+        ofertas = self.repository.get_publicadas(titulo or None)
         return [OfertaMapper.to_response_dto(oferta) for oferta in ofertas]
 
     def update(

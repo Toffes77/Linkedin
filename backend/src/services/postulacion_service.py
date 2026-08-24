@@ -7,6 +7,7 @@ from src.dtos.postulacion_dto import (
     UpdatePostulacionDTO,
 )
 from src.dtos.notificacion_dto import CreateNotificacionDTO
+from src.mappers.empresa_usuario_mapper import EmpresaUsuarioMapper
 from src.mappers.postulacion_mapper import PostulacionMapper
 from src.repositories.oferta_repository import OfertaRepository
 from src.repositories.empresa_usuario_repository import EmpresaUsuarioRepository
@@ -111,6 +112,11 @@ class PostulacionService:
                 postulacion_data,
                 commit=False,
             )
+            if postulacion_actualizada.estado == "contratado":
+                self._agregar_colaborador_si_no_es_miembro(
+                    oferta.empresa_id,
+                    postulacion_actualizada.usuario_id,
+                )
             self.notificacion_service.create_many(
                 [
                     CreateNotificacionDTO(
@@ -132,6 +138,27 @@ class PostulacionService:
             self.db.rollback()
             raise
         return PostulacionMapper.to_response_dto(postulacion_actualizada)
+
+    def _agregar_colaborador_si_no_es_miembro(
+        self,
+        empresa_id: int,
+        usuario_id: int,
+    ) -> None:
+        relacion = self.empresa_usuario_repository.get_by_empresa_and_usuario(
+            empresa_id,
+            usuario_id,
+        )
+        if relacion is not None:
+            return
+
+        self.empresa_usuario_repository.create(
+            EmpresaUsuarioMapper.to_model_from_values(
+                empresa_id=empresa_id,
+                usuario_id=usuario_id,
+                rol=RolEmpresa.COLLABORATOR,
+            ),
+            commit=False,
+        )
 
     def _validar_usuario(self, usuario_id: int) -> None:
         if self.usuario_repository.get_by_id(usuario_id) is None:

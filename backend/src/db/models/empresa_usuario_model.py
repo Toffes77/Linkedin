@@ -9,6 +9,7 @@ from src.db.connection import Base
 class RolEmpresa(str, Enum):
     OWNER = "OWNER"
     RECRUITER = "RECRUITER"
+    COLLABORATOR = "COLLABORATOR"
 
 
 class EmpresaUsuario(Base):

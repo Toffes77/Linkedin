@@ -22,4 +22,4 @@ class SeguimientoMapper:
     def to_status_schema(
         dto: EstadoSeguimientoResponseDTO,
     ) -> EstadoSeguimientoResponseSchema:
-        return EstadoSeguimientoResponseSchema.model_validate(dto)
+        return EstadoSeguimientoResponseSchema(**dto.model_dump())

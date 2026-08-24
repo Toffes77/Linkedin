@@ -2,12 +2,14 @@ from src.db.models.conexiones_model import Conexion
 from src.dtos.conexiones_dto import (
     ConexionResponseDTO,
     CreateConexionDTO,
+    EstadoConexionResponseDTO,
     InvitacionRecibidaResponseDTO,
     ResumenRedResponseDTO,
     UpdateConexionDTO,
 )
 from src.schemas.conexiones_schema import (
     CreateConexionSchema,
+    EstadoConexionResponseSchema,
     GetConexionSchema,
     UpdateConexionSchema,
     ResumenRedResponseSchema,
@@ -41,6 +43,12 @@ class ConexionMapper:
     @staticmethod
     def to_response_schema(dto: ConexionResponseDTO) -> GetConexionSchema:
         return GetConexionSchema.model_validate(dto)
+
+    @staticmethod
+    def to_estado_response_schema(
+        dto: EstadoConexionResponseDTO,
+    ) -> EstadoConexionResponseSchema:
+        return EstadoConexionResponseSchema(**dto.model_dump())
 
     @staticmethod
     def to_resumen_response_schema(

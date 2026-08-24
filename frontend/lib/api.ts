@@ -7,10 +7,12 @@ if (!API_URL) {
 export type Experience = { id: number; empresa_id: number; puesto: string; desde: string; hasta: string | null };
 export type User = { id: number; nombre: string; headline: string; ciudad: string; foto_perfil_url: string | null; experiencias: Experience[] };
 export type Company = { id: number; nombre: string; industria: string | null; sitio_web: string | null; foto_perfil_url: string | null };
-export type CompanyRole = "OWNER" | "RECRUITER";
+export type CompanyRole = "OWNER" | "RECRUITER" | "COLLABORATOR";
 export type CompanyMember = { empresa_id: number; usuario_id: number; rol: CompanyRole };
 export type MyCompany = { empresa: Company; rol: CompanyRole };
 export type Connection = { usuario_a: number; usuario_b: number; fecha: string; estado: "pendiente" | "aceptada" | "rechazada" };
+export type ConnectionState = "SIN_CONEXION" | "PENDIENTE_ENVIADA" | "PENDIENTE_RECIBIDA" | "CONECTADO" | "RECHAZADA";
+export type ConnectionStatus = { estado: ConnectionState; usuario_a: number | null; usuario_b: number | null };
 export type ReceivedInvitation = Connection & { usuario: User };
 export type NetworkSummary = { invitaciones_enviadas: number; contactos: number; siguiendo: number };
 export type Follow = { seguidor_id: number; seguido_id: number; fecha: string };
@@ -21,8 +23,8 @@ export type ReactionCounts = Record<ReactionType, number>;
 export type Job = { id: number; empresa_id: number; titulo: string; descripcion: string; publicada: boolean; fecha_publicacion: string | null };
 export type ApplicationStatus = "nueva" | "vista" | "entrevista" | "contratado" | "rechazada";
 export type Application = { id: number; oferta_id: number; oferta_titulo: string; usuario_id: number; fecha: string; estado: ApplicationStatus };
-export type NotificationType = "POSTULACION_NUEVA" | "POSTULACION_ESTADO";
-export type Notification = { id: number; usuario_id: number; tipo: NotificationType; mensaje: string; leida: boolean; fecha: string; postulacion_id: number | null; oferta_id: number | null };
+export type NotificationType = "POSTULACION_NUEVA" | "POSTULACION_ESTADO" | "NUEVO_SEGUIDOR" | "NUEVA_INVITACION_CONEXION" | "CONEXION_ACEPTADA";
+export type Notification = { id: number; usuario_id: number; tipo: NotificationType; mensaje: string; leida: boolean; fecha: string; postulacion_id: number | null; oferta_id: number | null; usuario_origen_id: number | null };
 export type JobStats = { oferta_id: number; total_postulaciones: number; postulaciones_por_estado: Record<ApplicationStatus, number>; dias_desde_publicacion: number | null };
 
 type ApiOptions = Omit<RequestInit, "credentials"> & { json?: unknown };
@@ -94,6 +96,7 @@ export const usersApi = {
 export const connectionsApi = {
   create: (from: number, to: number) => apiFetch<Connection>("/api/conexiones", { method: "POST", json: { usuario_a: from, usuario_b: to } }),
   respond: (from: number, to: number, estado: "aceptada" | "rechazada") => apiFetch<Connection>(`/api/conexiones/${from}/${to}`, { method: "PATCH", json: { estado } }),
+  status: (userId: number) => apiFetch<ConnectionStatus>(`/api/conexiones/estado/${userId}`),
   summary: () => apiFetch<NetworkSummary>("/api/conexiones/resumen"),
   receivedInvitations: () => apiFetch<ReceivedInvitation[]>("/api/conexiones/invitaciones-recibidas"),
 };
@@ -135,7 +138,11 @@ export const companiesApi = {
 };
 
 export const jobsApi = {
-  published: () => apiFetch<Job[]>("/api/ofertas/publicadas"),
+  published: (q?: string, signal?: AbortSignal) => {
+    const query = q?.trim();
+    const params = query ? `?${new URLSearchParams({ q: query })}` : "";
+    return apiFetch<Job[]>(`/api/ofertas/publicadas${params}`, { signal });
+  },
   get: (id: number) => apiFetch<Job>(`/api/ofertas/${id}`),
   byCompany: (id: number) => apiFetch<Job[]>(`/api/empresas/${id}/ofertas`),
   create: (data: { empresa_id: number; titulo: string; descripcion: string; publicada: boolean }) => apiFetch<Job>("/api/ofertas", { method: "POST", json: data }),
