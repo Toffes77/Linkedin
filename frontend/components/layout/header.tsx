@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
@@ -26,7 +27,7 @@ export function Header() {
   async function signOut() { await logout(); router.replace("/login"); }
   return <header className="site-header">
     <div className="header-inner">
-      <Link href="/feed" className="mini-logo" aria-label="LinkedIn inicio">in</Link>
+      <Link href="/feed" className="mini-logo" aria-label="Atanes inicio"><Image src="/assets/atanes_logo_chico.svg" alt="" width={1254} height={1254} className="mini-logo-image" preload/></Link>
       <form onSubmit={search} className="header-search">
         <Icon name="search" width={21} />
         <label className="sr-only" htmlFor="global-search">Buscar personas</label>

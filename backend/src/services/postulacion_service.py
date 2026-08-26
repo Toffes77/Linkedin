@@ -7,6 +7,7 @@ from src.dtos.postulacion_dto import (
     UpdatePostulacionDTO,
 )
 from src.dtos.notificacion_dto import CreateNotificacionDTO
+from src.dtos.oferta_dto import UpdateOfertaDTO
 from src.mappers.empresa_usuario_mapper import EmpresaUsuarioMapper
 from src.mappers.postulacion_mapper import PostulacionMapper
 from src.repositories.oferta_repository import OfertaRepository
@@ -116,6 +117,11 @@ class PostulacionService:
                 self._agregar_colaborador_si_no_es_miembro(
                     oferta.empresa_id,
                     postulacion_actualizada.usuario_id,
+                )
+                self.oferta_repository.update(
+                    oferta,
+                    UpdateOfertaDTO(publicada=False),
+                    commit=False,
                 )
             self.notificacion_service.create_many(
                 [

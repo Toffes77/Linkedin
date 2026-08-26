@@ -3,8 +3,8 @@ import "./globals.css";
 import { AuthProvider } from "@/components/auth-provider";
 
 export const metadata: Metadata = {
-  title: "LinkedIn",
-  description: "Red profesional",
+  title: "Atanes",
+  description: "Atanes, tu red profesional",
 };
 
 export default function RootLayout({

@@ -298,7 +298,12 @@ class AutomaticCollaboratorTests(unittest.TestCase):
     ):
         db = Mock()
         service = PostulacionService(db)
-        offer = SimpleNamespace(id=7, empresa_id=3, titulo="Backend")
+        offer = SimpleNamespace(
+            id=7,
+            empresa_id=3,
+            titulo="Backend",
+            publicada=True,
+        )
         application = SimpleNamespace(
             id=5,
             oferta_id=7,
@@ -317,6 +322,12 @@ class AutomaticCollaboratorTests(unittest.TestCase):
         service.repository.update.side_effect = update
         service.oferta_repository = Mock()
         service.oferta_repository.get_by_id.return_value = offer
+
+        def update_offer(model, data, *, commit=True):
+            model.publicada = data.publicada
+            return model
+
+        service.oferta_repository.update.side_effect = update_offer
         service.empresa_usuario_repository = Mock()
         service.empresa_usuario_repository.has_any_role.return_value = True
         service.empresa_usuario_repository.get_by_empresa_and_usuario.return_value = (
@@ -333,6 +344,7 @@ class AutomaticCollaboratorTests(unittest.TestCase):
 
     def test_hiring_creates_collaborator_in_the_same_transaction(self):
         service, db, _application = self.hiring_service()
+        offer = service.oferta_repository.get_by_id.return_value
 
         result = service.update(
             5,
@@ -348,6 +360,27 @@ class AutomaticCollaboratorTests(unittest.TestCase):
             service.empresa_usuario_repository.create.call_args.kwargs["commit"]
         )
         self.assertEqual(result.estado, "contratado")
+        self.assertFalse(offer.publicada)
+        updated_offer_data = service.oferta_repository.update.call_args.args[1]
+        self.assertFalse(updated_offer_data.publicada)
+        self.assertFalse(service.oferta_repository.update.call_args.kwargs["commit"])
+        db.commit.assert_called_once_with()
+
+    def test_hiring_an_already_unpublished_offer_is_idempotent(self):
+        service, db, application = self.hiring_service()
+        offer = service.oferta_repository.get_by_id.return_value
+        offer.publicada = False
+
+        result = service.update(
+            5,
+            UpdatePostulacionDTO(estado="contratado"),
+            usuario_actual_id=1,
+        )
+
+        self.assertEqual(result.estado, "contratado")
+        self.assertEqual(application.estado, "contratado")
+        self.assertFalse(offer.publicada)
+        service.oferta_repository.update.assert_called_once()
         db.commit.assert_called_once_with()
 
     def test_hiring_existing_collaborator_does_not_duplicate_membership(self):
@@ -411,6 +444,9 @@ class AutomaticCollaboratorTests(unittest.TestCase):
 
         db.commit.assert_not_called()
         db.rollback.assert_called_once_with()
+        self.assertFalse(
+            service.oferta_repository.update.call_args.kwargs["commit"]
+        )
 
 
 if __name__ == "__main__":

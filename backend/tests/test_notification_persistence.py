@@ -37,28 +37,34 @@ class NotificationPersistenceTests(unittest.TestCase):
         self.owner = self._user(f"owner-{suffix}@example.com", "Owner")
         self.recruiter = self._user(f"recruiter-{suffix}@example.com", "Recruiter")
         self.outsider = self._user(f"outsider-{suffix}@example.com", "Sin rol")
-        company = Empresa(nombre=f"Empresa notificaciones {suffix}")
+        self.company = Empresa(nombre=f"Empresa notificaciones {suffix}")
         self.db.add_all(
-            [self.applicant, self.owner, self.recruiter, self.outsider, company]
+            [
+                self.applicant,
+                self.owner,
+                self.recruiter,
+                self.outsider,
+                self.company,
+            ]
         )
         self.db.flush()
 
         self.db.add_all(
             [
                 EmpresaUsuario(
-                    empresa_id=company.id,
+                    empresa_id=self.company.id,
                     usuario_id=self.owner.id,
                     rol=RolEmpresa.OWNER,
                 ),
                 EmpresaUsuario(
-                    empresa_id=company.id,
+                    empresa_id=self.company.id,
                     usuario_id=self.recruiter.id,
                     rol=RolEmpresa.RECRUITER,
                 ),
             ]
         )
         self.offer = Oferta(
-            empresa_id=company.id,
+            empresa_id=self.company.id,
             titulo="Oferta integración notificaciones",
             descripcion="Prueba de persistencia end-to-end.",
             publicada=True,
@@ -185,6 +191,171 @@ class NotificationPersistenceTests(unittest.TestCase):
                 Postulacion.usuario_id == self.applicant.id,
             )
             .first()
+        )
+
+    def test_hiring_unpublishes_offer_without_losing_application_history(self):
+        second_applicant = self._user(
+            f"second-applicant-{uuid4().hex}@example.com",
+            "Segundo postulante",
+        )
+        self.db.add(second_applicant)
+        self.db.commit()
+
+        first_created = self.client.post(
+            "/api/postulaciones",
+            json={
+                "oferta_id": self.offer.id,
+                "usuario_id": self.applicant.id,
+            },
+        )
+        self.assertEqual(first_created.status_code, 201, first_created.text)
+        first_application_id = first_created.json()["id"]
+
+        self.current_user = second_applicant
+        second_created = self.client.post(
+            "/api/postulaciones",
+            json={
+                "oferta_id": self.offer.id,
+                "usuario_id": second_applicant.id,
+            },
+        )
+        self.assertEqual(second_created.status_code, 201, second_created.text)
+        second_application_id = second_created.json()["id"]
+
+        self.current_user = self.owner
+        for estado in ("vista", "entrevista", "contratado"):
+            changed = self.client.patch(
+                f"/api/postulaciones/{first_application_id}",
+                json={"estado": estado},
+            )
+            self.assertEqual(changed.status_code, 200, changed.text)
+
+        self.db.expire_all()
+        stored_offer = self.db.get(Oferta, self.offer.id)
+        self.assertIsNotNone(stored_offer)
+        self.assertFalse(stored_offer.publicada)
+        self.assertEqual(
+            self.db.get(Postulacion, first_application_id).estado,
+            "contratado",
+        )
+        self.assertEqual(
+            self.db.get(Postulacion, second_application_id).estado,
+            "nueva",
+        )
+        self.assertIsNotNone(
+            self.db.get(
+                EmpresaUsuario,
+                (self.company.id, self.applicant.id),
+            )
+        )
+        self.assertEqual(
+            self.db.get(
+                EmpresaUsuario,
+                (self.company.id, self.applicant.id),
+            ).rol,
+            RolEmpresa.COLLABORATOR,
+        )
+
+        public_offers = self.client.get("/api/ofertas/publicadas")
+        searched_offers = self.client.get(
+            "/api/ofertas/publicadas",
+            params={"q": "integración notificaciones"},
+        )
+        self.assertEqual(public_offers.status_code, 200, public_offers.text)
+        self.assertEqual(searched_offers.status_code, 200, searched_offers.text)
+        self.assertNotIn(
+            self.offer.id,
+            [offer["id"] for offer in public_offers.json()],
+        )
+        self.assertNotIn(
+            self.offer.id,
+            [offer["id"] for offer in searched_offers.json()],
+        )
+
+        my_applications = self.client.get(
+            f"/api/usuarios/{self.applicant.id}/postulaciones"
+        )
+        company_offers = self.client.get(
+            f"/api/empresas/{self.company.id}/ofertas"
+        )
+        self.assertEqual(my_applications.status_code, 200, my_applications.text)
+        self.assertEqual(company_offers.status_code, 200, company_offers.text)
+        self.assertIn(
+            first_application_id,
+            [application["id"] for application in my_applications.json()],
+        )
+        self.assertEqual(
+            next(
+                application
+                for application in my_applications.json()
+                if application["id"] == first_application_id
+            )["estado"],
+            "contratado",
+        )
+        self.assertIn(
+            self.offer.id,
+            [offer["id"] for offer in company_offers.json()],
+        )
+
+        self.current_user = self.outsider
+        rejected_application = self.client.post(
+            "/api/postulaciones",
+            json={
+                "oferta_id": self.offer.id,
+                "usuario_id": self.outsider.id,
+            },
+        )
+        self.assertEqual(rejected_application.status_code, 409)
+        self.assertEqual(
+            self.db.query(Postulacion)
+            .filter(Postulacion.oferta_id == self.offer.id)
+            .count(),
+            2,
+        )
+
+    def test_hiring_failure_rolls_back_status_membership_and_unpublishing(self):
+        created = self.client.post(
+            "/api/postulaciones",
+            json={
+                "oferta_id": self.offer.id,
+                "usuario_id": self.applicant.id,
+            },
+        )
+        self.assertEqual(created.status_code, 201, created.text)
+        application_id = created.json()["id"]
+
+        self.current_user = self.owner
+        for estado in ("vista", "entrevista"):
+            changed = self.client.patch(
+                f"/api/postulaciones/{application_id}",
+                json={"estado": estado},
+            )
+            self.assertEqual(changed.status_code, 200, changed.text)
+
+        with patch(
+            "src.services.postulacion_service.NotificacionService.create_many",
+            side_effect=RuntimeError("forced hiring notification failure"),
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "forced hiring notification failure",
+            ):
+                self.client.patch(
+                    f"/api/postulaciones/{application_id}",
+                    json={"estado": "contratado"},
+                )
+
+        self.db.expire_all()
+        self.assertEqual(
+            self.db.get(Postulacion, application_id).estado,
+            "entrevista",
+        )
+        self.assertTrue(self.db.get(Oferta, self.offer.id).publicada)
+        self.assertIsNone(
+            self.db.get(
+                EmpresaUsuario,
+                (self.company.id, self.applicant.id),
+            )
         )
 
     def test_follow_event_persists_once_and_supports_read_unfollow_and_refollow(self):

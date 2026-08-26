@@ -32,9 +32,18 @@ class OfertaRepository:
             query = query.filter(Oferta.titulo.ilike(f"%{titulo}%"))
         return query.all()
 
-    def update(self, oferta: Oferta, oferta_data: UpdateOfertaDTO) -> Oferta:
+    def update(
+        self,
+        oferta: Oferta,
+        oferta_data: UpdateOfertaDTO,
+        *,
+        commit: bool = True,
+    ) -> Oferta:
         OfertaMapper.apply_update(oferta, oferta_data)
 
-        self.db.commit()
-        self.db.refresh(oferta)
+        if commit:
+            self.db.commit()
+            self.db.refresh(oferta)
+        else:
+            self.db.flush()
         return oferta

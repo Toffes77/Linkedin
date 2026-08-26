@@ -32,34 +32,10 @@ class PublicacionRepository:
             query = query.limit(limit)
         return query.all()
 
-    def get_recent_by_authors(
-        self, autor_ids: set[int], limit: int
-    ) -> list[Publicacion]:
-        if not autor_ids or limit <= 0:
-            return []
+    def get_feed(self, limit: int, offset: int) -> list[Publicacion]:
         return (
             self.db.query(Publicacion)
-            .filter(Publicacion.autor_id.in_(autor_ids))
             .order_by(Publicacion.fecha.desc(), Publicacion.id.desc())
-            .limit(limit)
-            .all()
-        )
-
-    def get_general(
-        self,
-        excluded_ids: set[int],
-        excluded_author_id: int,
-        limit: int,
-        offset: int,
-    ) -> list[Publicacion]:
-        query = (
-            self.db.query(Publicacion)
-            .filter(Publicacion.autor_id != excluded_author_id)
-        )
-        if excluded_ids:
-            query = query.filter(Publicacion.id.not_in(excluded_ids))
-        return (
-            query.order_by(Publicacion.fecha.desc(), Publicacion.id.desc())
             .offset(offset)
             .limit(limit)
             .all()

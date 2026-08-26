@@ -4,14 +4,22 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from src.app import app
-from src.db.connection import get_db
+from src.db.connection import Base, get_db
+from src.db.models.conexiones_model import Conexion
+from src.db.models.publicacion_model import Publicacion
+from src.db.models.seguimiento_model import Seguimiento
+from src.db.models.usuario_model import Usuario
 from src.dtos.conexiones_dto import ResumenRedResponseDTO
 from src.dtos.seguimiento_dto import EstadoSeguimientoResponseDTO
 from src.mappers.conexion_mapper import ConexionMapper
 from src.mappers.seguimiento_mapper import SeguimientoMapper
 from src.middlewares.auth_middleware import get_current_user
+from src.repositories.publicacion_repository import PublicacionRepository
 from src.services.conexion_service import ConexionService
 from src.services.feed_service import FeedService
 from src.services.publicacion_service import PublicacionService
@@ -26,6 +34,140 @@ def post(post_id: int, author_id: int, minutes: int):
         texto=f"Post {post_id}",
         fecha=datetime(2026, 1, 1) + timedelta(minutes=minutes),
     )
+
+
+class GlobalFeedRepositoryTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.engine = create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Base.metadata.create_all(cls.engine)
+        cls.SessionLocal = sessionmaker(bind=cls.engine)
+
+    @classmethod
+    def tearDownClass(cls):
+        Base.metadata.drop_all(cls.engine)
+        cls.engine.dispose()
+
+    def setUp(self):
+        self.db: Session = self.SessionLocal()
+        self.viewer = self._user(1, "viewer@example.com", "Viewer")
+        followed = self._user(2, "followed@example.com", "Seguido")
+        connected = self._user(3, "connected@example.com", "Conexión")
+        unrelated = self._user(4, "unrelated@example.com", "Sin relación")
+        self.db.add_all([self.viewer, followed, connected, unrelated])
+        self.db.flush()
+        self.db.add_all(
+            [
+                Seguimiento(seguidor_id=self.viewer.id, seguido_id=followed.id),
+                Conexion(
+                    usuario_a=self.viewer.id,
+                    usuario_b=connected.id,
+                    estado="aceptada",
+                ),
+            ]
+        )
+
+        base_date = datetime(2026, 1, 1, 8, 0, 0)
+        self.db.add_all(
+            [
+                Publicacion(
+                    id=101,
+                    autor_id=followed.id,
+                    texto="Publicación seguida más antigua",
+                    fecha=base_date,
+                ),
+                Publicacion(
+                    id=102,
+                    autor_id=connected.id,
+                    texto="Publicación de conexión",
+                    fecha=base_date + timedelta(hours=1),
+                ),
+                Publicacion(
+                    id=103,
+                    autor_id=unrelated.id,
+                    texto="Publicación sin relación",
+                    fecha=base_date + timedelta(hours=2),
+                ),
+                Publicacion(
+                    id=104,
+                    autor_id=self.viewer.id,
+                    texto="Publicación propia",
+                    fecha=base_date + timedelta(hours=3),
+                ),
+                Publicacion(
+                    id=105,
+                    autor_id=followed.id,
+                    texto="Empate menor ID",
+                    fecha=base_date + timedelta(hours=4),
+                ),
+                Publicacion(
+                    id=106,
+                    autor_id=unrelated.id,
+                    texto="Empate mayor ID",
+                    fecha=base_date + timedelta(hours=4),
+                ),
+            ]
+        )
+        self.db.commit()
+        self.repository = PublicacionRepository(self.db)
+
+    def tearDown(self):
+        self.db.rollback()
+        self.db.query(Publicacion).delete()
+        self.db.query(Seguimiento).delete()
+        self.db.query(Conexion).delete()
+        self.db.query(Usuario).delete()
+        self.db.commit()
+        self.db.close()
+
+    @staticmethod
+    def _user(user_id: int, email: str, name: str) -> Usuario:
+        return Usuario(
+            id=user_id,
+            email=email,
+            nombre=name,
+            password_hash="not-used",
+            headline="Prueba de feed",
+            ciudad="Buenos Aires",
+        )
+
+    def ids(self, limit: int, offset: int) -> list[int]:
+        return [
+            publication.id
+            for publication in self.repository.get_feed(limit, offset)
+        ]
+
+    def test_all_posts_compete_only_by_date_regardless_of_social_relationship(self):
+        self.assertEqual(
+            self.ids(limit=20, offset=0),
+            [106, 105, 104, 103, 102, 101],
+        )
+
+    def test_equal_dates_use_descending_id_as_stable_tiebreaker(self):
+        self.assertEqual(self.ids(limit=2, offset=0), [106, 105])
+
+    def test_pages_use_limit_and_offset_without_duplicates(self):
+        first_page = self.ids(limit=2, offset=0)
+        second_page = self.ids(limit=2, offset=2)
+        third_page = self.ids(limit=2, offset=4)
+
+        self.assertEqual(first_page, [106, 105])
+        self.assertEqual(second_page, [104, 103])
+        self.assertEqual(third_page, [102, 101])
+        self.assertEqual(
+            len(set(first_page + second_page + third_page)),
+            6,
+        )
+
+    def test_empty_feed_returns_an_empty_list(self):
+        self.db.query(Publicacion).delete()
+        self.db.commit()
+
+        self.assertEqual(self.ids(limit=20, offset=0), [])
 
 
 class SocialFeedTests(unittest.TestCase):
@@ -196,54 +338,84 @@ class SocialFeedTests(unittest.TestCase):
         with self.assertRaises(ConflictError):
             service.follow(1, 1)
 
-    def test_first_page_places_up_to_five_followed_posts_before_general_posts(self):
+    def test_feed_requests_one_global_page_without_social_priority(self):
         service = FeedService(Mock())
         service.usuario_repository = Mock()
         service.usuario_repository.get_by_id.return_value = SimpleNamespace(id=1)
-        service.seguimiento_repository = Mock()
-        service.seguimiento_repository.get_followed_ids.return_value = {2, 3}
         service.publicacion_repository = Mock()
-        priority = [post(i, 2 if i % 2 else 3, 10 - i) for i in range(1, 6)]
-        general = [post(20, 4, 1), post(21, 5, 0)]
-        service.publicacion_repository.get_recent_by_authors.return_value = priority
-        service.publicacion_repository.get_general.return_value = general
+        service.publicacion_repository.get_feed.return_value = [
+            post(20, 4, 10),
+            post(21, 2, 9),
+        ]
 
-        result = service.get_feed(1, page=1, page_size=7)
+        result = service.get_feed(1, page=1, page_size=2)
 
-        self.assertEqual([item.id for item in result], [1, 2, 3, 4, 5, 20, 21])
-        service.publicacion_repository.get_general.assert_called_once_with(
-            {1, 2, 3, 4, 5}, 1, 2, 0
+        self.assertEqual([item.id for item in result], [20, 21])
+        service.publicacion_repository.get_feed.assert_called_once_with(
+            limit=2,
+            offset=0,
         )
+        self.assertFalse(hasattr(service, "seguimiento_repository"))
 
-    def test_feed_pagination_skips_priorities_and_never_requeries_them(self):
+    def test_feed_second_page_translates_to_database_offset(self):
         service = FeedService(Mock())
         service.usuario_repository = Mock()
         service.usuario_repository.get_by_id.return_value = SimpleNamespace(id=1)
-        service.seguimiento_repository = Mock()
-        service.seguimiento_repository.get_followed_ids.return_value = {2}
         service.publicacion_repository = Mock()
-        service.publicacion_repository.get_recent_by_authors.return_value = [post(10, 2, 10), post(11, 2, 9)]
-        service.publicacion_repository.get_general.return_value = [post(30, 4, 8), post(31, 4, 7)]
+        service.publicacion_repository.get_feed.return_value = [
+            post(30, 4, 8),
+            post(31, 2, 7),
+        ]
 
         result = service.get_feed(1, page=2, page_size=2)
 
         self.assertEqual([item.id for item in result], [30, 31])
-        service.publicacion_repository.get_general.assert_called_once_with({10, 11}, 1, 2, 0)
+        service.publicacion_repository.get_feed.assert_called_once_with(
+            limit=2,
+            offset=2,
+        )
 
-    def test_feed_without_following_uses_general_feed_and_honors_limit(self):
+    def test_feed_empty_page_still_uses_requested_page_size(self):
         service = FeedService(Mock())
         service.usuario_repository = Mock()
         service.usuario_repository.get_by_id.return_value = SimpleNamespace(id=1)
-        service.seguimiento_repository = Mock()
-        service.seguimiento_repository.get_followed_ids.return_value = set()
         service.publicacion_repository = Mock()
-        service.publicacion_repository.get_recent_by_authors.return_value = []
-        service.publicacion_repository.get_general.return_value = [post(50, 4, 1)]
+        service.publicacion_repository.get_feed.return_value = []
 
-        result = service.get_feed(1, page=1, page_size=1)
+        result = service.get_feed(1, page=3, page_size=7)
 
-        self.assertEqual([item.id for item in result], [50])
-        service.publicacion_repository.get_general.assert_called_once_with(set(), 1, 1, 0)
+        self.assertEqual(result, [])
+        service.publicacion_repository.get_feed.assert_called_once_with(
+            limit=7,
+            offset=14,
+        )
+
+    def test_feed_endpoint_still_requires_authentication(self):
+        app.dependency_overrides.clear()
+        try:
+            response = TestClient(app).get("/api/feed")
+            self.assertEqual(response.status_code, 401)
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_feed_endpoint_preserves_page_and_page_size_contract(self):
+        app.dependency_overrides[get_db] = lambda: Mock()
+        app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=9)
+        try:
+            with patch(
+                "src.routers.feed_router.FeedService.get_feed",
+                return_value=[post(50, 4, 1)],
+            ) as get_feed:
+                response = TestClient(app).get(
+                    "/api/feed",
+                    params={"page": 2, "page_size": 7},
+                )
+
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()[0]["id"], 50)
+            get_feed.assert_called_once_with(9, 2, 7)
+        finally:
+            app.dependency_overrides.clear()
 
 
 if __name__ == "__main__":
