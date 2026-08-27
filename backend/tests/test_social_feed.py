@@ -1,7 +1,8 @@
 import unittest
 from datetime import datetime, timedelta
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from src.app import app
-from src.db.connection import Base, get_db
+from src.db.connection import Base, engine, get_db
 from src.db.models.conexiones_model import Conexion
 from src.db.models.publicacion_model import Publicacion
 from src.db.models.seguimiento_model import Seguimiento
@@ -57,8 +58,15 @@ class GlobalFeedRepositoryTests(unittest.TestCase):
         self.viewer = self._user(1, "viewer@example.com", "Viewer")
         followed = self._user(2, "followed@example.com", "Seguido")
         connected = self._user(3, "connected@example.com", "Conexión")
-        unrelated = self._user(4, "unrelated@example.com", "Sin relación")
-        self.db.add_all([self.viewer, followed, connected, unrelated])
+        general_authors = [
+            self._user(
+                user_id,
+                f"general-{user_id}@example.com",
+                f"General {user_id}",
+            )
+            for user_id in range(4, 11)
+        ]
+        self.db.add_all([self.viewer, followed, connected, *general_authors])
         self.db.flush()
         self.db.add_all(
             [
@@ -71,44 +79,65 @@ class GlobalFeedRepositoryTests(unittest.TestCase):
             ]
         )
 
-        base_date = datetime(2026, 1, 1, 8, 0, 0)
+        base_date = datetime(2026, 1, 1, 0, 0, 0)
         self.db.add_all(
             [
                 Publicacion(
-                    id=101,
-                    autor_id=followed.id,
-                    texto="Publicación seguida más antigua",
-                    fecha=base_date,
+                    id=201,
+                    autor_id=4,
+                    texto="General frecuente más reciente",
+                    fecha=base_date + timedelta(hours=20),
                 ),
                 Publicacion(
-                    id=102,
-                    autor_id=connected.id,
-                    texto="Publicación de conexión",
-                    fecha=base_date + timedelta(hours=1),
+                    id=202,
+                    autor_id=4,
+                    texto="General frecuente segunda",
+                    fecha=base_date + timedelta(hours=19),
                 ),
                 Publicacion(
-                    id=103,
-                    autor_id=unrelated.id,
-                    texto="Publicación sin relación",
-                    fecha=base_date + timedelta(hours=2),
+                    id=203,
+                    autor_id=4,
+                    texto="General frecuente excluida",
+                    fecha=base_date + timedelta(hours=18),
                 ),
+                *[
+                    Publicacion(
+                        id=204 + index,
+                        autor_id=5 + index,
+                        texto=f"General {5 + index}",
+                        fecha=base_date + timedelta(hours=17 - index),
+                    )
+                    for index in range(6)
+                ],
                 Publicacion(
-                    id=104,
+                    id=210,
                     autor_id=self.viewer.id,
                     texto="Publicación propia",
-                    fecha=base_date + timedelta(hours=3),
+                    fecha=base_date + timedelta(hours=11),
                 ),
                 Publicacion(
-                    id=105,
+                    id=211,
+                    autor_id=connected.id,
+                    texto="Conexión reciente",
+                    fecha=base_date + timedelta(hours=10),
+                ),
+                Publicacion(
+                    id=212,
+                    autor_id=connected.id,
+                    texto="Conexión anterior",
+                    fecha=base_date + timedelta(hours=9),
+                ),
+                Publicacion(
+                    id=213,
                     autor_id=followed.id,
-                    texto="Empate menor ID",
-                    fecha=base_date + timedelta(hours=4),
+                    texto="Seguido reciente",
+                    fecha=base_date + timedelta(hours=8),
                 ),
                 Publicacion(
-                    id=106,
-                    autor_id=unrelated.id,
-                    texto="Empate mayor ID",
-                    fecha=base_date + timedelta(hours=4),
+                    id=214,
+                    autor_id=followed.id,
+                    texto="Seguido anterior",
+                    fecha=base_date + timedelta(hours=7),
                 ),
             ]
         )
@@ -135,39 +164,192 @@ class GlobalFeedRepositoryTests(unittest.TestCase):
             ciudad="Buenos Aires",
         )
 
-    def ids(self, limit: int, offset: int) -> list[int]:
+    def feed(
+        self,
+        limit: int,
+        offset: int,
+        social_author_ids: set[int] | None = None,
+        seed: int = 123,
+    ) -> list[Publicacion]:
+        return self.repository.get_feed(
+            social_author_ids={2, 3}
+            if social_author_ids is None
+            else social_author_ids,
+            seed=seed,
+            limit=limit,
+            offset=offset,
+        )
+
+    def ids(
+        self,
+        limit: int,
+        offset: int,
+        social_author_ids: set[int] | None = None,
+        seed: int = 123,
+    ) -> list[int]:
         return [
             publication.id
-            for publication in self.repository.get_feed(limit, offset)
+            for publication in self.feed(
+                limit,
+                offset,
+                social_author_ids,
+                seed,
+            )
         ]
 
-    def test_all_posts_compete_only_by_date_regardless_of_social_relationship(self):
-        self.assertEqual(
-            self.ids(limit=20, offset=0),
-            [106, 105, 104, 103, 102, 101],
+    def test_feed_keeps_only_the_two_most_recent_posts_per_author(self):
+        publications = self.feed(limit=50, offset=0)
+        counts_by_author: dict[int, int] = {}
+        for publication in publications:
+            counts_by_author[publication.autor_id] = (
+                counts_by_author.get(publication.autor_id, 0) + 1
+            )
+
+        self.assertLessEqual(max(counts_by_author.values()), 2)
+        self.assertIn(201, [publication.id for publication in publications])
+        self.assertIn(202, [publication.id for publication in publications])
+        self.assertNotIn(203, [publication.id for publication in publications])
+
+    def test_social_posts_are_stably_mixed_ahead_of_their_chronological_position(self):
+        first_order = self.ids(limit=50, offset=0, seed=321)
+        repeated_order = self.ids(limit=50, offset=0, seed=321)
+        social_positions = [
+            first_order.index(publication_id)
+            for publication_id in (211, 212, 213, 214)
+        ]
+
+        self.assertEqual(first_order, repeated_order)
+        self.assertLess(min(social_positions), 8)
+        self.assertGreaterEqual(
+            len({211, 212, 213, 214}.intersection(first_order[:10])),
+            1,
         )
 
-    def test_equal_dates_use_descending_id_as_stable_tiebreaker(self):
-        self.assertEqual(self.ids(limit=2, offset=0), [106, 105])
+    def test_seed_changes_social_positions_without_changing_candidates(self):
+        first_order = self.ids(limit=50, offset=0, seed=100)
+        second_order = self.ids(limit=50, offset=0, seed=107)
 
-    def test_pages_use_limit_and_offset_without_duplicates(self):
-        first_page = self.ids(limit=2, offset=0)
-        second_page = self.ids(limit=2, offset=2)
-        third_page = self.ids(limit=2, offset=4)
+        self.assertEqual(set(first_order), set(second_order))
+        self.assertNotEqual(first_order, second_order)
 
-        self.assertEqual(first_page, [106, 105])
-        self.assertEqual(second_page, [104, 103])
-        self.assertEqual(third_page, [102, 101])
-        self.assertEqual(
-            len(set(first_page + second_page + third_page)),
-            6,
+    def test_pages_match_the_global_order_without_duplicates(self):
+        complete_feed = self.ids(limit=50, offset=0)
+        pages = [
+            self.ids(limit=5, offset=offset)
+            for offset in range(0, len(complete_feed), 5)
+        ]
+        paginated_feed = [publication_id for page in pages for publication_id in page]
+
+        self.assertEqual(paginated_feed, complete_feed)
+        self.assertEqual(len(set(paginated_feed)), len(paginated_feed))
+        self.assertTrue(all(len(page) == 5 for page in pages[:-1]))
+
+    def test_feed_without_social_candidates_fills_the_page_chronologically(self):
+        first_page = self.ids(
+            limit=10,
+            offset=0,
+            social_author_ids=set(),
         )
+
+        self.assertEqual(len(first_page), 10)
+        self.assertEqual(first_page[:2], [201, 202])
+        self.assertNotIn(203, first_page)
 
     def test_empty_feed_returns_an_empty_list(self):
         self.db.query(Publicacion).delete()
         self.db.commit()
 
         self.assertEqual(self.ids(limit=20, offset=0), [])
+
+
+@unittest.skipUnless(
+    engine.dialect.name == "postgresql",
+    "La prueba del ranking del feed requiere la PostgreSQL configurada.",
+)
+class GlobalFeedPostgresTests(unittest.TestCase):
+    def setUp(self):
+        self.connection = engine.connect()
+        self.transaction = self.connection.begin()
+        self.db = Session(
+            bind=self.connection,
+            join_transaction_mode="create_savepoint",
+        )
+        suffix = uuid4().hex
+        authors = [
+            Usuario(
+                email=f"feed-author-{index}-{suffix}@example.com",
+                nombre=f"Autor {index}",
+                password_hash="not-used",
+                headline="Prueba PostgreSQL del feed",
+                ciudad="Buenos Aires",
+            )
+            for index in range(3)
+        ]
+        self.db.add_all(authors)
+        self.db.flush()
+        self.frequent_author_id = authors[0].id
+        base_date = datetime(2026, 1, 2, 8, 0, 0)
+        self.db.add_all(
+            [
+                Publicacion(
+                    autor_id=authors[0].id,
+                    texto=f"Frecuente {index}",
+                    fecha=base_date + timedelta(minutes=index),
+                )
+                for index in range(3)
+            ]
+            + [
+                Publicacion(
+                    autor_id=authors[1].id,
+                    texto="Social",
+                    fecha=base_date - timedelta(hours=1),
+                ),
+                Publicacion(
+                    autor_id=authors[2].id,
+                    texto="General",
+                    fecha=base_date + timedelta(hours=1),
+                ),
+            ]
+        )
+        self.db.flush()
+        self.social_author_id = authors[1].id
+        self.repository = PublicacionRepository(self.db)
+
+    def tearDown(self):
+        self.db.close()
+        self.transaction.rollback()
+        self.connection.close()
+
+    def test_postgresql_applies_author_limit_stable_order_and_pagination(self):
+        complete_feed = self.repository.get_feed(
+            social_author_ids={self.social_author_id},
+            seed=456,
+            limit=20,
+            offset=0,
+        )
+        author_posts = [
+            publication
+            for publication in complete_feed
+            if publication.autor_id == self.frequent_author_id
+        ]
+        first_page = self.repository.get_feed(
+            social_author_ids={self.social_author_id},
+            seed=456,
+            limit=2,
+            offset=0,
+        )
+        second_page = self.repository.get_feed(
+            social_author_ids={self.social_author_id},
+            seed=456,
+            limit=2,
+            offset=2,
+        )
+
+        self.assertEqual(len(author_posts), 2)
+        self.assertEqual(
+            [publication.id for publication in first_page + second_page],
+            [publication.id for publication in complete_feed[:4]],
+        )
 
 
 class SocialFeedTests(unittest.TestCase):
@@ -338,10 +520,17 @@ class SocialFeedTests(unittest.TestCase):
         with self.assertRaises(ConflictError):
             service.follow(1, 1)
 
-    def test_feed_requests_one_global_page_without_social_priority(self):
+    def test_feed_combines_followed_and_connected_authors_without_duplicates(self):
         service = FeedService(Mock())
         service.usuario_repository = Mock()
         service.usuario_repository.get_by_id.return_value = SimpleNamespace(id=1)
+        service.seguimiento_repository = Mock()
+        service.seguimiento_repository.get_followed_ids.return_value = {2, 3}
+        service.conexion_repository = Mock()
+        service.conexion_repository.get_accepted_by_user.return_value = [
+            SimpleNamespace(usuario_a=1, usuario_b=3),
+            SimpleNamespace(usuario_a=4, usuario_b=1),
+        ]
         service.publicacion_repository = Mock()
         service.publicacion_repository.get_feed.return_value = [
             post(20, 4, 10),
@@ -352,15 +541,20 @@ class SocialFeedTests(unittest.TestCase):
 
         self.assertEqual([item.id for item in result], [20, 21])
         service.publicacion_repository.get_feed.assert_called_once_with(
+            social_author_ids={2, 3, 4},
+            seed=ANY,
             limit=2,
             offset=0,
         )
-        self.assertFalse(hasattr(service, "seguimiento_repository"))
 
     def test_feed_second_page_translates_to_database_offset(self):
         service = FeedService(Mock())
         service.usuario_repository = Mock()
         service.usuario_repository.get_by_id.return_value = SimpleNamespace(id=1)
+        service.seguimiento_repository = Mock()
+        service.seguimiento_repository.get_followed_ids.return_value = set()
+        service.conexion_repository = Mock()
+        service.conexion_repository.get_accepted_by_user.return_value = []
         service.publicacion_repository = Mock()
         service.publicacion_repository.get_feed.return_value = [
             post(30, 4, 8),
@@ -371,6 +565,8 @@ class SocialFeedTests(unittest.TestCase):
 
         self.assertEqual([item.id for item in result], [30, 31])
         service.publicacion_repository.get_feed.assert_called_once_with(
+            social_author_ids=set(),
+            seed=ANY,
             limit=2,
             offset=2,
         )
@@ -379,6 +575,10 @@ class SocialFeedTests(unittest.TestCase):
         service = FeedService(Mock())
         service.usuario_repository = Mock()
         service.usuario_repository.get_by_id.return_value = SimpleNamespace(id=1)
+        service.seguimiento_repository = Mock()
+        service.seguimiento_repository.get_followed_ids.return_value = set()
+        service.conexion_repository = Mock()
+        service.conexion_repository.get_accepted_by_user.return_value = []
         service.publicacion_repository = Mock()
         service.publicacion_repository.get_feed.return_value = []
 
@@ -386,6 +586,8 @@ class SocialFeedTests(unittest.TestCase):
 
         self.assertEqual(result, [])
         service.publicacion_repository.get_feed.assert_called_once_with(
+            social_author_ids=set(),
+            seed=ANY,
             limit=7,
             offset=14,
         )

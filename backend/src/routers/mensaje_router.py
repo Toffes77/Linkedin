@@ -6,6 +6,7 @@ from src.db.models.usuario_model import Usuario
 from src.mappers.mensaje_mapper import MensajeMapper
 from src.middlewares.auth_middleware import get_current_user
 from src.schemas.mensaje_schema import (
+    CompartirPublicacionSchema,
     ContactoConversacionSchema,
     ConversacionSchema,
     CrearConversacionSchema,
@@ -83,6 +84,26 @@ def enviar_mensaje(
     return MensajeMapper.to_message_schema(mensaje)
 
 
+@router.post(
+    "/{conversacion_id}/mensajes/publicaciones",
+    response_model=MensajeSchema,
+    status_code=status.HTTP_201_CREATED,
+)
+def compartir_publicacion(
+    conversacion_id: int,
+    payload: CompartirPublicacionSchema,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    dto = MensajeMapper.to_share_post_dto(payload)
+    mensaje = MensajeService(db).share_post(
+        conversacion_id,
+        dto,
+        current_user.id,
+    )
+    return MensajeMapper.to_message_schema(mensaje)
+
+
 @router.post("/{conversacion_id}/leer", status_code=status.HTTP_204_NO_CONTENT)
 def marcar_como_leida(
     conversacion_id: int,
@@ -90,4 +111,3 @@ def marcar_como_leida(
     current_user: Usuario = Depends(get_current_user),
 ):
     MensajeService(db).mark_as_read(conversacion_id, current_user.id)
-

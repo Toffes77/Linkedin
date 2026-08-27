@@ -1,11 +1,14 @@
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
+from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from src.app import app
-from src.db.connection import get_db
+from src.db.connection import engine, get_db
+from src.db.models.empresa_model import Empresa
 from src.db.models.empresa_usuario_model import RolEmpresa
 from src.dtos.empresa_dto import EmpresaResponseDTO
 from src.dtos.empresa_usuario_dto import MiEmpresaResponseDTO
@@ -35,6 +38,16 @@ class CompanyDiscoveryTests(unittest.TestCase):
         service.repository.search_by_name.assert_called_once_with("tech")
         self.assertEqual(result[0].nombre, "Tech Solutions")
         self.assertFalse(hasattr(result[0], "usuarios_empresa"))
+
+    def test_search_service_trims_company_name(self):
+        service = EmpresaService(Mock())
+        service.repository = Mock()
+        service.repository.search_by_name.return_value = [company(1, "Atanes")]
+
+        result = service.search("  aTa  ")
+
+        service.repository.search_by_name.assert_called_once_with("aTa")
+        self.assertEqual(result[0].nombre, "Atanes")
 
     def test_current_user_companies_include_company_and_exact_role(self):
         service = EmpresaUsuarioService(Mock())
@@ -101,6 +114,32 @@ class CompanyDiscoveryTests(unittest.TestCase):
     def test_company_search_rejects_blank_query(self):
         response = TestClient(app).get("/api/empresas?q=%20%20")
         self.assertEqual(response.status_code, 422)
+
+
+@unittest.skipUnless(
+    engine.dialect.name == "postgresql",
+    "La prueba de búsqueda requiere la PostgreSQL configurada.",
+)
+class CompanyDiscoveryPersistenceTests(unittest.TestCase):
+    def setUp(self):
+        self.connection = engine.connect()
+        self.transaction = self.connection.begin()
+        self.db = Session(bind=self.connection, join_transaction_mode="create_savepoint")
+
+    def tearDown(self):
+        self.db.close()
+        self.transaction.rollback()
+        self.connection.close()
+
+    def test_partial_case_insensitive_search_returns_the_real_company_id(self):
+        marker = f"AtAnEs{uuid4().hex[:10]}"
+        company_model = Empresa(nombre=f"Estudio {marker}", industria="Tecnología")
+        self.db.add(company_model)
+        self.db.commit()
+
+        matches = EmpresaService(self.db).search(f"  {marker[2:-2].swapcase()}  ")
+
+        self.assertIn(company_model.id, [company.id for company in matches])
 
 
 if __name__ == "__main__":

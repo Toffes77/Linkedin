@@ -83,6 +83,12 @@ class Mensaje(Base):
     )
     autor_id = Column(Integer, nullable=False)
     contenido = Column(String(2000), nullable=False)
+    tipo = Column(String(20), nullable=False, server_default="TEXTO")
+    publicacion_id = Column(
+        Integer,
+        ForeignKey("publicacion.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     fecha = Column(DateTime, nullable=False, server_default=func.now())
 
     __table_args__ = (
@@ -99,6 +105,14 @@ class Mensaje(Base):
             "length(trim(contenido)) BETWEEN 1 AND 2000",
             name="mensaje_contenido_check",
         ),
+        CheckConstraint(
+            "tipo IN ('TEXTO', 'PUBLICACION')",
+            name="mensaje_tipo_check",
+        ),
+        CheckConstraint(
+            "tipo = 'PUBLICACION' OR publicacion_id IS NULL",
+            name="mensaje_publicacion_tipo_check",
+        ),
         Index(
             "idx_mensaje_conversacion_fecha",
             "conversacion_id",
@@ -108,3 +122,4 @@ class Mensaje(Base):
     )
 
     conversacion = relationship("Conversacion", back_populates="mensajes")
+    publicacion = relationship("Publicacion")

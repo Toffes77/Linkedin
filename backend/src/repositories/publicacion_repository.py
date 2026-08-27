@@ -1,3 +1,4 @@
+from sqlalchemy import BigInteger, case, cast, func, literal
 from sqlalchemy.orm import Session
 
 from src.db.models.publicacion_model import Publicacion
@@ -32,10 +33,69 @@ class PublicacionRepository:
             query = query.limit(limit)
         return query.all()
 
-    def get_feed(self, limit: int, offset: int) -> list[Publicacion]:
+    def get_feed(
+        self,
+        social_author_ids: set[int],
+        seed: int,
+        limit: int,
+        offset: int,
+    ) -> list[Publicacion]:
+        author_rank = func.row_number().over(
+            partition_by=Publicacion.autor_id,
+            order_by=(Publicacion.fecha.desc(), Publicacion.id.desc()),
+        )
+        ranked_by_author = self.db.query(
+            Publicacion.id.label("id"),
+            Publicacion.autor_id.label("autor_id"),
+            Publicacion.fecha.label("fecha"),
+            author_rank.label("author_rank"),
+        ).subquery("ranked_by_author")
+
+        is_social = (
+            case(
+                (ranked_by_author.c.autor_id.in_(social_author_ids), 1),
+                else_=0,
+            )
+            if social_author_ids
+            else literal(0)
+        )
+        stream_rank = func.row_number().over(
+            partition_by=is_social,
+            order_by=(
+                ranked_by_author.c.fecha.desc(),
+                ranked_by_author.c.id.desc(),
+            ),
+        )
+        diversified = (
+            self.db.query(
+                ranked_by_author.c.id,
+                ranked_by_author.c.fecha,
+                is_social.label("is_social"),
+                stream_rank.label("stream_rank"),
+            )
+            .filter(ranked_by_author.c.author_rank <= 2)
+            .subquery("diversified_feed")
+        )
+
+        stable_jitter = (
+            (cast(diversified.c.id, BigInteger) * 7919 + seed) % 15
+        ) - 7
+        feed_position = case(
+            (
+                diversified.c.is_social == 1,
+                diversified.c.stream_rank * 20 + stable_jitter,
+            ),
+            else_=diversified.c.stream_rank * 5,
+        )
+
         return (
             self.db.query(Publicacion)
-            .order_by(Publicacion.fecha.desc(), Publicacion.id.desc())
+            .join(diversified, Publicacion.id == diversified.c.id)
+            .order_by(
+                feed_position,
+                diversified.c.fecha.desc(),
+                diversified.c.id.desc(),
+            )
             .offset(offset)
             .limit(limit)
             .all()

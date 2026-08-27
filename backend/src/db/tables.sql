@@ -256,15 +256,22 @@ CREATE TABLE mensaje (
     conversacion_id INT NOT NULL,
     autor_id INT NOT NULL,
     contenido VARCHAR(2000) NOT NULL,
+    tipo VARCHAR(20) NOT NULL DEFAULT 'TEXTO',
+    publicacion_id INT,
     fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (conversacion_id) REFERENCES conversacion(id) ON DELETE CASCADE,
+    FOREIGN KEY (publicacion_id) REFERENCES Publicacion(id) ON DELETE SET NULL,
     CONSTRAINT fk_mensaje_autor_participante
         FOREIGN KEY (conversacion_id, autor_id)
         REFERENCES conversacion_usuario(conversacion_id, usuario_id)
         ON DELETE CASCADE,
     CONSTRAINT mensaje_contenido_check
-        CHECK (length(trim(contenido)) BETWEEN 1 AND 2000)
+        CHECK (length(trim(contenido)) BETWEEN 1 AND 2000),
+    CONSTRAINT mensaje_tipo_check
+        CHECK (tipo IN ('TEXTO', 'PUBLICACION')),
+    CONSTRAINT mensaje_publicacion_tipo_check
+        CHECK (tipo = 'PUBLICACION' OR publicacion_id IS NULL)
 );
 
 CREATE INDEX idx_conversacion_ultimo_mensaje
@@ -273,3 +280,5 @@ CREATE INDEX idx_conversacion_usuario_usuario
     ON conversacion_usuario (usuario_id, conversacion_id);
 CREATE INDEX idx_mensaje_conversacion_fecha
     ON mensaje (conversacion_id, fecha, id);
+CREATE INDEX idx_mensaje_publicacion
+    ON mensaje (publicacion_id);

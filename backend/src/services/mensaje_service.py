@@ -2,6 +2,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.dtos.mensaje_dto import (
+    CompartirPublicacionDTO,
     ContactoConversacionDTO,
     ConversacionDTO,
     CrearConversacionDTO,
@@ -11,6 +12,7 @@ from src.dtos.mensaje_dto import (
 from src.mappers.mensaje_mapper import MensajeMapper
 from src.repositories.conexion_repository import ConexionRepository
 from src.repositories.mensaje_repository import MensajeRepository
+from src.repositories.publicacion_repository import PublicacionRepository
 from src.repositories.usuario_repository import UsuarioRepository
 from src.utils.errors import BadRequestError, ForbiddenError, NotFoundError
 
@@ -21,6 +23,7 @@ class MensajeService:
         self.repository = MensajeRepository(db)
         self.conexion_repository = ConexionRepository(db)
         self.usuario_repository = UsuarioRepository(db)
+        self.publicacion_repository = PublicacionRepository(db)
 
     def list_contacts(self, usuario_id: int) -> list[ContactoConversacionDTO]:
         return [
@@ -30,7 +33,11 @@ class MensajeService:
                 headline=usuario.headline,
                 foto_perfil_url=usuario.foto_perfil_url,
                 conversacion_id=conversacion.id if conversacion else None,
-                ultimo_mensaje=ultimo_mensaje.contenido if ultimo_mensaje else None,
+                ultimo_mensaje=(
+                    "Publicación compartida"
+                    if ultimo_mensaje and ultimo_mensaje.tipo == "PUBLICACION"
+                    else ultimo_mensaje.contenido if ultimo_mensaje else None
+                ),
                 ultimo_mensaje_autor_id=(
                     ultimo_mensaje.autor_id if ultimo_mensaje else None
                 ),
@@ -104,6 +111,23 @@ class MensajeService:
             conversacion,
             autor_id=usuario_id,
             contenido=contenido,
+        )
+        return MensajeMapper.to_message_dto(mensaje)
+
+    def share_post(
+        self,
+        conversacion_id: int,
+        data: CompartirPublicacionDTO,
+        usuario_id: int,
+    ) -> MensajeDTO:
+        conversacion, _ = self._require_participation(conversacion_id, usuario_id)
+        publicacion = self.publicacion_repository.get_by_id(data.publicacion_id)
+        if publicacion is None:
+            raise NotFoundError("Publicación no encontrada.")
+        mensaje = self.repository.create_shared_post_message(
+            conversacion,
+            autor_id=usuario_id,
+            publicacion=publicacion,
         )
         return MensajeMapper.to_message_dto(mensaje)
 

@@ -1,10 +1,11 @@
 from datetime import datetime
 
 from sqlalchemy import case, func, or_, select, union_all
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from src.db.models.conexiones_model import Conexion
 from src.db.models.conversacion_model import Conversacion, ConversacionUsuario, Mensaje
+from src.db.models.publicacion_model import Publicacion
 from src.db.models.usuario_model import Usuario
 
 
@@ -124,6 +125,9 @@ class MensajeRepository:
                 & (ConversacionUsuario.usuario_id == usuario_id),
             )
             .outerjoin(Mensaje, Mensaje.id == ultimo_mensaje_id)
+            .options(
+                joinedload(Mensaje.publicacion).joinedload(Publicacion.autor)
+            )
             .order_by(
                 case((Mensaje.id.is_(None), 1), else_=0),
                 Mensaje.fecha.desc(),
@@ -142,6 +146,9 @@ class MensajeRepository:
     ) -> list[Mensaje]:
         mensajes = (
             self.db.query(Mensaje)
+            .options(
+                joinedload(Mensaje.publicacion).joinedload(Publicacion.autor)
+            )
             .filter(Mensaje.conversacion_id == conversacion_id)
             .order_by(Mensaje.fecha.desc(), Mensaje.id.desc())
             .offset(offset)
@@ -160,6 +167,29 @@ class MensajeRepository:
             conversacion_id=conversacion.id,
             autor_id=autor_id,
             contenido=contenido,
+            tipo="TEXTO",
+            fecha=datetime.now(),
+        )
+        self.db.add(mensaje)
+        self.db.flush()
+        conversacion.fecha_ultimo_mensaje = mensaje.fecha or datetime.now()
+        self.db.commit()
+        self.db.refresh(mensaje)
+        return mensaje
+
+    def create_shared_post_message(
+        self,
+        conversacion: Conversacion,
+        autor_id: int,
+        publicacion: Publicacion,
+    ) -> Mensaje:
+        mensaje = Mensaje(
+            conversacion_id=conversacion.id,
+            autor_id=autor_id,
+            contenido="Publicación compartida",
+            tipo="PUBLICACION",
+            publicacion_id=publicacion.id,
+            publicacion=publicacion,
             fecha=datetime.now(),
         )
         self.db.add(mensaje)

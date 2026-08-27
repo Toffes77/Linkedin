@@ -19,10 +19,24 @@ class EnviarMensajeSchema(BaseModel):
         return contenido
 
 
+class CompartirPublicacionSchema(BaseModel):
+    publicacion_id: int = Field(gt=0)
+
+
 class ConversacionSchema(BaseModel):
     id: int
     usuario_id: int
     fecha_creacion: datetime
+
+
+class PublicacionCompartidaSchema(BaseModel):
+    id: int
+    autor_id: int
+    autor_nombre: str
+    autor_headline: str
+    autor_foto_perfil_url: str | None = None
+    texto: str
+    fecha: datetime
 
 
 class MensajeSchema(BaseModel):
@@ -32,6 +46,9 @@ class MensajeSchema(BaseModel):
     conversacion_id: int
     autor_id: int
     contenido: str
+    tipo: str
+    publicacion_id: int | None = None
+    publicacion: PublicacionCompartidaSchema | None = None
     fecha: datetime
 
 
@@ -49,4 +66,3 @@ class ContactoConversacionSchema(BaseModel):
 
 class MensajesNoLeidosSchema(BaseModel):
     cantidad: int
-

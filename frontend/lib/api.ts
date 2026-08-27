@@ -30,7 +30,8 @@ export type NotificationType = "POSTULACION_NUEVA" | "POSTULACION_ESTADO" | "NUE
 export type Notification = { id: number; usuario_id: number; tipo: NotificationType; mensaje: string; leida: boolean; fecha: string; postulacion_id: number | null; oferta_id: number | null; usuario_origen_id: number | null };
 export type MessageContact = { usuario_id: number; nombre: string; headline: string; foto_perfil_url: string | null; conversacion_id: number | null; ultimo_mensaje: string | null; ultimo_mensaje_autor_id: number | null; fecha_ultimo_mensaje: string | null; no_leidos: number };
 export type Conversation = { id: number; usuario_id: number; fecha_creacion: string };
-export type PrivateMessage = { id: number; conversacion_id: number; autor_id: number; contenido: string; fecha: string };
+export type SharedPost = { id: number; autor_id: number; autor_nombre: string; autor_headline: string; autor_foto_perfil_url: string | null; texto: string; fecha: string };
+export type PrivateMessage = { id: number; conversacion_id: number; autor_id: number; contenido: string; tipo: "TEXTO" | "PUBLICACION"; publicacion_id: number | null; publicacion: SharedPost | null; fecha: string };
 export type JobStats = { oferta_id: number; total_postulaciones: number; postulaciones_por_estado: Record<ApplicationStatus, number>; dias_desde_publicacion: number | null };
 
 type ApiOptions = Omit<RequestInit, "credentials"> & { json?: unknown };
@@ -118,6 +119,7 @@ export const messagesApi = {
   getOrCreateConversation: (userId: number) => apiFetch<Conversation>("/api/conversaciones", { method: "POST", json: { usuario_id: userId } }),
   getMessages: (conversationId: number, limit = 30, offset = 0) => apiFetch<PrivateMessage[]>(`/api/conversaciones/${conversationId}/mensajes?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`),
   sendMessage: (conversationId: number, content: string) => apiFetch<PrivateMessage>(`/api/conversaciones/${conversationId}/mensajes`, { method: "POST", json: { contenido: content } }),
+  sharePost: (conversationId: number, postId: number) => apiFetch<PrivateMessage>(`/api/conversaciones/${conversationId}/mensajes/publicaciones`, { method: "POST", json: { publicacion_id: postId } }),
   markAsRead: (conversationId: number) => apiFetch<void>(`/api/conversaciones/${conversationId}/leer`, { method: "POST" }),
   unreadCount: () => apiFetch<{ cantidad: number }>("/api/conversaciones/no-leidos/count"),
 };
@@ -129,7 +131,8 @@ export const followsApi = {
 };
 
 export const postsApi = {
-  feed: (page = 1, pageSize = 20) => apiFetch<Post[]>(`/api/feed?${new URLSearchParams({ page: String(page), page_size: String(pageSize) })}`),
+  feed: (page = 1, pageSize = 20, signal?: AbortSignal) => apiFetch<Post[]>(`/api/feed?${new URLSearchParams({ page: String(page), page_size: String(pageSize) })}`, { signal }),
+  get: (id: number, signal?: AbortSignal) => apiFetch<Post>(`/api/publicaciones/${id}`, { signal }),
   byAuthor: (userId: number, limit = 20, offset = 0) => apiFetch<Post[]>(`/api/publicaciones/autor/${userId}?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`),
   create: (texto: string) => apiFetch<Post>("/api/publicaciones", { method: "POST", json: { texto } }),
   update: (id: number, texto: string) => apiFetch<Post>(`/api/publicaciones/${id}`, { method: "PUT", json: { texto } }),
@@ -149,7 +152,7 @@ export const commentsApi = {
 
 export const companiesApi = {
   mine: () => apiFetch<MyCompany[]>("/api/empresas/me"),
-  search: (q: string) => apiFetch<Company[]>(`/api/empresas?${new URLSearchParams({ q })}`),
+  search: (q: string, signal?: AbortSignal) => apiFetch<Company[]>(`/api/empresas?${new URLSearchParams({ q: q.trim() })}`, { signal }),
   get: (id: number) => apiFetch<Company>(`/api/empresas/${id}`),
   create: (data: { nombre: string; industria: string | null; sitio_web: string | null }) => apiFetch<Company>("/api/empresas", { method: "POST", json: data }),
   update: (id: number, data: Partial<Pick<Company, "nombre" | "industria" | "sitio_web">>) => apiFetch<Company>(`/api/empresas/${id}`, { method: "PUT", json: data }),

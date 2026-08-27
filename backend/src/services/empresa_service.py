@@ -38,7 +38,7 @@ class EmpresaService:
         return EmpresaMapper.to_response_dto(empresa)
 
     def search(self, nombre: str) -> list[EmpresaResponseDTO]:
-        empresas = self.repository.search_by_name(nombre)
+        empresas = self.repository.search_by_name(nombre.strip())
         return [EmpresaMapper.to_response_dto(empresa) for empresa in empresas]
 
     def update(

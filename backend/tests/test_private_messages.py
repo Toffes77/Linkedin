@@ -12,11 +12,17 @@ from src.db.connection import engine, get_db
 from src.db.models.conexiones_model import Conexion
 from src.db.models.conversacion_model import Conversacion, ConversacionUsuario, Mensaje
 from src.db.models.notificacion_model import Notificacion
+from src.db.models.publicacion_model import Publicacion
 from src.db.models.usuario_model import Usuario
-from src.dtos.mensaje_dto import CrearConversacionDTO, EnviarMensajeDTO, MensajeDTO
+from src.dtos.mensaje_dto import (
+    CompartirPublicacionDTO,
+    CrearConversacionDTO,
+    EnviarMensajeDTO,
+    MensajeDTO,
+)
 from src.middlewares.auth_middleware import get_current_user
 from src.services.mensaje_service import MensajeService
-from src.utils.errors import BadRequestError, ForbiddenError
+from src.utils.errors import BadRequestError, ForbiddenError, NotFoundError
 
 
 def usuario(usuario_id: int, nombre: str = "Usuario"):
@@ -43,6 +49,7 @@ class PrivateMessageServiceTests(unittest.TestCase):
         service.repository = Mock()
         service.conexion_repository = Mock()
         service.usuario_repository = Mock()
+        service.publicacion_repository = Mock()
         return service
 
     def test_creates_conversation_only_for_accepted_contact(self):
@@ -94,6 +101,9 @@ class PrivateMessageServiceTests(unittest.TestCase):
             conversacion_id=8,
             autor_id=1,
             contenido="Hola",
+            tipo="TEXTO",
+            publicacion_id=None,
+            publicacion=None,
             fecha=datetime.now(),
         )
         service.repository.create_message.return_value = sent
@@ -110,6 +120,72 @@ class PrivateMessageServiceTests(unittest.TestCase):
             contenido="Hola",
         )
         self.assertEqual(result.autor_id, 1)
+
+    def test_shared_post_uses_authenticated_sender_and_real_post(self):
+        service = self.service()
+        current_conversation = conversacion()
+        author = usuario(4, "Juan Pérez")
+        post = SimpleNamespace(
+            id=32,
+            autor_id=4,
+            autor=author,
+            texto="Contenido profesional",
+            fecha=datetime.now(),
+        )
+        sent = SimpleNamespace(
+            id=18,
+            conversacion_id=8,
+            autor_id=1,
+            contenido="Publicación compartida",
+            tipo="PUBLICACION",
+            publicacion_id=32,
+            publicacion=post,
+            fecha=datetime.now(),
+        )
+        service.repository.get_by_id.return_value = current_conversation
+        service.repository.get_participation.return_value = SimpleNamespace()
+        service.publicacion_repository.get_by_id.return_value = post
+        service.repository.create_shared_post_message.return_value = sent
+
+        result = service.share_post(
+            8,
+            CompartirPublicacionDTO(publicacion_id=32),
+            usuario_id=1,
+        )
+
+        service.repository.create_shared_post_message.assert_called_once_with(
+            current_conversation,
+            autor_id=1,
+            publicacion=post,
+        )
+        self.assertEqual(result.publicacion_id, 32)
+        self.assertEqual(result.publicacion.autor_nombre, "Juan Pérez")
+
+    def test_shared_post_rejects_foreign_conversation(self):
+        service = self.service()
+        service.repository.get_by_id.return_value = conversacion()
+        service.repository.get_participation.return_value = None
+
+        with self.assertRaises(ForbiddenError):
+            service.share_post(
+                8,
+                CompartirPublicacionDTO(publicacion_id=32),
+                usuario_id=30,
+            )
+        service.publicacion_repository.get_by_id.assert_not_called()
+
+    def test_shared_post_rejects_missing_publication(self):
+        service = self.service()
+        service.repository.get_by_id.return_value = conversacion()
+        service.repository.get_participation.return_value = SimpleNamespace()
+        service.publicacion_repository.get_by_id.return_value = None
+
+        with self.assertRaises(NotFoundError):
+            service.share_post(
+                8,
+                CompartirPublicacionDTO(publicacion_id=999),
+                usuario_id=1,
+            )
 
     def test_rejects_empty_and_too_long_messages(self):
         service = self.service()
@@ -145,6 +221,7 @@ class PrivateMessageServiceTests(unittest.TestCase):
         active = conversacion()
         last = SimpleNamespace(
             contenido="Último",
+            tipo="TEXTO",
             autor_id=2,
             fecha=datetime(2026, 8, 24, 12, 0),
         )
@@ -175,6 +252,7 @@ class PrivateMessageRouterTests(unittest.TestCase):
             conversacion_id=2,
             autor_id=7,
             contenido="Hola",
+            tipo="TEXTO",
             fecha=datetime(2026, 8, 24, 10, 0),
         )
         with patch(
@@ -188,6 +266,28 @@ class PrivateMessageRouterTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 201)
         self.assertEqual(send.call_args.args[2], 7)
+
+    def test_share_endpoint_uses_authenticated_user(self):
+        created = MensajeDTO(
+            id=5,
+            conversacion_id=2,
+            autor_id=7,
+            contenido="Publicación compartida",
+            tipo="PUBLICACION",
+            publicacion_id=32,
+            fecha=datetime(2026, 8, 24, 10, 0),
+        )
+        with patch(
+            "src.routers.mensaje_router.MensajeService.share_post",
+            return_value=created,
+        ) as share:
+            response = TestClient(app).post(
+                "/api/conversaciones/2/mensajes/publicaciones",
+                json={"publicacion_id": 32, "autor_id": 999},
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(share.call_args.args[2], 7)
 
     def test_empty_message_is_rejected_by_schema(self):
         response = TestClient(app).post(
@@ -354,6 +454,46 @@ class PrivateMessagePersistenceTests(unittest.TestCase):
                 EnviarMensajeDTO(contenido="Intrusión"),
                 self.outsider.id,
             )
+
+    def test_real_database_shared_post_is_unread_and_survives_post_deletion(self):
+        service = MensajeService(self.db)
+        conversation_dto = service.get_or_create(
+            CrearConversacionDTO(usuario_id=self.bruno.id), self.alicia.id
+        )
+        post = Publicacion(
+            autor_id=self.carla.id,
+            texto="Una publicación para compartir",
+        )
+        self.db.add(post)
+        self.db.commit()
+        notifications_before = self.db.query(Notificacion).count()
+
+        shared = service.share_post(
+            conversation_dto.id,
+            CompartirPublicacionDTO(publicacion_id=post.id),
+            self.bruno.id,
+        )
+
+        self.assertEqual(shared.tipo, "PUBLICACION")
+        self.assertEqual(shared.publicacion.id, post.id)
+        self.assertEqual(service.count_unread(self.alicia.id), 1)
+        self.assertEqual(self.db.query(Notificacion).count(), notifications_before)
+
+        message_id = shared.id
+        self.db.delete(post)
+        self.db.commit()
+        remaining = service.get_messages(
+            conversation_dto.id,
+            self.alicia.id,
+            limit=30,
+            offset=0,
+        )
+
+        deleted_post_message = next(item for item in remaining if item.id == message_id)
+        self.assertEqual(deleted_post_message.tipo, "PUBLICACION")
+        self.assertIsNone(deleted_post_message.publicacion_id)
+        self.assertIsNone(deleted_post_message.publicacion)
+        self.assertIsNotNone(self.db.get(Mensaje, message_id))
 
 
 if __name__ == "__main__":

@@ -40,6 +40,16 @@ def create_publicacion(
     return PublicacionMapper.to_response_schema(publicacion)
 
 
+@router.get("/{publicacion_id}", response_model=GetPublicacionSchema)
+def get_publicacion(
+    publicacion_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    publicacion = PublicacionService(db).get_by_id(publicacion_id)
+    return PublicacionMapper.to_response_schema(publicacion)
+
+
 @router.put("/{publicacion_id}", response_model=GetPublicacionSchema)
 def update_publicacion(
     publicacion_id: int,
