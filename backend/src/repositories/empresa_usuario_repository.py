@@ -1,5 +1,6 @@
 from sqlalchemy import case, func
-from sqlalchemy.orm import Session, contains_eager, joinedload
+from sqlalchemy import and_
+from sqlalchemy.orm import Session, aliased, contains_eager, joinedload
 
 from src.db.models.empresa_usuario_model import EmpresaUsuario, RolEmpresa
 from src.db.models.usuario_model import Usuario
@@ -65,6 +66,31 @@ class EmpresaUsuarioRepository:
             .options(joinedload(EmpresaUsuario.empresa))
             .filter(EmpresaUsuario.usuario_id == usuario_id)
             .order_by(EmpresaUsuario.rol, EmpresaUsuario.empresa_id)
+            .all()
+        )
+
+    def get_hiring_companies(
+        self,
+        manager_user_id: int,
+        candidate_user_id: int,
+    ) -> list[EmpresaUsuario]:
+        candidate_membership = aliased(EmpresaUsuario)
+        return (
+            self.db.query(EmpresaUsuario)
+            .options(joinedload(EmpresaUsuario.empresa))
+            .outerjoin(
+                candidate_membership,
+                and_(
+                    candidate_membership.empresa_id == EmpresaUsuario.empresa_id,
+                    candidate_membership.usuario_id == candidate_user_id,
+                ),
+            )
+            .filter(
+                EmpresaUsuario.usuario_id == manager_user_id,
+                EmpresaUsuario.rol.in_((RolEmpresa.OWNER, RolEmpresa.RECRUITER)),
+                candidate_membership.usuario_id.is_(None),
+            )
+            .order_by(EmpresaUsuario.empresa_id)
             .all()
         )
 

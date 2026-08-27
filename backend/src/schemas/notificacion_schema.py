@@ -9,6 +9,7 @@ TipoNotificacion = Literal[
     "NUEVO_SEGUIDOR",
     "NUEVA_INVITACION_CONEXION",
     "CONEXION_ACEPTADA",
+    "CONTRATACION_PROMOCION",
 ]
 
 
@@ -24,6 +25,8 @@ class NotificacionResponseSchema(BaseModel):
     postulacion_id: int | None = None
     oferta_id: int | None = None
     usuario_origen_id: int | None = None
+    promocion_id: int | None = None
+    solicitud_contratacion_promocion_id: int | None = None
 
 
 class NotificacionesNoLeidasSchema(BaseModel):

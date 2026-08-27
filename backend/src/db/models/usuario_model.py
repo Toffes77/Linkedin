@@ -57,6 +57,17 @@ class Usuario(Base):
         back_populates="usuario",
         cascade="all, delete-orphan",
     )
+    promociones = relationship(
+        "Promocion",
+        back_populates="usuario",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    solicitudes_contratacion_iniciadas = relationship(
+        "SolicitudContratacionPromocion",
+        foreign_keys="SolicitudContratacionPromocion.solicitante_id",
+        back_populates="solicitante",
+    )
     conversaciones = relationship(
         "ConversacionUsuario",
         back_populates="usuario",

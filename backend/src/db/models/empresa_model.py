@@ -19,3 +19,7 @@ class Empresa(Base):
         back_populates="empresa",
         cascade="all, delete-orphan",
     )
+    solicitudes_contratacion_promocion = relationship(
+        "SolicitudContratacionPromocion",
+        back_populates="empresa",
+    )

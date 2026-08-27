@@ -8,6 +8,7 @@ import { notificationsApi, type Notification } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 
 function notificationHref(notification: Notification) {
+  if (notification.tipo === "CONTRATACION_PROMOCION") return notification.promocion_id ? `/tablon?vista=mias&promocion=${notification.promocion_id}` : "/tablon?vista=mias";
   if (notification.tipo === "NUEVO_SEGUIDOR" || notification.tipo === "NUEVA_INVITACION_CONEXION" || notification.tipo === "CONEXION_ACEPTADA") return notification.usuario_origen_id ? `/perfil/${notification.usuario_origen_id}` : "/notificaciones";
   if (notification.tipo === "POSTULACION_ESTADO") return "/empleos#applications";
   return notification.oferta_id ? `/empleos/${notification.oferta_id}` : "/empleos";

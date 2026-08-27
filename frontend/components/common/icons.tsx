@@ -1,10 +1,11 @@
 import type { SVGProps } from "react";
 
-export function Icon({ name, ...props }: SVGProps<SVGSVGElement> & { name: "home" | "network" | "jobs" | "bell" | "search" | "user" | "company" | "business" | "image" | "video" | "write" | "like" | "comment" | "responses-arrow" | "send" | "edit" | "trash" | "more" | "briefcase" | "location" }) {
+export function Icon({ name, ...props }: SVGProps<SVGSVGElement> & { name: "home" | "network" | "jobs" | "board" | "bell" | "search" | "user" | "company" | "business" | "image" | "video" | "write" | "like" | "comment" | "responses-arrow" | "send" | "edit" | "trash" | "more" | "briefcase" | "location" }) {
   const paths: Record<string, React.ReactNode> = {
     home: <><path d="m3 11 9-8 9 8"/><path d="M5 10v11h14V10M9 21v-7h6v7"/></>,
     network: <><circle cx="8" cy="8" r="3"/><circle cx="17" cy="7" r="3"/><path d="M2 20v-2a5 5 0 0 1 10 0v2M13 20v-2a5 5 0 0 1 9-3"/></>,
     jobs: <><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V4h8v3M3 12h18M10 12v2h4v-2"/></>,
+    board: <><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5M9 3V1M15 3V1"/></>,
     bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></>,
     search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
     user: <><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></>,

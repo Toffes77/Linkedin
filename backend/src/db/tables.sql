@@ -38,6 +38,58 @@ CREATE TABLE empresa_usuario (
 );
 
 -- ============================================================
+-- TABLÓN: PROMOCIONES Y PROPUESTAS DE CONTRATACIÓN
+-- ============================================================
+CREATE TABLE promocion (
+    id SERIAL PRIMARY KEY,
+    usuario_id INT NOT NULL,
+    titulo VARCHAR(160) NOT NULL,
+    descripcion TEXT NOT NULL,
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (usuario_id) REFERENCES Usuario(id) ON DELETE CASCADE,
+    CONSTRAINT promocion_titulo_check
+        CHECK (LENGTH(TRIM(titulo)) BETWEEN 1 AND 160),
+    CONSTRAINT promocion_descripcion_check
+        CHECK (LENGTH(TRIM(descripcion)) BETWEEN 1 AND 3000)
+);
+
+CREATE INDEX idx_promocion_usuario_fecha
+    ON promocion (usuario_id, fecha_creacion DESC, id DESC);
+CREATE INDEX idx_promocion_fecha
+    ON promocion (fecha_creacion DESC, id DESC);
+
+CREATE TYPE estado_solicitud_contratacion_promocion AS ENUM (
+    'PENDIENTE',
+    'ACEPTADA',
+    'RECHAZADA'
+);
+
+CREATE TABLE solicitud_contratacion_promocion (
+    id SERIAL PRIMARY KEY,
+    promocion_id INT NOT NULL,
+    empresa_id INT NOT NULL,
+    solicitante_id INT NOT NULL,
+    estado estado_solicitud_contratacion_promocion NOT NULL DEFAULT 'PENDIENTE',
+    fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_respuesta TIMESTAMP,
+
+    FOREIGN KEY (promocion_id) REFERENCES promocion(id) ON DELETE CASCADE,
+    FOREIGN KEY (empresa_id) REFERENCES Empresa(id),
+    FOREIGN KEY (solicitante_id) REFERENCES Usuario(id)
+);
+
+CREATE UNIQUE INDEX uq_solicitud_promocion_empresa_pendiente
+    ON solicitud_contratacion_promocion (promocion_id, empresa_id)
+    WHERE estado = 'PENDIENTE';
+CREATE INDEX idx_solicitud_promocion_estado
+    ON solicitud_contratacion_promocion (
+        promocion_id,
+        estado,
+        fecha_creacion DESC
+    );
+
+-- ============================================================
 -- EXPERIENCIA
 -- ============================================================
 CREATE TABLE Experiencia (
@@ -187,11 +239,16 @@ CREATE TABLE notificacion (
     postulacion_id INT,
     oferta_id INT,
     usuario_origen_id INT,
+    promocion_id INT,
+    solicitud_contratacion_promocion_id INT,
 
     FOREIGN KEY (usuario_id) REFERENCES Usuario(id),
     FOREIGN KEY (postulacion_id) REFERENCES Postulacion(id),
     FOREIGN KEY (oferta_id) REFERENCES Oferta(id),
     FOREIGN KEY (usuario_origen_id) REFERENCES Usuario(id),
+    FOREIGN KEY (promocion_id) REFERENCES promocion(id) ON DELETE SET NULL,
+    FOREIGN KEY (solicitud_contratacion_promocion_id)
+        REFERENCES solicitud_contratacion_promocion(id) ON DELETE SET NULL,
 
     CONSTRAINT notificacion_tipo_check CHECK (
         tipo IN (
@@ -199,13 +256,16 @@ CREATE TABLE notificacion (
             'POSTULACION_ESTADO',
             'NUEVO_SEGUIDOR',
             'NUEVA_INVITACION_CONEXION',
-            'CONEXION_ACEPTADA'
+            'CONEXION_ACEPTADA',
+            'CONTRATACION_PROMOCION'
         )
     )
 );
 
 CREATE INDEX idx_notificacion_usuario_fecha
     ON notificacion (usuario_id, fecha DESC);
+CREATE INDEX idx_notificacion_promocion
+    ON notificacion (promocion_id);
 
 -- ============================================================
 -- SEGUIMIENTO (N a M DIRECCIONAL)

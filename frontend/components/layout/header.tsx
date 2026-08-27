@@ -13,6 +13,7 @@ const nav = [
   { href: "/feed", label: "Inicio", icon: "home" as const },
   { href: "/mi-red", label: "Mi red", icon: "network" as const },
   { href: "/empleos", label: "Empleos", icon: "jobs" as const },
+  { href: "/tablon", label: "Tablón", icon: "board" as const },
 ];
 
 export function Header() {

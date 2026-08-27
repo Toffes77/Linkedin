@@ -26,13 +26,18 @@ export type Comment = { id: number; publicacion_id: number; usuario_id: number; 
 export type Job = { id: number; empresa_id: number; titulo: string; descripcion: string; publicada: boolean; fecha_publicacion: string | null };
 export type ApplicationStatus = "nueva" | "vista" | "entrevista" | "contratado" | "rechazada";
 export type Application = { id: number; oferta_id: number; oferta_titulo: string; usuario_id: number; fecha: string; estado: ApplicationStatus };
-export type NotificationType = "POSTULACION_NUEVA" | "POSTULACION_ESTADO" | "NUEVO_SEGUIDOR" | "NUEVA_INVITACION_CONEXION" | "CONEXION_ACEPTADA";
-export type Notification = { id: number; usuario_id: number; tipo: NotificationType; mensaje: string; leida: boolean; fecha: string; postulacion_id: number | null; oferta_id: number | null; usuario_origen_id: number | null };
+export type NotificationType = "POSTULACION_NUEVA" | "POSTULACION_ESTADO" | "NUEVO_SEGUIDOR" | "NUEVA_INVITACION_CONEXION" | "CONEXION_ACEPTADA" | "CONTRATACION_PROMOCION";
+export type Notification = { id: number; usuario_id: number; tipo: NotificationType; mensaje: string; leida: boolean; fecha: string; postulacion_id: number | null; oferta_id: number | null; usuario_origen_id: number | null; promocion_id: number | null; solicitud_contratacion_promocion_id: number | null };
 export type MessageContact = { usuario_id: number; nombre: string; headline: string; foto_perfil_url: string | null; conversacion_id: number | null; ultimo_mensaje: string | null; ultimo_mensaje_autor_id: number | null; fecha_ultimo_mensaje: string | null; no_leidos: number };
 export type Conversation = { id: number; usuario_id: number; fecha_creacion: string };
 export type SharedPost = { id: number; autor_id: number; autor_nombre: string; autor_headline: string; autor_foto_perfil_url: string | null; texto: string; fecha: string };
 export type PrivateMessage = { id: number; conversacion_id: number; autor_id: number; contenido: string; tipo: "TEXTO" | "PUBLICACION"; publicacion_id: number | null; publicacion: SharedPost | null; fecha: string };
 export type JobStats = { oferta_id: number; total_postulaciones: number; postulaciones_por_estado: Record<ApplicationStatus, number>; dias_desde_publicacion: number | null };
+export type HiringRequestStatus = "PENDIENTE" | "ACEPTADA" | "RECHAZADA";
+export type HiringRequest = { id: number; promocion_id: number; empresa_id: number; empresa_nombre: string; empresa_foto_perfil_url: string | null; solicitante_id: number; estado: HiringRequestStatus; fecha_creacion: string; fecha_respuesta: string | null };
+export type Promotion = { id: number; usuario_id: number; usuario_nombre: string; usuario_headline: string; usuario_foto_perfil_url: string | null; titulo: string; descripcion: string; fecha_creacion: string; estado: "PENDIENTE" | "PENDIENTE_CONTRATACION"; solicitudes_pendientes: HiringRequest[] };
+export type PromotionPage = { items: Promotion[]; page: number; page_size: number; total: number };
+export type HiringCompany = { empresa_id: number; nombre: string; foto_perfil_url: string | null; rol: "OWNER" | "RECRUITER" };
 
 type ApiOptions = Omit<RequestInit, "credentials"> & { json?: unknown };
 type ValidationIssue = { loc?: Array<string | number>; msg?: string };
@@ -112,6 +117,19 @@ export const notificationsApi = {
   list: (limit = 30, offset = 0) => apiFetch<Notification[]>(`/api/notificaciones?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`),
   unreadCount: () => apiFetch<{ cantidad: number }>("/api/notificaciones/no-leidas/count"),
   markRead: (id: number) => apiFetch<Notification>(`/api/notificaciones/${id}/leida`, { method: "PATCH" }),
+};
+
+export const boardApi = {
+  listPromotions: (q = "", page = 1, pageSize = 10, signal?: AbortSignal) => {
+    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+    if (q.trim()) params.set("q", q.trim());
+    return apiFetch<PromotionPage>(`/api/promociones?${params}`, { signal });
+  },
+  getMyPromotions: (signal?: AbortSignal) => apiFetch<Promotion[]>("/api/promociones/mias", { signal }),
+  createPromotion: (data: { titulo: string; descripcion: string }) => apiFetch<Promotion>("/api/promociones", { method: "POST", json: data }),
+  getHiringCompanies: (promotionId: number, signal?: AbortSignal) => apiFetch<HiringCompany[]>(`/api/promociones/${promotionId}/empresas-contratantes`, { signal }),
+  createHiringRequest: (promotionId: number, companyId: number) => apiFetch<HiringRequest>(`/api/promociones/${promotionId}/solicitudes-contratacion`, { method: "POST", json: { empresa_id: companyId } }),
+  acceptHiringRequest: (requestId: number) => apiFetch<HiringRequest>(`/api/solicitudes-contratacion-promocion/${requestId}/aceptar`, { method: "POST" }),
 };
 
 export const messagesApi = {
