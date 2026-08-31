@@ -19,6 +19,7 @@ EstadoRelacionConexion = Literal[
 class CreateConexionDTO(BaseModel):
     usuario_a: int
     usuario_b: int
+    solicitante_id: int | None = None
 
 
 class UpdateConexionDTO(BaseModel):

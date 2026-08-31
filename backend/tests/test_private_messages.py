@@ -319,13 +319,15 @@ class PrivateMessagePersistenceTests(unittest.TestCase):
         self.db.add_all(
             [
                 Conexion(
-                    usuario_a=self.alicia.id,
-                    usuario_b=self.bruno.id,
+                    usuario_a=min(self.alicia.id, self.bruno.id),
+                    usuario_b=max(self.alicia.id, self.bruno.id),
+                    solicitante_id=self.alicia.id,
                     estado="aceptada",
                 ),
                 Conexion(
-                    usuario_a=self.carla.id,
-                    usuario_b=self.alicia.id,
+                    usuario_a=min(self.carla.id, self.alicia.id),
+                    usuario_b=max(self.carla.id, self.alicia.id),
+                    solicitante_id=self.carla.id,
                     estado="aceptada",
                 ),
             ]

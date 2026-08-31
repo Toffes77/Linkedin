@@ -1,9 +1,10 @@
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, selectinload
 
 from src.db.models.experiencia_model import Experiencia
 from src.db.models.usuario_model import Usuario
 from src.dtos.usuario_dto import UpdateUsuarioDTO
+from src.utils.email import normalize_email
 
 
 class UsuarioRepository:
@@ -11,6 +12,7 @@ class UsuarioRepository:
         self.db = db
 
     def create(self, usuario: Usuario) -> Usuario:
+        usuario.email = normalize_email(usuario.email)
         self.db.add(usuario)
         self.db.commit()
         self.db.refresh(usuario)
@@ -20,7 +22,11 @@ class UsuarioRepository:
         return self.db.query(Usuario).filter(Usuario.id == usuario_id).first()
 
     def get_by_email(self, email: str) -> Usuario | None:
-        return self.db.query(Usuario).filter(Usuario.email == email).first()
+        return (
+            self.db.query(Usuario)
+            .filter(func.lower(Usuario.email) == normalize_email(email))
+            .first()
+        )
 
     def search(self, texto: str, ciudad: str | None = None) -> list[Usuario]:
         patron = f"%{texto}%"
@@ -61,10 +67,19 @@ class UsuarioRepository:
         self.db.refresh(usuario)
         return usuario
 
-    def update_profile_photo(self, usuario: Usuario, foto_perfil_url: str) -> Usuario:
+    def update_profile_photo(
+        self,
+        usuario: Usuario,
+        foto_perfil_url: str,
+        *,
+        commit: bool = True,
+    ) -> Usuario:
         usuario.foto_perfil_url = foto_perfil_url
-        self.db.commit()
-        self.db.refresh(usuario)
+        if commit:
+            self.db.commit()
+            self.db.refresh(usuario)
+        else:
+            self.db.flush()
         return usuario
 
     def update_password_hash(self, usuario: Usuario, password_hash: str) -> Usuario:

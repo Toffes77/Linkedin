@@ -4,7 +4,7 @@
 -- ============================================================
 CREATE TABLE Usuario (
     id SERIAL PRIMARY KEY,
-    email VARCHAR(100) NOT NULL UNIQUE,
+    email VARCHAR(100) NOT NULL,
     nombre VARCHAR(100) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     headline VARCHAR(200) NOT NULL,
@@ -24,6 +24,9 @@ CREATE TABLE Empresa (
     foto_perfil_url VARCHAR(255)
 );
 
+CREATE UNIQUE INDEX uq_usuario_email_lower
+    ON Usuario (LOWER(email));
+
 CREATE TYPE rol_empresa AS ENUM ('OWNER', 'RECRUITER', 'COLLABORATOR');
 
 CREATE TABLE empresa_usuario (
@@ -36,6 +39,8 @@ CREATE TABLE empresa_usuario (
     FOREIGN KEY (empresa_id) REFERENCES Empresa(id),
     FOREIGN KEY (usuario_id) REFERENCES Usuario(id)
 );
+
+CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 -- ============================================================
 -- TABLÓN: PROMOCIONES Y PROPUESTAS DE CONTRATACIÓN
@@ -103,7 +108,13 @@ CREATE TABLE Experiencia (
     FOREIGN KEY (usuario_id) REFERENCES Usuario(id),
     FOREIGN KEY (empresa_id) REFERENCES Empresa(id),
 
-    CHECK (hasta IS NULL OR desde <= hasta)
+    CHECK (hasta IS NULL OR desde <= hasta),
+    CONSTRAINT exclude_experiencia_usuario_empresa_periodo
+        EXCLUDE USING gist (
+            usuario_id WITH =,
+            empresa_id WITH =,
+            daterange(desde, hasta, '[]') WITH &&
+        )
 );
 
 -- ============================================================
@@ -119,6 +130,9 @@ CREATE TABLE Publicacion (
 
     CHECK (LENGTH(texto) BETWEEN 1 AND 3000)
 );
+
+CREATE INDEX idx_publicacion_autor_fecha_id
+    ON Publicacion (autor_id, fecha DESC, id DESC);
 
 -- ============================================================
 -- COMENTARIOS Y RESPUESTAS
@@ -188,6 +202,7 @@ CREATE TABLE Postulacion (
 CREATE TABLE conexiones (
     usuario_a INT NOT NULL,
     usuario_b INT NOT NULL,
+    solicitante_id INT NOT NULL,
     fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
 
@@ -195,10 +210,14 @@ CREATE TABLE conexiones (
 
     FOREIGN KEY (usuario_a) REFERENCES Usuario(id),
     FOREIGN KEY (usuario_b) REFERENCES Usuario(id),
+    FOREIGN KEY (solicitante_id) REFERENCES Usuario(id),
 
-    CHECK (usuario_a <> usuario_b),
+    CONSTRAINT ck_conexiones_orden_canonico CHECK (usuario_a < usuario_b),
+    CONSTRAINT ck_conexiones_solicitante_en_par CHECK (
+        solicitante_id IN (usuario_a, usuario_b)
+    ),
 
-    CHECK (estado IN (
+    CONSTRAINT ck_conexiones_estado CHECK (estado IN (
         'pendiente',
         'aceptada',
         'rechazada'
@@ -216,7 +235,7 @@ CREATE TABLE reacciones (
     PRIMARY KEY (usuario_id, publicacion_id),
 
     FOREIGN KEY (usuario_id) REFERENCES Usuario(id),
-    FOREIGN KEY (publicacion_id) REFERENCES Publicacion(id),
+    FOREIGN KEY (publicacion_id) REFERENCES Publicacion(id) ON DELETE CASCADE,
 
     CHECK (tipo IN (
         'like',

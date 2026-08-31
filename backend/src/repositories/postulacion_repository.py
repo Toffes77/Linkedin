@@ -33,6 +33,15 @@ class PostulacionRepository:
             .first()
         )
 
+    def get_by_id_for_update(self, postulacion_id: int) -> Postulacion | None:
+        return (
+            self.db.query(Postulacion)
+            .populate_existing()
+            .filter(Postulacion.id == postulacion_id)
+            .with_for_update(of=Postulacion)
+            .first()
+        )
+
     def get_by_oferta(self, oferta_id: int) -> list[Postulacion]:
         return (
             self.db.query(Postulacion)

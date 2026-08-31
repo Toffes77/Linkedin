@@ -22,6 +22,12 @@ class Conexion(Base):
         nullable=False
     )
 
+    solicitante_id = Column(
+        Integer,
+        ForeignKey("usuario.id"),
+        nullable=False,
+    )
+
     fecha = Column(
         DateTime,
         server_default=func.now(),
@@ -37,20 +43,31 @@ class Conexion(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "usuario_a <> usuario_b"
+            "usuario_a < usuario_b",
+            name="ck_conexiones_orden_canonico",
         ),
         CheckConstraint(
-            "estado IN ('pendiente', 'aceptada', 'rechazada')"
+            "solicitante_id IN (usuario_a, usuario_b)",
+            name="ck_conexiones_solicitante_en_par",
+        ),
+        CheckConstraint(
+            "estado IN ('pendiente', 'aceptada', 'rechazada')",
+            name="ck_conexiones_estado",
         ),
     )
 
     usuario_a_rel = relationship(
         "Usuario",
         foreign_keys=[usuario_a],
-        back_populates="conexiones_enviadas"
+        back_populates="conexiones_lado_a"
     )
     usuario_b_rel = relationship(
         "Usuario",
         foreign_keys=[usuario_b],
-        back_populates="conexiones_recibidas"
+        back_populates="conexiones_lado_b"
+    )
+    solicitante_rel = relationship(
+        "Usuario",
+        foreign_keys=[solicitante_id],
+        back_populates="solicitudes_conexion_enviadas",
     )

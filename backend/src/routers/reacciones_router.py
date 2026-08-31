@@ -52,6 +52,36 @@ def update_reaccion(
     return ReaccionMapper.to_response_schema(reaccion)
 
 
+@router.get(
+    "/publicaciones/{publicacion_id}/reacciones/me",
+    response_model=GetReaccionSchema | None,
+)
+def get_mi_reaccion(
+    publicacion_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    reaccion = ReaccionesService(db).get_optional_by_usuario_and_publicacion(
+        current_user.id,
+        publicacion_id,
+    )
+    if reaccion is None:
+        return None
+    return ReaccionMapper.to_response_schema(reaccion)
+
+
+@router.delete(
+    "/publicaciones/{publicacion_id}/reacciones/me",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_mi_reaccion(
+    publicacion_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    ReaccionesService(db).delete(current_user.id, publicacion_id)
+
+
 @router.get("/publicaciones/{publicacion_id}/reacciones", response_model=dict[str, int])
 def get_reacciones_count(publicacion_id: int, db: Session = Depends(get_db)):
     return ReaccionesService(db).get_counts_by_publicacion(publicacion_id)

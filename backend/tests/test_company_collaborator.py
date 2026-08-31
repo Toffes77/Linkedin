@@ -253,6 +253,9 @@ class CollaboratorPermissionTests(unittest.TestCase):
             usuario_id=4,
             estado="entrevista",
         )
+        service.repository.get_by_id_for_update.return_value = (
+            service.repository.get_by_id.return_value
+        )
         service.oferta_repository = Mock()
         service.oferta_repository.get_by_id.return_value = SimpleNamespace(
             id=7,
@@ -314,6 +317,7 @@ class AutomaticCollaboratorTests(unittest.TestCase):
         )
         service.repository = Mock()
         service.repository.get_by_id.return_value = application
+        service.repository.get_by_id_for_update.return_value = application
 
         def update(model, data, *, commit=True):
             model.estado = data.estado

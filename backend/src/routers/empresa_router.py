@@ -27,6 +27,7 @@ from src.schemas.empresa_usuario_schema import (
     UpdateEmpresaUsuarioSchema,
 )
 from src.services.empresa_service import EmpresaService
+from src.utils.image_storage import read_limited_upload
 from src.services.empresa_usuario_service import EmpresaUsuarioService
 
 router = APIRouter(prefix="/empresas", tags=["empresas"])
@@ -99,7 +100,7 @@ async def update_empresa_profile_photo(
         empresa_id,
         current_user.id,
         foto.filename,
-        await foto.read(),
+        await read_limited_upload(foto),
     )
     return EmpresaMapper.to_response_schema(empresa)
 

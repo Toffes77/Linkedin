@@ -21,10 +21,16 @@ def user(user_id: int, nombre: str = "Usuario"):
     return SimpleNamespace(id=user_id, nombre=nombre)
 
 
-def connection(usuario_a: int, usuario_b: int, estado: str = "pendiente"):
+def connection(
+    usuario_a: int,
+    usuario_b: int,
+    estado: str = "pendiente",
+    solicitante_id: int | None = None,
+):
     return SimpleNamespace(
         usuario_a=usuario_a,
         usuario_b=usuario_b,
+        solicitante_id=solicitante_id or usuario_a,
         fecha=datetime.now(),
         estado=estado,
     )
@@ -101,7 +107,7 @@ class ConnectionFlowTests(unittest.TestCase):
         result = service.create(CreateConexionDTO(usuario_a=1, usuario_b=2), 1)
 
         service.repository.create.assert_called_once_with(
-            CreateConexionDTO(usuario_a=1, usuario_b=2),
+            CreateConexionDTO(usuario_a=1, usuario_b=2, solicitante_id=1),
             commit=False,
         )
         notifications = service.notificacion_service.create_many.call_args.args[0]

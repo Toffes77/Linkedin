@@ -16,7 +16,7 @@ class Reacciones(Base):
 
     publicacion_id = Column(
         Integer,
-        ForeignKey("publicacion.id"),
+        ForeignKey("publicacion.id", ondelete="CASCADE"),
         primary_key=True,
         nullable=False
     )

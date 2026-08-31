@@ -14,7 +14,7 @@ from src.schemas.oferta_schema import (
     GetOfertaEstadisticasSchema,
     UpdateOfertaSchema,
 )
-from src.middlewares.auth_middleware import get_current_user
+from src.middlewares.auth_middleware import get_current_user, get_optional_current_user
 from src.services.oferta_service import OfertaService
 
 router = APIRouter(tags=["ofertas"])
@@ -42,14 +42,28 @@ def get_ofertas_publicadas(q: str | None = None, db: Session = Depends(get_db)):
 
 
 @router.get("/empresas/{empresa_id}/ofertas", response_model=list[GetOfertaSchema])
-def get_ofertas_by_empresa(empresa_id: int, db: Session = Depends(get_db)):
-    ofertas: list[OfertaResponseDTO] = OfertaService(db).get_by_empresa(empresa_id)
+def get_ofertas_by_empresa(
+    empresa_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario | None = Depends(get_optional_current_user),
+):
+    ofertas: list[OfertaResponseDTO] = OfertaService(db).get_by_empresa(
+        empresa_id,
+        current_user.id if current_user else None,
+    )
     return [OfertaMapper.to_response_schema(oferta) for oferta in ofertas]
 
 
 @router.get("/ofertas/{oferta_id}", response_model=GetOfertaSchema)
-def get_oferta(oferta_id: int, db: Session = Depends(get_db)):
-    oferta: OfertaResponseDTO = OfertaService(db).get_by_id(oferta_id)
+def get_oferta(
+    oferta_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario | None = Depends(get_optional_current_user),
+):
+    oferta: OfertaResponseDTO = OfertaService(db).get_by_id(
+        oferta_id,
+        current_user.id if current_user else None,
+    )
     return OfertaMapper.to_response_schema(oferta)
 
 

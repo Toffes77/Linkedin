@@ -1,5 +1,6 @@
 from datetime import date
 
+from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from src.dtos.experiencia_dto import (
@@ -11,11 +12,12 @@ from src.mappers.experiencia_mapper import ExperienciaMapper
 from src.repositories.empresa_repository import EmpresaRepository
 from src.repositories.experiencia_repository import ExperienciaRepository
 from src.repositories.usuario_repository import UsuarioRepository
-from src.utils.errors import ConflictError, NotFoundError
+from src.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 
 class ExperienciaService:
     def __init__(self, db: Session):
+        self.db = db
         self.repository = ExperienciaRepository(db)
         self.usuario_repository = UsuarioRepository(db)
         self.empresa_repository = EmpresaRepository(db)
@@ -23,17 +25,35 @@ class ExperienciaService:
     def create(
         self,
         experiencia_data: CreateExperienciaDTO,
+        usuario_actual_id: int,
     ) -> ExperienciaResponseDTO:
+        self._requerir_propietario(
+            experiencia_data.usuario_id,
+            usuario_actual_id,
+        )
         self._validar_usuario(experiencia_data.usuario_id)
         self._validar_empresa(experiencia_data.empresa_id)
         self._validar_fechas(experiencia_data.desde, experiencia_data.hasta)
+        self.repository.lock_overlap_scope(
+            experiencia_data.usuario_id,
+            experiencia_data.empresa_id,
+        )
         self._validar_sin_solapamientos(
             experiencia_data.usuario_id,
+            experiencia_data.empresa_id,
             experiencia_data.desde,
             experiencia_data.hasta,
         )
 
-        experiencia = self.repository.create(experiencia_data)
+        try:
+            experiencia = self.repository.create(experiencia_data)
+        except (IntegrityError, OperationalError) as exc:
+            self.db.rollback()
+            if self._es_conflicto_solapamiento(exc) or self._es_deadlock(exc):
+                raise ConflictError(
+                    "El período se solapa con otra experiencia del usuario en la misma empresa."
+                ) from exc
+            raise
         return ExperienciaMapper.to_response_dto(experiencia)
 
     def get_by_id(self, experiencia_id: int) -> ExperienciaResponseDTO:
@@ -52,10 +72,13 @@ class ExperienciaService:
         self,
         experiencia_id: int,
         experiencia_data: UpdateExperienciaDTO,
+        usuario_actual_id: int,
     ) -> ExperienciaResponseDTO:
         experiencia = self.repository.get_by_id(experiencia_id)
         if experiencia is None:
             raise NotFoundError("Experiencia no encontrada.")
+
+        self._requerir_propietario(experiencia.usuario_id, usuario_actual_id)
 
         fields_set = experiencia_data.model_fields_set
         if "empresa_id" in fields_set:
@@ -76,26 +99,49 @@ class ExperienciaService:
             if "hasta" in fields_set
             else experiencia.hasta
         )
+        empresa_id = (
+            experiencia_data.empresa_id
+            if "empresa_id" in fields_set
+            else experiencia.empresa_id
+        )
         self._validar_fechas(desde, hasta)
+        self.repository.lock_overlap_scope(experiencia.usuario_id, empresa_id)
         self._validar_sin_solapamientos(
             experiencia.usuario_id,
+            empresa_id,
             desde,
             hasta,
             experiencia.id,
         )
 
-        experiencia_actualizada = self.repository.update(
-            experiencia,
-            experiencia_data,
-        )
+        try:
+            experiencia_actualizada = self.repository.update(
+                experiencia,
+                experiencia_data,
+            )
+        except (IntegrityError, OperationalError) as exc:
+            self.db.rollback()
+            if self._es_conflicto_solapamiento(exc) or self._es_deadlock(exc):
+                raise ConflictError(
+                    "El período se solapa con otra experiencia del usuario en la misma empresa."
+                ) from exc
+            raise
         return ExperienciaMapper.to_response_dto(experiencia_actualizada)
 
-    def delete(self, experiencia_id: int) -> None:
+    def delete(self, experiencia_id: int, usuario_actual_id: int) -> None:
         experiencia = self.repository.get_by_id(experiencia_id)
         if experiencia is None:
             raise NotFoundError("Experiencia no encontrada.")
 
+        self._requerir_propietario(experiencia.usuario_id, usuario_actual_id)
         self.repository.delete(experiencia)
+
+    @staticmethod
+    def _requerir_propietario(usuario_id: int, usuario_actual_id: int) -> None:
+        if usuario_id != usuario_actual_id:
+            raise ForbiddenError(
+                "No puede modificar experiencias de otro usuario."
+            )
 
     def _validar_usuario(self, usuario_id: int) -> None:
         if self.usuario_repository.get_by_id(usuario_id) is None:
@@ -114,32 +160,30 @@ class ExperienciaService:
     def _validar_sin_solapamientos(
         self,
         usuario_id: int,
+        empresa_id: int,
         desde: date,
         hasta: date | None,
         experiencia_id_a_excluir: int | None = None,
     ) -> None:
-        experiencias = self.repository.get_by_usuario(usuario_id)
-
-        for experiencia in experiencias:
-            if experiencia.id == experiencia_id_a_excluir:
-                continue
-
-            if self._se_solapan(desde, hasta, experiencia.desde, experiencia.hasta):
-                raise ConflictError(
-                    "El período de la experiencia se solapa con otra experiencia del usuario."
-                )
+        if self.repository.exists_overlap(
+            usuario_id,
+            empresa_id,
+            desde,
+            hasta,
+            experiencia_id_a_excluir,
+        ):
+            raise ConflictError(
+                "El período se solapa con otra experiencia del usuario en la misma empresa."
+            )
 
     @staticmethod
-    def _se_solapan(
-        desde_a: date,
-        hasta_a: date | None,
-        desde_b: date,
-        hasta_b: date | None,
-    ) -> bool:
-        if hasta_a is not None and hasta_a < desde_b:
-            return False
+    def _es_conflicto_solapamiento(error: DBAPIError) -> bool:
+        diagnostic = getattr(error.orig, "diag", None)
+        return (
+            getattr(diagnostic, "constraint_name", None)
+            == "exclude_experiencia_usuario_empresa_periodo"
+        )
 
-        if hasta_b is not None and hasta_b < desde_a:
-            return False
-
-        return True
+    @staticmethod
+    def _es_deadlock(error: DBAPIError) -> bool:
+        return getattr(error.orig, "pgcode", None) == "40P01"

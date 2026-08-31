@@ -1,3 +1,4 @@
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.db.models.usuario_model import Usuario
@@ -10,6 +11,7 @@ from src.dtos.usuario_dto import (
 )
 from src.mappers.usuario_mapper import UsuarioMapper
 from src.repositories.usuario_repository import UsuarioRepository
+from src.utils.email import normalize_email
 from src.utils.errors import BadRequestError, ConflictError, NotFoundError, UnauthorizedError
 from src.utils.hash import hash_password, verify_password
 from src.utils.image_storage import (
@@ -21,17 +23,25 @@ from src.utils.image_storage import (
 
 class UsuarioService:
     def __init__(self, db: Session):
+        self.db = db
         self.repository = UsuarioRepository(db)
 
     def create(self, usuario_data: CreateUsuarioDTO) -> UsuarioResponseDTO:
-        if self.repository.get_by_email(usuario_data.email) is not None:
+        usuario_data = usuario_data.model_copy(
+            update={"email": normalize_email(str(usuario_data.email))}
+        )
+        if self.repository.get_by_email(str(usuario_data.email)) is not None:
             raise ConflictError("El email ya se encuentra registrado.")
 
         usuario = UsuarioMapper.to_model(
             usuario_data,
             password_hash=hash_password(usuario_data.password),
         )
-        usuario_creado = self.repository.create(usuario)
+        try:
+            usuario_creado = self.repository.create(usuario)
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise ConflictError("El email ya se encuentra registrado.") from exc
         return UsuarioMapper.to_response_dto(usuario_creado)
 
     def get_by_id(self, usuario_id: int) -> UsuarioResponseDTO:
@@ -78,14 +88,18 @@ class UsuarioService:
         previous_url = usuario.foto_perfil_url
         photo_url = save_image("usuario", usuario.id, extension, content)
         try:
-            usuario_actualizado = self.repository.update_profile_photo(usuario, photo_url)
+            usuario_actualizado = self.repository.update_profile_photo(
+                usuario,
+                photo_url,
+                commit=False,
+            )
+            self.db.commit()
         except Exception:
-            if photo_url != previous_url:
-                delete_managed_image(photo_url, "usuario", usuario.id)
+            self.db.rollback()
+            delete_managed_image(photo_url, "usuario", usuario.id)
             raise
 
-        if previous_url != photo_url:
-            delete_managed_image(previous_url, "usuario", usuario.id)
+        delete_managed_image(previous_url, "usuario", usuario.id)
         return UsuarioMapper.to_response_dto(usuario_actualizado)
 
     def update_password(

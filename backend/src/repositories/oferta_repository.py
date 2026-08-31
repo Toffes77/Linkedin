@@ -26,6 +26,16 @@ class OfertaRepository:
             .all()
         )
 
+    def get_publicadas_by_empresa(self, empresa_id: int) -> list[Oferta]:
+        return (
+            self.db.query(Oferta)
+            .filter(
+                Oferta.empresa_id == empresa_id,
+                Oferta.publicada.is_(True),
+            )
+            .all()
+        )
+
     def get_publicadas(self, titulo: str | None = None) -> list[Oferta]:
         query = self.db.query(Oferta).filter(Oferta.publicada.is_(True))
         if titulo:

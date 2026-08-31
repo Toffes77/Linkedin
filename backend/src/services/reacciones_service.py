@@ -1,3 +1,4 @@
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.dtos.reacciones_dto import (
@@ -14,6 +15,7 @@ from src.utils.errors import ConflictError, NotFoundError
 
 class ReaccionesService:
     def __init__(self, db: Session):
+        self.db = db
         self.repository = ReaccionRepository(db)
         self.usuario_repository = UsuarioRepository(db)
         self.publicacion_repository = PublicacionRepository(db)
@@ -31,7 +33,27 @@ class ReaccionesService:
         ):
             raise ConflictError("El usuario ya reaccionó a esta publicación.")
 
-        reaccion = self.repository.create(reaccion_data)
+        try:
+            reaccion = self.repository.create(reaccion_data)
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise ConflictError(
+                "El usuario ya reaccionó a esta publicación."
+            ) from exc
+        return ReaccionMapper.to_response_dto(reaccion)
+
+    def get_optional_by_usuario_and_publicacion(
+        self,
+        usuario_id: int,
+        publicacion_id: int,
+    ) -> ReaccionResponseDTO | None:
+        self._validar_publicacion(publicacion_id)
+        reaccion = self.repository.get_by_usuario_and_publicacion(
+            usuario_id,
+            publicacion_id,
+        )
+        if reaccion is None:
+            return None
         return ReaccionMapper.to_response_dto(reaccion)
 
     def get_by_usuario_and_publicacion(
@@ -73,12 +95,13 @@ class ReaccionesService:
         return ReaccionMapper.to_response_dto(reaccion_actualizada)
 
     def delete(self, usuario_id: int, publicacion_id: int) -> None:
+        self._validar_publicacion(publicacion_id)
         reaccion = self.repository.get_by_usuario_and_publicacion(
             usuario_id,
             publicacion_id,
         )
         if reaccion is None:
-            raise NotFoundError("Reacción no encontrada.")
+            return
 
         self.repository.delete(reaccion)
 

@@ -1,5 +1,22 @@
 type Identifiable = { id: number };
 
+export function feedQueryParams({
+  cursor,
+  pageSize,
+  excludePostId,
+}: {
+  cursor?: string | null;
+  pageSize: number;
+  excludePostId?: number | null;
+}) {
+  const params = new URLSearchParams({ page_size: String(pageSize) });
+  if (cursor) params.set("cursor", cursor);
+  if (excludePostId) {
+    params.set("exclude_publicacion_id", String(excludePostId));
+  }
+  return params;
+}
+
 export function uniqueById<Item extends Identifiable>(items: Item[]) {
   const seen = new Set<number>();
   return items.filter((item) => {
@@ -29,15 +46,11 @@ export function excludeItemById<Item extends Identifiable>(
     : items.filter((item) => item.id !== excludedId);
 }
 
-export function feedHasMore(receivedCount: number, pageSize: number) {
-  return receivedCount === pageSize;
-}
-
-export function canRequestFeedPage(
-  page: number,
+export function canRequestFeedCursor(
+  cursor: string | null,
   loading: boolean,
   hasMore: boolean,
-  loadedPages: ReadonlySet<number>,
+  requestedCursors: ReadonlySet<string>,
 ) {
-  return !loading && hasMore && !loadedPages.has(page);
+  return cursor !== null && !loading && hasMore && !requestedCursors.has(cursor);
 }

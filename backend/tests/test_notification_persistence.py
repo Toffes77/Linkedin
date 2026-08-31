@@ -272,6 +272,7 @@ class NotificationPersistenceTests(unittest.TestCase):
             [offer["id"] for offer in searched_offers.json()],
         )
 
+        self.current_user = self.applicant
         my_applications = self.client.get(
             f"/api/usuarios/{self.applicant.id}/postulaciones"
         )
@@ -292,7 +293,7 @@ class NotificationPersistenceTests(unittest.TestCase):
             )["estado"],
             "contratado",
         )
-        self.assertIn(
+        self.assertNotIn(
             self.offer.id,
             [offer["id"] for offer in company_offers.json()],
         )
@@ -477,7 +478,11 @@ class NotificationPersistenceTests(unittest.TestCase):
         self.assertEqual(created.status_code, 201, created.text)
         self.assertEqual(created.json()["estado"], "pendiente")
 
-        stored_connection = self.db.get(Conexion, (usuario_a.id, usuario_b.id))
+        connection_key = (
+            min(usuario_a.id, usuario_b.id),
+            max(usuario_a.id, usuario_b.id),
+        )
+        stored_connection = self.db.get(Conexion, connection_key)
         self.assertIsNotNone(stored_connection)
         self.assertEqual(stored_connection.estado, "pendiente")
 
@@ -530,14 +535,14 @@ class NotificationPersistenceTests(unittest.TestCase):
         self.current_user = usuario_b
         received_status = self.client.get(f"/api/conexiones/estado/{usuario_a.id}")
         self.assertEqual(received_status.json()["estado"], "PENDIENTE_RECIBIDA")
-        self.assertEqual(received_status.json()["usuario_a"], usuario_a.id)
-        self.assertEqual(received_status.json()["usuario_b"], usuario_b.id)
+        self.assertEqual(received_status.json()["usuario_a"], connection_key[0])
+        self.assertEqual(received_status.json()["usuario_b"], connection_key[1])
 
         invitations = self.client.get("/api/conexiones/invitaciones-recibidas")
         self.assertEqual(invitations.status_code, 200, invitations.text)
         self.assertIn(
             usuario_a.id,
-            [invitation["usuario_a"] for invitation in invitations.json()],
+            [invitation["usuario"]["id"] for invitation in invitations.json()],
         )
 
         listed_notifications = self.client.get("/api/notificaciones")
@@ -578,7 +583,7 @@ class NotificationPersistenceTests(unittest.TestCase):
         )
         self.assertEqual(accepted.status_code, 200, accepted.text)
         self.assertEqual(accepted.json()["estado"], "aceptada")
-        self.assertIs(self.db.get(Conexion, (usuario_a.id, usuario_b.id)), stored_connection)
+        self.assertIs(self.db.get(Conexion, connection_key), stored_connection)
         self.assertEqual(stored_connection.estado, "aceptada")
 
         acceptance_notification = (
@@ -664,7 +669,13 @@ class NotificationPersistenceTests(unittest.TestCase):
                 )
 
         self.assertIsNone(
-            self.db.get(Conexion, (self.applicant.id, self.owner.id))
+            self.db.get(
+                Conexion,
+                (
+                    min(self.applicant.id, self.owner.id),
+                    max(self.applicant.id, self.owner.id),
+                ),
+            )
         )
         self.assertEqual(
             self.db.query(Notificacion)
@@ -703,7 +714,10 @@ class NotificationPersistenceTests(unittest.TestCase):
 
         stored_connection = self.db.get(
             Conexion,
-            (self.applicant.id, self.owner.id),
+            (
+                min(self.applicant.id, self.owner.id),
+                max(self.applicant.id, self.owner.id),
+            ),
         )
         self.assertIsNotNone(stored_connection)
         self.assertEqual(stored_connection.estado, "pendiente")

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, text
+from sqlalchemy import Column, DateTime, Index, Integer, String, func, text
 from sqlalchemy.orm import relationship
 
 from src.db.connection import Base
@@ -8,7 +8,7 @@ class Usuario(Base):
     __tablename__ = "usuario"
 
     id = Column(Integer, primary_key=True)
-    email = Column(String(100), nullable=False, unique=True)
+    email = Column(String(100), nullable=False)
     nombre = Column(String(100), nullable=False)
     password_hash = Column(String(255), nullable=False)
     headline = Column(String(200), nullable=False)
@@ -30,15 +30,20 @@ class Usuario(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
-    conexiones_enviadas = relationship(
+    conexiones_lado_a = relationship(
         "Conexion",
         foreign_keys="Conexion.usuario_a",
         back_populates="usuario_a_rel"
     )
-    conexiones_recibidas = relationship(
+    conexiones_lado_b = relationship(
         "Conexion",
         foreign_keys="Conexion.usuario_b",
         back_populates="usuario_b_rel"
+    )
+    solicitudes_conexion_enviadas = relationship(
+        "Conexion",
+        foreign_keys="Conexion.solicitante_id",
+        back_populates="solicitante_rel",
     )
     seguimientos_realizados = relationship(
         "Seguimiento",
@@ -72,4 +77,8 @@ class Usuario(Base):
         "ConversacionUsuario",
         back_populates="usuario",
         cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index("uq_usuario_email_lower", func.lower(email), unique=True),
     )

@@ -12,22 +12,18 @@ from src.utils.jwt import decode_token
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def get_current_user(
+def _get_request_token(
     request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
-) -> Usuario:
-    token: str | None = None
+    credentials: HTTPAuthorizationCredentials | None,
+) -> str | None:
     if credentials is not None and credentials.scheme.lower() == "bearer":
-        token = credentials.credentials
+        return credentials.credentials
     elif request.headers.get("authorization"):
         raise UnauthorizedError("Missing or malformed Authorization header")
-    else:
-        token = request.cookies.get("access_token")
+    return request.cookies.get("access_token")
 
-    if not token:
-        raise UnauthorizedError("Missing authentication token")
 
+def _get_user_from_token(token: str, db: Session) -> Usuario:
     payload = decode_token(token)
 
     try:
@@ -38,5 +34,28 @@ def get_current_user(
     user = UsuarioRepository(db).get_by_id(user_id)
     if user is None:
         raise UnauthorizedError("User no longer exists")
-
     return user
+
+
+def get_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> Usuario:
+    token = _get_request_token(request, credentials)
+
+    if not token:
+        raise UnauthorizedError("Missing authentication token")
+
+    return _get_user_from_token(token, db)
+
+
+def get_optional_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> Usuario | None:
+    token = _get_request_token(request, credentials)
+    if not token:
+        return None
+    return _get_user_from_token(token, db)

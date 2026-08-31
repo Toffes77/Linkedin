@@ -1,3 +1,5 @@
+import { feedQueryParams } from "@/lib/feed-pagination";
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 if (!API_URL) {
@@ -18,6 +20,7 @@ export type ReceivedInvitation = Connection & { usuario: User };
 export type NetworkSummary = { invitaciones_enviadas: number; contactos: number; siguiendo: number };
 export type Follow = { seguidor_id: number; seguido_id: number; fecha: string };
 export type Post = { id: number; autor_id: number; texto: string; fecha: string };
+export type FeedPage = { items: Post[]; next_cursor: string | null; has_more: boolean };
 export type ReactionType = "like" | "celebrar" | "apoyar" | "interesante";
 export type Reaction = { usuario_id: number; publicacion_id: number; tipo: ReactionType };
 export type ReactionCounts = Record<ReactionType, number>;
@@ -149,15 +152,20 @@ export const followsApi = {
 };
 
 export const postsApi = {
-  feed: (page = 1, pageSize = 20, signal?: AbortSignal) => apiFetch<Post[]>(`/api/feed?${new URLSearchParams({ page: String(page), page_size: String(pageSize) })}`, { signal }),
+  feed: ({ cursor, pageSize = 20, excludePostId, signal }: { cursor?: string | null; pageSize?: number; excludePostId?: number | null; signal?: AbortSignal } = {}) => {
+    const params = feedQueryParams({ cursor, pageSize, excludePostId });
+    return apiFetch<FeedPage>(`/api/feed?${params}`, { signal });
+  },
   get: (id: number, signal?: AbortSignal) => apiFetch<Post>(`/api/publicaciones/${id}`, { signal }),
   byAuthor: (userId: number, limit = 20, offset = 0) => apiFetch<Post[]>(`/api/publicaciones/autor/${userId}?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`),
   create: (texto: string) => apiFetch<Post>("/api/publicaciones", { method: "POST", json: { texto } }),
   update: (id: number, texto: string) => apiFetch<Post>(`/api/publicaciones/${id}`, { method: "PUT", json: { texto } }),
   delete: (id: number) => apiFetch<void>(`/api/publicaciones/${id}`, { method: "DELETE" }),
   reactionCounts: (id: number) => apiFetch<ReactionCounts>(`/api/publicaciones/${id}/reacciones`),
-  react: (userId: number, postId: number, tipo: ReactionType) => apiFetch<Reaction>("/api/reacciones", { method: "POST", json: { usuario_id: userId, publicacion_id: postId, tipo } }),
+  myReaction: (postId: number) => apiFetch<Reaction | null>(`/api/publicaciones/${postId}/reacciones/me`),
+  react: (postId: number, tipo: ReactionType) => apiFetch<Reaction>("/api/reacciones", { method: "POST", json: { publicacion_id: postId, tipo } }),
   changeReaction: (postId: number, tipo: ReactionType) => apiFetch<Reaction>(`/api/publicaciones/${postId}/reacciones`, { method: "PATCH", json: { tipo } }),
+  removeReaction: (postId: number) => apiFetch<void>(`/api/publicaciones/${postId}/reacciones/me`, { method: "DELETE" }),
 };
 
 export const commentsApi = {

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, CheckConstraint
+from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -25,7 +25,12 @@ class Publicacion(Base):
     )
 
     autor = relationship("Usuario", back_populates="publicaciones")
-    reacciones = relationship("Reacciones", back_populates="publicacion")
+    reacciones = relationship(
+        "Reacciones",
+        back_populates="publicacion",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
     comentarios = relationship(
         "Comentario",
         back_populates="publicacion",
@@ -37,5 +42,11 @@ class Publicacion(Base):
         CheckConstraint(
             "LENGTH(texto) BETWEEN 1 AND 3000",
             name="check_longitud_texto"
+        ),
+        Index(
+            "idx_publicacion_autor_fecha_id",
+            "autor_id",
+            fecha.desc(),
+            id.desc(),
         ),
     )

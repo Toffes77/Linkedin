@@ -9,9 +9,8 @@ import { Composer } from "@/components/feed/composer";
 import { PostCard } from "@/components/feed/post-card";
 import {
   appendUniqueById,
-  canRequestFeedPage,
+  canRequestFeedCursor,
   excludeItemById,
-  feedHasMore,
   uniqueById,
 } from "@/lib/feed-pagination";
 import { postsApi, usersApi, type Post, type User } from "@/lib/api";
@@ -25,8 +24,9 @@ export default function FeedPage({
 }) {
   const rawSharedPostId = use(searchParams).publicacion;
   const parsedSharedPostId = Number(Array.isArray(rawSharedPostId) ? rawSharedPostId[0] : rawSharedPostId);
-  const sharedPostId = Number.isInteger(parsedSharedPostId) && parsedSharedPostId > 0 ? parsedSharedPostId : null;
+  const requestedSharedPostId = Number.isInteger(parsedSharedPostId) && parsedSharedPostId > 0 ? parsedSharedPostId : null;
   const { user } = useAuth();
+  const [sharedPostId] = useState(requestedSharedPostId);
   const [posts, setPosts] = useState<Post[]>([]);
   const [sharedPost, setSharedPost] = useState<Post | null>(null);
   const [authors, setAuthors] = useState<Record<number, User>>({});
@@ -37,8 +37,8 @@ export default function FeedPage({
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const loadingPageRef = useRef(false);
   const hasMoreRef = useRef(true);
-  const nextPageRef = useRef(1);
-  const loadedPagesRef = useRef(new Set<number>());
+  const nextCursorRef = useRef<string | null>(null);
+  const requestedCursorsRef = useRef(new Set<string>());
   const authorIdsRef = useRef(new Set<number>());
   const requestRef = useRef<AbortController | null>(null);
   const activeUserRef = useRef<number | null>(null);
@@ -71,27 +71,30 @@ export default function FeedPage({
     activeUserRef.current = currentUser.id;
     loadingPageRef.current = true;
     hasMoreRef.current = true;
-    nextPageRef.current = 1;
-    loadedPagesRef.current = new Set<number>();
+    nextCursorRef.current = null;
+    requestedCursorsRef.current = new Set<string>();
     authorIdsRef.current = new Set<number>([currentUser.id]);
-
     async function loadFirstPage() {
       try {
-        const [items, requestedPost] = await Promise.all([
-          postsApi.feed(1, FEED_PAGE_SIZE, controller.signal),
+        const [feedPage, requestedPost] = await Promise.all([
+          postsApi.feed({
+            pageSize: FEED_PAGE_SIZE,
+            excludePostId: sharedPostId,
+            signal: controller.signal,
+          }),
           sharedPostId
             ? postsApi.get(sharedPostId, controller.signal).catch(() => null)
             : Promise.resolve(null),
         ]);
         if (controller.signal.aborted || activeUserRef.current !== currentUser.id) return;
+        const items = feedPage.items;
         const firstPage = excludeItemById(uniqueById(items), requestedPost?.id);
         setAuthors({ [currentUser.id]: currentUser });
         setSharedPost(requestedPost);
         setError("");
         setLoadingMore(false);
-        loadedPagesRef.current.add(1);
-        nextPageRef.current = 2;
-        const canLoadMore = feedHasMore(items.length, FEED_PAGE_SIZE);
+        nextCursorRef.current = feedPage.next_cursor;
+        const canLoadMore = feedPage.has_more && feedPage.next_cursor !== null;
         hasMoreRef.current = canLoadMore;
         setHasMore(canLoadMore);
         setPosts(firstPage);
@@ -122,14 +125,15 @@ export default function FeedPage({
   const loadNextPage = useCallback(async () => {
     if (!user) return;
 
-    const page = nextPageRef.current;
-    if (!canRequestFeedPage(
-      page,
+    const cursor = nextCursorRef.current;
+    if (!cursor || !canRequestFeedCursor(
+      cursor,
       loadingPageRef.current,
       hasMoreRef.current,
-      loadedPagesRef.current,
+      requestedCursorsRef.current,
     )) return;
 
+    requestedCursorsRef.current.add(cursor);
     loadingPageRef.current = true;
     setLoadingMore(true);
     setError("");
@@ -137,14 +141,19 @@ export default function FeedPage({
     requestRef.current = controller;
 
     try {
-      const items = await postsApi.feed(page, FEED_PAGE_SIZE, controller.signal);
+      const feedPage = await postsApi.feed({
+        cursor,
+        pageSize: FEED_PAGE_SIZE,
+        excludePostId: sharedPostId,
+        signal: controller.signal,
+      });
       if (controller.signal.aborted || activeUserRef.current !== user.id) return;
-      loadedPagesRef.current.add(page);
-      nextPageRef.current = page + 1;
-      const canLoadMore = feedHasMore(items.length, FEED_PAGE_SIZE);
+      const items = feedPage.items;
+      nextCursorRef.current = feedPage.next_cursor;
+      const canLoadMore = feedPage.has_more && feedPage.next_cursor !== null;
       hasMoreRef.current = canLoadMore;
       setHasMore(canLoadMore);
-      const incoming = excludeItemById(uniqueById(items), sharedPost?.id);
+      const incoming = excludeItemById(uniqueById(items), sharedPostId);
       setPosts((current) => appendUniqueById(current, incoming));
       await loadAuthors(incoming, controller.signal);
     } catch (reason) {
@@ -158,7 +167,7 @@ export default function FeedPage({
         setLoadingMore(false);
       }
     }
-  }, [loadAuthors, sharedPost, user]);
+  }, [loadAuthors, sharedPostId, user]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;

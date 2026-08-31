@@ -19,6 +19,7 @@ from src.utils.image_storage import (
 
 class EmpresaService:
     def __init__(self, db: Session):
+        self.db = db
         self.repository = EmpresaRepository(db)
         self.empresa_usuario_repository = EmpresaUsuarioRepository(db)
 
@@ -83,12 +84,16 @@ class EmpresaService:
         previous_url = empresa.foto_perfil_url
         photo_url = save_image("empresa", empresa.id, extension, content)
         try:
-            empresa_actualizada = self.repository.update_profile_photo(empresa, photo_url)
+            empresa_actualizada = self.repository.update_profile_photo(
+                empresa,
+                photo_url,
+                commit=False,
+            )
+            self.db.commit()
         except Exception:
-            if photo_url != previous_url:
-                delete_managed_image(photo_url, "empresa", empresa.id)
+            self.db.rollback()
+            delete_managed_image(photo_url, "empresa", empresa.id)
             raise
 
-        if previous_url != photo_url:
-            delete_managed_image(previous_url, "empresa", empresa.id)
+        delete_managed_image(previous_url, "empresa", empresa.id)
         return EmpresaMapper.to_response_dto(empresa_actualizada)

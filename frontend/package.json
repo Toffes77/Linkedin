@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:company-members": "node --experimental-strip-types --test lib/company-members.test.ts",
-    "test:feed": "node --experimental-strip-types --test lib/feed-pagination.test.ts"
+    "test:feed": "node --experimental-strip-types --test lib/feed-pagination.test.ts",
+    "test:reactions": "node --experimental-strip-types --test lib/reaction-state.test.ts"
   },
   "dependencies": {
     "next": "16.2.4",

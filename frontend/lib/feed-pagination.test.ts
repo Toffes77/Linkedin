@@ -3,13 +3,25 @@ import test from "node:test";
 
 import {
   appendUniqueById,
-  canRequestFeedPage,
+  canRequestFeedCursor,
   excludeItemById,
-  feedHasMore,
+  feedQueryParams,
   uniqueById,
 } from "./feed-pagination.ts";
 
 const firstPage = [{ id: 1 }, { id: 2 }, { id: 3 }];
+
+test("the first request has no cursor and continuation sends the backend cursor", () => {
+  assert.equal(feedQueryParams({ pageSize: 10 }).toString(), "page_size=10");
+  assert.equal(
+    feedQueryParams({
+      cursor: "signed.cursor",
+      pageSize: 10,
+      excludePostId: 32,
+    }).toString(),
+    "page_size=10&cursor=signed.cursor&exclude_publicacion_id=32",
+  );
+});
 
 test("new pages append below existing posts without replacing them", () => {
   assert.deepEqual(
@@ -39,16 +51,11 @@ test("a temporarily pinned shared post is excluded from normal feed pages", () =
   assert.deepEqual(excludeItemById([{ id: 90 }], null), [{ id: 90 }]);
 });
 
-test("a short or empty page marks the end of the feed", () => {
-  assert.equal(feedHasMore(10, 10), true);
-  assert.equal(feedHasMore(9, 10), false);
-  assert.equal(feedHasMore(0, 10), false);
-});
-
-test("loading, exhausted and already loaded pages cannot be requested again", () => {
-  const loadedPages = new Set([1, 2]);
-  assert.equal(canRequestFeedPage(3, false, true, loadedPages), true);
-  assert.equal(canRequestFeedPage(2, false, true, loadedPages), false);
-  assert.equal(canRequestFeedPage(3, true, true, loadedPages), false);
-  assert.equal(canRequestFeedPage(3, false, false, loadedPages), false);
+test("loading, exhausted and already requested cursors cannot be requested again", () => {
+  const requestedCursors = new Set(["cursor-1"]);
+  assert.equal(canRequestFeedCursor("cursor-2", false, true, requestedCursors), true);
+  assert.equal(canRequestFeedCursor("cursor-1", false, true, requestedCursors), false);
+  assert.equal(canRequestFeedCursor("cursor-2", true, true, requestedCursors), false);
+  assert.equal(canRequestFeedCursor("cursor-2", false, false, requestedCursors), false);
+  assert.equal(canRequestFeedCursor(null, false, true, requestedCursors), false);
 });

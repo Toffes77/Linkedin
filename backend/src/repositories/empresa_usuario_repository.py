@@ -29,7 +29,15 @@ class EmpresaUsuarioRepository:
         empresa_id: int,
         usuario_id: int,
     ) -> EmpresaUsuario | None:
-        return self.db.get(EmpresaUsuario, (empresa_id, usuario_id))
+        return (
+            self.db.query(EmpresaUsuario)
+            .populate_existing()
+            .filter(
+                EmpresaUsuario.empresa_id == empresa_id,
+                EmpresaUsuario.usuario_id == usuario_id,
+            )
+            .first()
+        )
 
     def get_by_empresa(self, empresa_id: int) -> list[EmpresaUsuario]:
         return (
@@ -140,12 +148,25 @@ class EmpresaUsuarioRepository:
         self,
         empresa_usuario: EmpresaUsuario,
         rol: RolEmpresa,
+        *,
+        commit: bool = True,
     ) -> EmpresaUsuario:
         empresa_usuario.rol = rol
-        self.db.commit()
-        self.db.refresh(empresa_usuario)
+        if commit:
+            self.db.commit()
+            self.db.refresh(empresa_usuario)
+        else:
+            self.db.flush()
         return empresa_usuario
 
-    def delete(self, empresa_usuario: EmpresaUsuario) -> None:
+    def delete(
+        self,
+        empresa_usuario: EmpresaUsuario,
+        *,
+        commit: bool = True,
+    ) -> None:
         self.db.delete(empresa_usuario)
-        self.db.commit()
+        if commit:
+            self.db.commit()
+        else:
+            self.db.flush()

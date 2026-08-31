@@ -8,6 +8,7 @@ import { CommentsSection } from "@/components/feed/comments-section";
 import { SharePostModal } from "@/components/feed/share-post-modal";
 import { commentsApi, postsApi, type Post, type ReactionCounts, type ReactionType, type User } from "@/lib/api";
 import { formatDate } from "@/lib/format";
+import { countsAfterReaction, countsAfterRemoval } from "@/lib/reaction-state";
 
 const reactionLabels: Record<ReactionType, string> = { like: "Me gusta", celebrar: "Celebrar", apoyar: "Apoyar", interesante: "Interesante" };
 
@@ -26,17 +27,39 @@ export function PostCard({ post, author, currentUser, onDelete, onUpdate, highli
   const updateCommentCount = useCallback((count: number) => setCommentCount(count), []);
 
   useEffect(() => {
-    postsApi.reactionCounts(post.id).then(setCounts).catch(() => setCounts(null));
-    commentsApi.count(post.id).then(({ cantidad }) => setCommentCount(cantidad)).catch(() => setCommentCount(null));
+    let active = true;
+    postsApi.reactionCounts(post.id).then((value) => {
+      if (active) setCounts(value);
+    }).catch(() => {
+      if (active) setCounts(null);
+    });
+    postsApi.myReaction(post.id).then((value) => {
+      if (active) setReaction(value?.tipo ?? null);
+    }).catch(() => {
+      if (active) setReaction(null);
+    });
+    commentsApi.count(post.id).then(({ cantidad }) => {
+      if (active) setCommentCount(cantidad);
+    }).catch(() => {
+      if (active) setCommentCount(null);
+    });
+    return () => { active = false; };
   }, [post.id]);
 
   async function react(tipo: ReactionType) {
+    if (busy) return;
     setBusy(true);
     setError("");
     try {
+      if (reaction === tipo) {
+        await postsApi.removeReaction(post.id);
+        setCounts((old) => countsAfterRemoval(old, reaction));
+        setReaction(null);
+        return;
+      }
       if (reaction) await postsApi.changeReaction(post.id, tipo);
-      else await postsApi.react(currentUser.id, post.id, tipo);
-      setCounts((old) => old ? { ...old, ...(reaction ? { [reaction]: Math.max(0, old[reaction] - 1) } : {}), [tipo]: old[tipo] + (reaction === tipo ? 0 : 1) } : old);
+      else await postsApi.react(post.id, tipo);
+      setCounts((old) => countsAfterReaction(old, reaction, tipo));
       setReaction(tipo);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No se pudo reaccionar");
@@ -87,7 +110,7 @@ export function PostCard({ post, author, currentUser, onDelete, onUpdate, highli
     {error && <p className="inline-error">{error}</p>}
     {shareStatus ? <p className="post-share-status" role="status">{shareStatus}</p> : null}
     <footer>
-      <div className="reaction-picker"><button disabled={busy} className={reaction ? "selected" : ""}><Icon name="like"/>{reaction ? reactionLabels[reaction] : "Reaccionar"}</button><div>{(Object.keys(reactionLabels) as ReactionType[]).map((type) => <button key={type} title={reactionLabels[type]} onClick={() => react(type)}>{type === "like" ? "👍" : type === "celebrar" ? "👏" : type === "apoyar" ? "❤️" : "💡"}</button>)}</div></div>
+      <div className="reaction-picker"><button disabled={busy} className={reaction ? "selected" : ""}><Icon name="like"/>{reaction ? reactionLabels[reaction] : "Reaccionar"}</button><div>{(Object.keys(reactionLabels) as ReactionType[]).map((type) => <button disabled={busy} key={type} title={reactionLabels[type]} onClick={() => react(type)}>{type === "like" ? "👍" : type === "celebrar" ? "👏" : type === "apoyar" ? "❤️" : "💡"}</button>)}</div></div>
       <button type="button" className={commentsOpen ? "selected" : ""} onClick={() => setCommentsOpen((open) => !open)} aria-expanded={commentsOpen}><Icon name="comment"/>Comentar</button>
       <button type="button" onClick={() => { setShareStatus(""); setShareOpen(true); }}><Icon name="send"/>Enviar</button>
     </footer>

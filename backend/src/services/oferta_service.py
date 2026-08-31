@@ -39,16 +39,33 @@ class OfertaService:
 
         return OfertaMapper.to_response_dto(oferta)
 
-    def get_by_id(self, oferta_id: int) -> OfertaResponseDTO:
+    def get_by_id(
+        self,
+        oferta_id: int,
+        usuario_actual_id: int | None = None,
+    ) -> OfertaResponseDTO:
         oferta = self.repository.get_by_id(oferta_id)
         if oferta is None:
             raise NotFoundError("Oferta no encontrada.")
 
+        if not oferta.publicada and not self._es_gestor_empresa(
+            oferta.empresa_id,
+            usuario_actual_id,
+        ):
+            raise NotFoundError("Oferta no encontrada.")
+
         return OfertaMapper.to_response_dto(oferta)
 
-    def get_by_empresa(self, empresa_id: int) -> list[OfertaResponseDTO]:
+    def get_by_empresa(
+        self,
+        empresa_id: int,
+        usuario_actual_id: int | None = None,
+    ) -> list[OfertaResponseDTO]:
         self._validar_empresa(empresa_id)
-        ofertas = self.repository.get_by_empresa(empresa_id)
+        if self._es_gestor_empresa(empresa_id, usuario_actual_id):
+            ofertas = self.repository.get_by_empresa(empresa_id)
+        else:
+            ofertas = self.repository.get_publicadas_by_empresa(empresa_id)
         return [OfertaMapper.to_response_dto(oferta) for oferta in ofertas]
 
     def get_publicadas(self, q: str | None = None) -> list[OfertaResponseDTO]:
@@ -116,9 +133,16 @@ class OfertaService:
             raise NotFoundError("Empresa no encontrada.")
 
     def _requerir_gestor_empresa(self, empresa_id: int, usuario_id: int) -> None:
-        if not self.empresa_usuario_repository.has_any_role(
+        if not self._es_gestor_empresa(empresa_id, usuario_id):
+            raise ForbiddenError("No tiene permisos para gestionar ofertas.")
+
+    def _es_gestor_empresa(
+        self,
+        empresa_id: int,
+        usuario_id: int | None,
+    ) -> bool:
+        return usuario_id is not None and self.empresa_usuario_repository.has_any_role(
             empresa_id,
             usuario_id,
             (RolEmpresa.OWNER, RolEmpresa.RECRUITER),
-        ):
-            raise ForbiddenError("No tiene permisos para gestionar ofertas.")
+        )

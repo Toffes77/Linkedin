@@ -72,11 +72,16 @@ class PostulacionService:
             raise
         return PostulacionMapper.to_response_dto(postulacion)
 
-    def get_by_id(self, postulacion_id: int) -> PostulacionResponseDTO:
+    def get_by_id(
+        self,
+        postulacion_id: int,
+        usuario_actual_id: int,
+    ) -> PostulacionResponseDTO:
         postulacion = self.repository.get_by_id(postulacion_id)
         if postulacion is None:
             raise NotFoundError("Postulación no encontrada.")
 
+        self._requerir_acceso_postulacion(postulacion, usuario_actual_id)
         return PostulacionMapper.to_response_dto(postulacion)
 
     def get_by_oferta(
@@ -89,7 +94,14 @@ class PostulacionService:
         postulaciones = self.repository.get_by_oferta(oferta_id)
         return [PostulacionMapper.to_response_dto(postulacion) for postulacion in postulaciones]
 
-    def get_by_usuario(self, usuario_id: int) -> list[PostulacionResponseDTO]:
+    def get_by_usuario(
+        self,
+        usuario_id: int,
+        usuario_actual_id: int,
+    ) -> list[PostulacionResponseDTO]:
+        if usuario_id != usuario_actual_id:
+            raise ForbiddenError("No puede consultar postulaciones de otro usuario.")
+
         self._validar_usuario(usuario_id)
         postulaciones = self.repository.get_by_usuario(usuario_id)
         return [PostulacionMapper.to_response_dto(postulacion) for postulacion in postulaciones]
@@ -100,13 +112,18 @@ class PostulacionService:
         postulacion_data: UpdatePostulacionDTO,
         usuario_actual_id: int,
     ) -> PostulacionResponseDTO:
-        postulacion = self.repository.get_by_id(postulacion_id)
+        postulacion = self.repository.get_by_id_for_update(postulacion_id)
         if postulacion is None:
+            self.db.rollback()
             raise NotFoundError("Postulación no encontrada.")
 
-        oferta = self._obtener_oferta(postulacion.oferta_id)
-        self._requerir_gestor_empresa(oferta.empresa_id, usuario_actual_id)
-        self._validar_transicion(postulacion.estado, postulacion_data.estado)
+        try:
+            oferta = self._obtener_oferta(postulacion.oferta_id)
+            self._requerir_gestor_empresa(oferta.empresa_id, usuario_actual_id)
+            self._validar_transicion(postulacion.estado, postulacion_data.estado)
+        except Exception:
+            self.db.rollback()
+            raise
         try:
             postulacion_actualizada = self.repository.update(
                 postulacion,
@@ -190,6 +207,19 @@ class PostulacionService:
             (RolEmpresa.OWNER, RolEmpresa.RECRUITER),
         ):
             raise ForbiddenError("No tiene permisos para gestionar postulaciones.")
+
+    def _requerir_acceso_postulacion(
+        self,
+        postulacion,
+        usuario_actual_id: int,
+    ) -> None:
+        if postulacion.usuario_id == usuario_actual_id:
+            return
+
+        self._requerir_gestor_empresa(
+            postulacion.oferta.empresa_id,
+            usuario_actual_id,
+        )
 
     @staticmethod
     def _validar_transicion(estado_actual: str, nuevo_estado: str) -> None:

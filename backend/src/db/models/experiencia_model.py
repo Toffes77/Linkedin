@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Date, ForeignKey, CheckConstraint
+from sqlalchemy import CheckConstraint, Column, Date, ForeignKey, Integer, String, func
+from sqlalchemy.dialects.postgresql import ExcludeConstraint
 from sqlalchemy.orm import relationship
 
 from src.db.connection import Base
@@ -35,4 +36,11 @@ class Experiencia(Base):
             "hasta IS NULL OR desde <= hasta",
             name="check_fechas_experiencia"
         ),
+        ExcludeConstraint(
+            (usuario_id, "="),
+            (empresa_id, "="),
+            (func.daterange(desde, hasta, "[]"), "&&"),
+            using="gist",
+            name="exclude_experiencia_usuario_empresa_periodo",
+        ).ddl_if(dialect="postgresql"),
     )

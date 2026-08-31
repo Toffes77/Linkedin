@@ -16,16 +16,19 @@ from src.db.models.publicacion_model import Publicacion
 from src.db.models.seguimiento_model import Seguimiento
 from src.db.models.usuario_model import Usuario
 from src.dtos.conexiones_dto import ResumenRedResponseDTO
+from src.dtos.feed_dto import FeedPageDTO
+from src.dtos.publicacion_dto import PublicacionResponseDTO
 from src.dtos.seguimiento_dto import EstadoSeguimientoResponseDTO
 from src.mappers.conexion_mapper import ConexionMapper
 from src.mappers.seguimiento_mapper import SeguimientoMapper
 from src.middlewares.auth_middleware import get_current_user
-from src.repositories.publicacion_repository import PublicacionRepository
+from src.repositories.publicacion_repository import FeedPageRow, PublicacionRepository
 from src.services.conexion_service import ConexionService
 from src.services.feed_service import FeedService
 from src.services.publicacion_service import PublicacionService
 from src.services.seguimiento_service import SeguimientoService
 from src.utils.errors import ConflictError
+from src.utils.feed_cursor import FeedPosition
 
 
 def post(post_id: int, author_id: int, minutes: int):
@@ -34,6 +37,19 @@ def post(post_id: int, author_id: int, minutes: int):
         autor_id=author_id,
         texto=f"Post {post_id}",
         fecha=datetime(2026, 1, 1) + timedelta(minutes=minutes),
+    )
+
+
+def feed_row(publication, position: int = 1):
+    return FeedPageRow(
+        publicacion=publication,
+        position=FeedPosition(
+            day_key=20260101,
+            is_social=0,
+            jitter=0,
+            fecha=publication.fecha,
+            publicacion_id=publication.id,
+        ),
     )
 
 
@@ -74,6 +90,7 @@ class GlobalFeedRepositoryTests(unittest.TestCase):
                 Conexion(
                     usuario_a=self.viewer.id,
                     usuario_b=connected.id,
+                    solicitante_id=self.viewer.id,
                     estado="aceptada",
                 ),
             ]
@@ -167,38 +184,40 @@ class GlobalFeedRepositoryTests(unittest.TestCase):
     def feed(
         self,
         limit: int,
-        offset: int,
         social_author_ids: set[int] | None = None,
         seed: int = 123,
-    ) -> list[Publicacion]:
-        return self.repository.get_feed(
+        after: FeedPosition | None = None,
+    ) -> list[FeedPageRow]:
+        return self.repository.get_feed_page(
             social_author_ids={2, 3}
             if social_author_ids is None
             else social_author_ids,
             seed=seed,
+            snapshot_max_id=214,
+            visibility_snapshot=None,
             limit=limit,
-            offset=offset,
+            after=after,
         )
 
     def ids(
         self,
         limit: int,
-        offset: int,
         social_author_ids: set[int] | None = None,
         seed: int = 123,
+        after: FeedPosition | None = None,
     ) -> list[int]:
         return [
-            publication.id
-            for publication in self.feed(
+            row.publicacion.id
+            for row in self.feed(
                 limit,
-                offset,
                 social_author_ids,
                 seed,
+                after,
             )
         ]
 
     def test_feed_keeps_only_the_two_most_recent_posts_per_author(self):
-        publications = self.feed(limit=50, offset=0)
+        publications = [row.publicacion for row in self.feed(limit=50)]
         counts_by_author: dict[int, int] = {}
         for publication in publications:
             counts_by_author[publication.autor_id] = (
@@ -211,8 +230,8 @@ class GlobalFeedRepositoryTests(unittest.TestCase):
         self.assertNotIn(203, [publication.id for publication in publications])
 
     def test_social_posts_are_stably_mixed_ahead_of_their_chronological_position(self):
-        first_order = self.ids(limit=50, offset=0, seed=321)
-        repeated_order = self.ids(limit=50, offset=0, seed=321)
+        first_order = self.ids(limit=50, seed=321)
+        repeated_order = self.ids(limit=50, seed=321)
         social_positions = [
             first_order.index(publication_id)
             for publication_id in (211, 212, 213, 214)
@@ -226,19 +245,22 @@ class GlobalFeedRepositoryTests(unittest.TestCase):
         )
 
     def test_seed_changes_social_positions_without_changing_candidates(self):
-        first_order = self.ids(limit=50, offset=0, seed=100)
-        second_order = self.ids(limit=50, offset=0, seed=107)
+        first_order = self.ids(limit=50, seed=100)
+        second_order = self.ids(limit=50, seed=107)
 
         self.assertEqual(set(first_order), set(second_order))
         self.assertNotEqual(first_order, second_order)
 
     def test_pages_match_the_global_order_without_duplicates(self):
-        complete_feed = self.ids(limit=50, offset=0)
-        pages = [
-            self.ids(limit=5, offset=offset)
-            for offset in range(0, len(complete_feed), 5)
-        ]
-        paginated_feed = [publication_id for page in pages for publication_id in page]
+        complete_feed = self.ids(limit=50)
+        rows = self.feed(limit=5)
+        paginated_feed: list[int] = []
+        pages: list[list[int]] = []
+        while rows:
+            page = [row.publicacion.id for row in rows]
+            pages.append(page)
+            paginated_feed.extend(page)
+            rows = self.feed(limit=5, after=rows[-1].position)
 
         self.assertEqual(paginated_feed, complete_feed)
         self.assertEqual(len(set(paginated_feed)), len(paginated_feed))
@@ -247,7 +269,6 @@ class GlobalFeedRepositoryTests(unittest.TestCase):
     def test_feed_without_social_candidates_fills_the_page_chronologically(self):
         first_page = self.ids(
             limit=10,
-            offset=0,
             social_author_ids=set(),
         )
 
@@ -259,7 +280,7 @@ class GlobalFeedRepositoryTests(unittest.TestCase):
         self.db.query(Publicacion).delete()
         self.db.commit()
 
-        self.assertEqual(self.ids(limit=20, offset=0), [])
+        self.assertEqual(self.ids(limit=20), [])
 
 
 @unittest.skipUnless(
@@ -321,34 +342,38 @@ class GlobalFeedPostgresTests(unittest.TestCase):
         self.connection.close()
 
     def test_postgresql_applies_author_limit_stable_order_and_pagination(self):
-        complete_feed = self.repository.get_feed(
+        complete_feed = self.repository.get_feed_page(
             social_author_ids={self.social_author_id},
             seed=456,
+            snapshot_max_id=self.repository.get_max_id(),
+            visibility_snapshot=None,
             limit=20,
-            offset=0,
         )
         author_posts = [
-            publication
-            for publication in complete_feed
-            if publication.autor_id == self.frequent_author_id
+            row.publicacion
+            for row in complete_feed
+            if row.publicacion.autor_id == self.frequent_author_id
         ]
-        first_page = self.repository.get_feed(
+        first_page = self.repository.get_feed_page(
             social_author_ids={self.social_author_id},
             seed=456,
+            snapshot_max_id=self.repository.get_max_id(),
+            visibility_snapshot=None,
             limit=2,
-            offset=0,
         )
-        second_page = self.repository.get_feed(
+        second_page = self.repository.get_feed_page(
             social_author_ids={self.social_author_id},
             seed=456,
+            snapshot_max_id=self.repository.get_max_id(),
+            visibility_snapshot=None,
             limit=2,
-            offset=2,
+            after=first_page[-1].position,
         )
 
         self.assertEqual(len(author_posts), 2)
         self.assertEqual(
-            [publication.id for publication in first_page + second_page],
-            [publication.id for publication in complete_feed[:4]],
+            [row.publicacion.id for row in first_page + second_page],
+            [row.publicacion.id for row in complete_feed[:4]],
         )
 
 
@@ -532,22 +557,30 @@ class SocialFeedTests(unittest.TestCase):
             SimpleNamespace(usuario_a=4, usuario_b=1),
         ]
         service.publicacion_repository = Mock()
-        service.publicacion_repository.get_feed.return_value = [
-            post(20, 4, 10),
-            post(21, 2, 9),
+        service.publicacion_repository.get_max_id.return_value = 99
+        service.publicacion_repository.get_visibility_snapshot.return_value = None
+        service.publicacion_repository.get_feed_page.return_value = [
+            feed_row(post(20, 4, 10)),
+            feed_row(post(21, 2, 9)),
+            feed_row(post(22, 5, 8)),
         ]
 
-        result = service.get_feed(1, page=1, page_size=2)
+        result = service.get_feed(1, page_size=2)
 
-        self.assertEqual([item.id for item in result], [20, 21])
-        service.publicacion_repository.get_feed.assert_called_once_with(
+        self.assertEqual([item.id for item in result.items], [20, 21])
+        self.assertTrue(result.has_more)
+        self.assertIsNotNone(result.next_cursor)
+        service.publicacion_repository.get_feed_page.assert_called_once_with(
             social_author_ids={2, 3, 4},
             seed=ANY,
-            limit=2,
-            offset=0,
+            snapshot_max_id=99,
+            visibility_snapshot=None,
+            limit=3,
+            after=None,
+            excluded_publicacion_id=None,
         )
 
-    def test_feed_second_page_translates_to_database_offset(self):
+    def test_feed_second_page_uses_cursor_snapshot_instead_of_offset(self):
         service = FeedService(Mock())
         service.usuario_repository = Mock()
         service.usuario_repository.get_by_id.return_value = SimpleNamespace(id=1)
@@ -556,20 +589,29 @@ class SocialFeedTests(unittest.TestCase):
         service.conexion_repository = Mock()
         service.conexion_repository.get_accepted_by_user.return_value = []
         service.publicacion_repository = Mock()
-        service.publicacion_repository.get_feed.return_value = [
-            post(30, 4, 8),
-            post(31, 2, 7),
+        service.publicacion_repository.get_max_id.return_value = 99
+        service.publicacion_repository.get_visibility_snapshot.return_value = None
+        service.publicacion_repository.get_feed_page.side_effect = [
+            [
+                feed_row(post(30, 4, 8)),
+                feed_row(post(31, 2, 7)),
+                feed_row(post(32, 5, 6)),
+            ],
+            [feed_row(post(32, 5, 6))],
         ]
 
-        result = service.get_feed(1, page=2, page_size=2)
+        first = service.get_feed(1, page_size=2)
+        second = service.get_feed(1, cursor=first.next_cursor, page_size=2)
 
-        self.assertEqual([item.id for item in result], [30, 31])
-        service.publicacion_repository.get_feed.assert_called_once_with(
-            social_author_ids=set(),
-            seed=ANY,
-            limit=2,
-            offset=2,
-        )
+        self.assertEqual([item.id for item in second.items], [32])
+        self.assertFalse(second.has_more)
+        first_call, second_call = service.publicacion_repository.get_feed_page.call_args_list
+        self.assertEqual(first_call.kwargs["seed"], second_call.kwargs["seed"])
+        self.assertEqual(first_call.kwargs["snapshot_max_id"], 99)
+        self.assertEqual(second_call.kwargs["snapshot_max_id"], 99)
+        self.assertIsNone(first_call.kwargs["visibility_snapshot"])
+        self.assertIsNone(second_call.kwargs["visibility_snapshot"])
+        self.assertIsNotNone(second_call.kwargs["after"])
 
     def test_feed_empty_page_still_uses_requested_page_size(self):
         service = FeedService(Mock())
@@ -580,16 +622,23 @@ class SocialFeedTests(unittest.TestCase):
         service.conexion_repository = Mock()
         service.conexion_repository.get_accepted_by_user.return_value = []
         service.publicacion_repository = Mock()
-        service.publicacion_repository.get_feed.return_value = []
+        service.publicacion_repository.get_max_id.return_value = 99
+        service.publicacion_repository.get_visibility_snapshot.return_value = None
+        service.publicacion_repository.get_feed_page.return_value = []
 
-        result = service.get_feed(1, page=3, page_size=7)
+        result = service.get_feed(1, page_size=7)
 
-        self.assertEqual(result, [])
-        service.publicacion_repository.get_feed.assert_called_once_with(
+        self.assertEqual(result.items, [])
+        self.assertFalse(result.has_more)
+        self.assertIsNone(result.next_cursor)
+        service.publicacion_repository.get_feed_page.assert_called_once_with(
             social_author_ids=set(),
             seed=ANY,
-            limit=7,
-            offset=14,
+            snapshot_max_id=99,
+            visibility_snapshot=None,
+            limit=8,
+            after=None,
+            excluded_publicacion_id=None,
         )
 
     def test_feed_endpoint_still_requires_authentication(self):
@@ -600,22 +649,33 @@ class SocialFeedTests(unittest.TestCase):
         finally:
             app.dependency_overrides.clear()
 
-    def test_feed_endpoint_preserves_page_and_page_size_contract(self):
+    def test_feed_endpoint_returns_cursor_contract_and_limits_page_size(self):
         app.dependency_overrides[get_db] = lambda: Mock()
         app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=9)
         try:
             with patch(
                 "src.routers.feed_router.FeedService.get_feed",
-                return_value=[post(50, 4, 1)],
+                return_value=FeedPageDTO(
+                    items=[PublicacionResponseDTO.model_validate(post(50, 4, 1))],
+                    next_cursor="next",
+                    has_more=True,
+                ),
             ) as get_feed:
                 response = TestClient(app).get(
                     "/api/feed",
-                    params={"page": 2, "page_size": 7},
+                    params={"cursor": "current", "page_size": 7},
+                )
+                excessive = TestClient(app).get(
+                    "/api/feed",
+                    params={"page_size": 51},
                 )
 
             self.assertEqual(response.status_code, 200, response.text)
-            self.assertEqual(response.json()[0]["id"], 50)
-            get_feed.assert_called_once_with(9, 2, 7)
+            self.assertEqual(response.json()["items"][0]["id"], 50)
+            self.assertEqual(response.json()["next_cursor"], "next")
+            self.assertTrue(response.json()["has_more"])
+            self.assertEqual(excessive.status_code, 422, excessive.text)
+            get_feed.assert_called_once_with(9, "current", 7, None)
         finally:
             app.dependency_overrides.clear()
 

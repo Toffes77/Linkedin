@@ -18,6 +18,7 @@ from src.utils.errors import ConflictError, ForbiddenError, NotFoundError
 
 class EmpresaUsuarioService:
     def __init__(self, db: Session):
+        self.db = db
         self.repository = EmpresaUsuarioRepository(db)
         self.empresa_repository = EmpresaRepository(db)
         self.usuario_repository = UsuarioRepository(db)
@@ -82,7 +83,27 @@ class EmpresaUsuarioService:
         empresa_usuario_data: UpdateEmpresaUsuarioDTO,
         usuario_actual_id: int,
     ) -> EmpresaUsuarioResponseDTO:
-        self._validar_empresa(empresa_id)
+        try:
+            response = self._update_locked(
+                empresa_id,
+                usuario_id,
+                empresa_usuario_data,
+                usuario_actual_id,
+            )
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+        return response
+
+    def _update_locked(
+        self,
+        empresa_id: int,
+        usuario_id: int,
+        empresa_usuario_data: UpdateEmpresaUsuarioDTO,
+        usuario_actual_id: int,
+    ) -> EmpresaUsuarioResponseDTO:
+        self._bloquear_empresa(empresa_id)
         self._requerir_owner(empresa_id, usuario_actual_id)
         relacion = self._obtener_relacion(empresa_id, usuario_id)
 
@@ -96,6 +117,7 @@ class EmpresaUsuarioService:
         relacion_actualizada = self.repository.update(
             relacion,
             empresa_usuario_data.rol,
+            commit=False,
         )
         return EmpresaUsuarioMapper.to_response_dto(relacion_actualizada)
 
@@ -105,7 +127,20 @@ class EmpresaUsuarioService:
         usuario_id: int,
         usuario_actual_id: int,
     ) -> None:
-        self._validar_empresa(empresa_id)
+        try:
+            self._delete_locked(empresa_id, usuario_id, usuario_actual_id)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+
+    def _delete_locked(
+        self,
+        empresa_id: int,
+        usuario_id: int,
+        usuario_actual_id: int,
+    ) -> None:
+        self._bloquear_empresa(empresa_id)
         self._requerir_owner(empresa_id, usuario_actual_id)
         relacion = self._obtener_relacion(empresa_id, usuario_id)
 
@@ -115,7 +150,11 @@ class EmpresaUsuarioService:
         ):
             raise ConflictError("La empresa debe tener al menos un OWNER.")
 
-        self.repository.delete(relacion)
+        self.repository.delete(relacion, commit=False)
+
+    def _bloquear_empresa(self, empresa_id: int) -> None:
+        if self.empresa_repository.get_by_id_for_update(empresa_id) is None:
+            raise NotFoundError("Empresa no encontrada.")
 
     def _validar_empresa(self, empresa_id: int) -> None:
         if self.empresa_repository.get_by_id(empresa_id) is None:

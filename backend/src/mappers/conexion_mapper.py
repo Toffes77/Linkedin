@@ -69,7 +69,7 @@ class ConexionMapper:
             usuario_b=conexion.usuario_b,
             fecha=conexion.fecha,
             estado=conexion.estado,
-            usuario=UsuarioMapper.to_response_dto(conexion.usuario_a_rel),
+            usuario=UsuarioMapper.to_response_dto(conexion.solicitante_rel),
         )
 
     @staticmethod

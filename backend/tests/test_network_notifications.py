@@ -129,6 +129,7 @@ class NetworkNotificationsTests(unittest.TestCase):
         existing = SimpleNamespace(id=5, oferta_id=7, usuario_id=9, estado="nueva")
         service.repository = Mock()
         service.repository.get_by_id.return_value = existing
+        service.repository.get_by_id_for_update.return_value = existing
         service.repository.update.return_value = SimpleNamespace(id=5, oferta_id=7, usuario_id=9, fecha=datetime.now(), estado="vista", oferta=SimpleNamespace(titulo="Backend"))
         service.oferta_repository = Mock()
         service.oferta_repository.get_by_id.return_value = SimpleNamespace(id=7, empresa_id=3, titulo="Backend")
@@ -140,7 +141,12 @@ class NetworkNotificationsTests(unittest.TestCase):
         self.assertEqual(created[0].usuario_id, 9)
         self.assertIn("VISTA", created[0].mensaje)
 
-        service.repository.get_by_id.return_value = SimpleNamespace(id=5, oferta_id=7, usuario_id=9, estado="vista")
+        service.repository.get_by_id_for_update.return_value = SimpleNamespace(
+            id=5,
+            oferta_id=7,
+            usuario_id=9,
+            estado="vista",
+        )
         with self.assertRaises(ConflictError):
             service.update(5, UpdatePostulacionDTO(estado="vista"), 1)
 

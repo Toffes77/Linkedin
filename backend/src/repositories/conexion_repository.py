@@ -17,7 +17,20 @@ class ConexionRepository:
         *,
         commit: bool = True,
     ) -> Conexion:
-        conexion = ConexionMapper.to_model(conexion_data)
+        usuario_a, usuario_b = self.ordenar_par(
+            conexion_data.usuario_a,
+            conexion_data.usuario_b,
+        )
+        solicitante_id = conexion_data.solicitante_id or conexion_data.usuario_a
+        conexion = ConexionMapper.to_model(
+            conexion_data.model_copy(
+                update={
+                    "usuario_a": usuario_a,
+                    "usuario_b": usuario_b,
+                    "solicitante_id": solicitante_id,
+                }
+            )
+        )
         self.db.add(conexion)
         if commit:
             self.db.commit()
@@ -27,21 +40,10 @@ class ConexionRepository:
         return conexion
 
     def get_by_id(self, usuario_a: int, usuario_b: int) -> Conexion | None:
-        return self.db.get(Conexion, (usuario_a, usuario_b))
+        return self.db.get(Conexion, self.ordenar_par(usuario_a, usuario_b))
 
     def get_by_usuarios(self, usuario_a: int, usuario_b: int) -> Conexion | None:
-        return (
-            self.db.query(Conexion)
-            .filter(
-                or_(
-                    (Conexion.usuario_a == usuario_a)
-                    & (Conexion.usuario_b == usuario_b),
-                    (Conexion.usuario_a == usuario_b)
-                    & (Conexion.usuario_b == usuario_a),
-                )
-            )
-            .first()
-        )
+        return self.get_by_id(usuario_a, usuario_b)
 
     def get_by_usuario(self, usuario_id: int) -> list[Conexion]:
         return (
@@ -75,7 +77,10 @@ class ConexionRepository:
     def count_pending_sent(self, usuario_id: int) -> int:
         return (
             self.db.query(Conexion)
-            .filter(Conexion.usuario_a == usuario_id, Conexion.estado == "pendiente")
+            .filter(
+                Conexion.solicitante_id == usuario_id,
+                Conexion.estado == "pendiente",
+            )
             .count()
         )
 
@@ -93,12 +98,23 @@ class ConexionRepository:
         return (
             self.db.query(Conexion)
             .options(
-                joinedload(Conexion.usuario_a_rel).selectinload(Usuario.experiencias)
+                joinedload(Conexion.solicitante_rel).selectinload(Usuario.experiencias)
             )
-            .filter(Conexion.usuario_b == usuario_id, Conexion.estado == "pendiente")
+            .filter(
+                or_(
+                    Conexion.usuario_a == usuario_id,
+                    Conexion.usuario_b == usuario_id,
+                ),
+                Conexion.solicitante_id != usuario_id,
+                Conexion.estado == "pendiente",
+            )
             .order_by(Conexion.fecha.desc())
             .all()
         )
+
+    @staticmethod
+    def ordenar_par(usuario_a: int, usuario_b: int) -> tuple[int, int]:
+        return min(usuario_a, usuario_b), max(usuario_a, usuario_b)
 
     def get_second_degree_suggestions(self, usuario_id: int) -> list[Usuario]:
         conexiones_aceptadas = union_all(

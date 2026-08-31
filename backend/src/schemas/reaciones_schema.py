@@ -7,7 +7,6 @@ TipoReaccion = Literal["like", "celebrar", "apoyar", "interesante"]
 
 
 class CreateReaccionSchema(BaseModel):
-    usuario_id: int
     publicacion_id: int
     tipo: TipoReaccion
 

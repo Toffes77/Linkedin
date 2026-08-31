@@ -47,17 +47,27 @@ def get_postulaciones_by_oferta(
 
 
 @router.get("/usuarios/{usuario_id}/postulaciones", response_model=list[GetPostulacionSchema])
-def get_postulaciones_by_usuario(usuario_id: int, db: Session = Depends(get_db)):
+def get_postulaciones_by_usuario(
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
     postulaciones: list[PostulacionResponseDTO] = PostulacionService(db).get_by_usuario(
-        usuario_id
+        usuario_id,
+        current_user.id,
     )
     return [PostulacionMapper.to_response_schema(postulacion) for postulacion in postulaciones]
 
 
 @router.get("/postulaciones/{postulacion_id}", response_model=GetPostulacionSchema)
-def get_postulacion(postulacion_id: int, db: Session = Depends(get_db)):
+def get_postulacion(
+    postulacion_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
     postulacion: PostulacionResponseDTO = PostulacionService(db).get_by_id(
-        postulacion_id
+        postulacion_id,
+        current_user.id,
     )
     return PostulacionMapper.to_response_schema(postulacion)
 

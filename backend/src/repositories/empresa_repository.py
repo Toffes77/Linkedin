@@ -44,6 +44,15 @@ class EmpresaRepository:
     def get_by_id(self, empresa_id: int) -> Empresa | None:
         return self.db.query(Empresa).filter(Empresa.id == empresa_id).first()
 
+    def get_by_id_for_update(self, empresa_id: int) -> Empresa | None:
+        return (
+            self.db.query(Empresa)
+            .populate_existing()
+            .filter(Empresa.id == empresa_id)
+            .with_for_update(of=Empresa)
+            .first()
+        )
+
     def search_by_name(self, nombre: str) -> list[Empresa]:
         return (
             self.db.query(Empresa)
@@ -59,8 +68,17 @@ class EmpresaRepository:
         self.db.refresh(empresa)
         return empresa
 
-    def update_profile_photo(self, empresa: Empresa, foto_perfil_url: str) -> Empresa:
+    def update_profile_photo(
+        self,
+        empresa: Empresa,
+        foto_perfil_url: str,
+        *,
+        commit: bool = True,
+    ) -> Empresa:
         empresa.foto_perfil_url = foto_perfil_url
-        self.db.commit()
-        self.db.refresh(empresa)
+        if commit:
+            self.db.commit()
+            self.db.refresh(empresa)
+        else:
+            self.db.flush()
         return empresa

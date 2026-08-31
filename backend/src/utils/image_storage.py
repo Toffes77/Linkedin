@@ -1,6 +1,8 @@
 from io import BytesIO
 from pathlib import Path
+from uuid import uuid4
 
+from fastapi import UploadFile
 from PIL import Image, UnidentifiedImageError
 
 from src.utils.errors import BadRequestError
@@ -18,6 +20,14 @@ _FORMAT_TO_EXTENSION = {
 _GENERATED_EXTENSIONS = set(_FORMAT_TO_EXTENSION.values())
 _BACKEND_DIR = Path(__file__).resolve().parents[2]
 IMAGES_DIRECTORY = _BACKEND_DIR / "imagenes"
+
+
+async def read_limited_upload(upload: UploadFile) -> bytes:
+    """Read at most one byte beyond the limit so oversized files are rejected early."""
+    content = await upload.read(MAX_IMAGE_SIZE_BYTES + 1)
+    if len(content) > MAX_IMAGE_SIZE_BYTES:
+        raise BadRequestError("La imagen no puede superar los 5 MiB.")
+    return content
 
 
 def validate_and_get_extension(filename: str | None, content: bytes) -> str:
@@ -58,9 +68,9 @@ def validate_and_get_extension(filename: str | None, content: bytes) -> str:
 
 
 def save_image(entity_type: str, entity_id: int, extension: str, content: bytes) -> str:
-    """Save using a server-generated name and return the public application URL."""
+    """Save under a unique server-generated name and return the public URL."""
     IMAGES_DIRECTORY.mkdir(parents=True, exist_ok=True)
-    filename = f"{entity_type}_{entity_id}{extension}"
+    filename = f"{entity_type}_{entity_id}_{uuid4().hex}{extension}"
     destination = IMAGES_DIRECTORY / filename
     temporary_destination = IMAGES_DIRECTORY / f".{filename}.tmp"
 
@@ -74,15 +84,21 @@ def delete_managed_image(image_url: str | None, entity_type: str, entity_id: int
     if not image_url:
         return
 
-    expected_prefix = f"/imagenes/{entity_type}_{entity_id}"
-    allowed_urls = {
-        f"{expected_prefix}{extension}"
-        for extension in _GENERATED_EXTENSIONS
-    }
-    if image_url not in allowed_urls:
+    url_prefix = "/imagenes/"
+    if not image_url.startswith(url_prefix):
         return
 
-    path = IMAGES_DIRECTORY / image_url.removeprefix("/imagenes/")
+    filename = image_url.removeprefix(url_prefix)
+    supplied_path = Path(filename)
+    if filename != supplied_path.name or supplied_path.suffix not in _GENERATED_EXTENSIONS:
+        return
+
+    stem = supplied_path.stem
+    legacy_stem = f"{entity_type}_{entity_id}"
+    if stem != legacy_stem and not stem.startswith(f"{legacy_stem}_"):
+        return
+
+    path = IMAGES_DIRECTORY / filename
     try:
         path.unlink(missing_ok=True)
     except OSError:

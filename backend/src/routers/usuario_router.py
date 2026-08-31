@@ -14,6 +14,7 @@ from src.schemas.usuario_schema import (
 )
 from src.services.conexion_service import ConexionService
 from src.services.usuario_service import UsuarioService
+from src.utils.image_storage import read_limited_upload
 from src.middlewares.auth_middleware import get_current_user
 
 router = APIRouter(tags=["usuarios"])
@@ -67,7 +68,7 @@ async def update_my_profile_photo(
     usuario: UsuarioResponseDTO = UsuarioService(db).update_profile_photo(
         current_user.id,
         foto.filename,
-        await foto.read(),
+        await read_limited_upload(foto),
     )
     return UsuarioMapper.to_response_schema(usuario)
 

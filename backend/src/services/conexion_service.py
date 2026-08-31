@@ -1,3 +1,4 @@
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.dtos.conexiones_dto import (
@@ -67,8 +68,21 @@ class ConexionService:
         ):
             raise ConflictError("Ya existe una conexión entre los usuarios.")
 
+        conexion_canonica = CreateConexionDTO(
+            usuario_a=min(conexion_data.usuario_a, conexion_data.usuario_b),
+            usuario_b=max(conexion_data.usuario_a, conexion_data.usuario_b),
+            solicitante_id=usuario_autenticado_id,
+        )
+
         try:
-            conexion = self.repository.create(conexion_data, commit=False)
+            conexion = self.repository.create(conexion_canonica, commit=False)
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise ConflictError(
+                "Ya existe una conexiÃ³n entre los usuarios."
+            ) from exc
+
+        try:
             self.notificacion_service.create_many(
                 [
                     CreateNotificacionDTO(
@@ -104,7 +118,7 @@ class ConexionService:
             estado = "CONECTADO"
         elif conexion.estado == "rechazada":
             estado = "RECHAZADA"
-        elif conexion.usuario_a == usuario_autenticado_id:
+        elif conexion.solicitante_id == usuario_autenticado_id:
             estado = "PENDIENTE_ENVIADA"
         else:
             estado = "PENDIENTE_RECIBIDA"
@@ -156,7 +170,7 @@ class ConexionService:
         if conexion.estado != "pendiente":
             raise ConflictError("Solo se pueden modificar conexiones pendientes.")
 
-        if conexion.usuario_b != usuario_autenticado_id:
+        if self._destinatario_id(conexion) != usuario_autenticado_id:
             raise ForbiddenError(
                 "Solo el destinatario puede responder la solicitud de conexión."
             )
@@ -178,12 +192,12 @@ class ConexionService:
             self.notificacion_service.create_many(
                 [
                     CreateNotificacionDTO(
-                        usuario_id=conexion.usuario_a,
+                        usuario_id=conexion.solicitante_id,
                         tipo="CONEXION_ACEPTADA",
                         mensaje=(
                             f"{usuario_origen.nombre} aceptó tu solicitud de conexión."
                         ),
-                        usuario_origen_id=conexion.usuario_b,
+                        usuario_origen_id=usuario_autenticado_id,
                     )
                 ],
                 commit=False,
@@ -197,6 +211,12 @@ class ConexionService:
 
     def _validar_usuario(self, usuario_id: int) -> None:
         self._obtener_usuario(usuario_id)
+
+    @staticmethod
+    def _destinatario_id(conexion) -> int:
+        if conexion.solicitante_id == conexion.usuario_a:
+            return conexion.usuario_b
+        return conexion.usuario_a
 
     def _obtener_usuario(self, usuario_id: int):
         usuario = self.usuario_repository.get_by_id(usuario_id)
