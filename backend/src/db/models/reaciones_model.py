@@ -1,7 +1,17 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, CheckConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    ForeignKey,
+    Integer,
+    PrimaryKeyConstraint,
+    String,
+)
 from sqlalchemy.orm import relationship
 
 from src.db.connection import Base
+
+
+REACCIONES_UNIQUE_CONSTRAINT = "reacciones_pkey"
 
 
 class Reacciones(Base):
@@ -30,6 +40,7 @@ class Reacciones(Base):
     publicacion = relationship("Publicacion", back_populates="reacciones")
 
     __table_args__ = (
+        PrimaryKeyConstraint(name=REACCIONES_UNIQUE_CONSTRAINT),
         CheckConstraint(
             "tipo IN ('like', 'celebrar', 'apoyar', 'interesante')"
         ),

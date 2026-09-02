@@ -68,6 +68,34 @@ class CollaboratorMembershipTests(unittest.TestCase):
         self.assertEqual(created.rol, RolEmpresa.COLLABORATOR)
         self.assertEqual(result.rol, RolEmpresa.COLLABORATOR)
 
+    def test_duplicate_membership_is_a_conflict_and_preserves_existing_owner(self):
+        service = EmpresaUsuarioService(Mock())
+        existing = SimpleNamespace(
+            empresa_id=3,
+            usuario_id=9,
+            rol=RolEmpresa.OWNER,
+        )
+        service.empresa_repository = Mock()
+        service.empresa_repository.get_by_id.return_value = company()
+        service.usuario_repository = Mock()
+        service.usuario_repository.get_by_id.return_value = SimpleNamespace(id=9)
+        service.repository = Mock()
+        service.repository.has_any_role.side_effect = allows(RolEmpresa.OWNER)
+        service.repository.get_by_empresa_and_usuario.return_value = existing
+
+        with self.assertRaises(ConflictError):
+            service.create(
+                3,
+                CreateEmpresaUsuarioDTO(
+                    usuario_id=9,
+                    rol=RolEmpresa.COLLABORATOR,
+                ),
+                usuario_actual_id=1,
+            )
+
+        service.repository.create.assert_not_called()
+        self.assertEqual(existing.rol, RolEmpresa.OWNER)
+
     def test_collaborator_appears_in_company_members(self):
         service = EmpresaUsuarioService(Mock())
         service.empresa_repository = Mock()

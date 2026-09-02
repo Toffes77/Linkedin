@@ -163,45 +163,44 @@ class ConexionService:
         conexion_data: UpdateConexionDTO,
         usuario_autenticado_id: int,
     ) -> ConexionResponseDTO:
-        conexion = self.repository.get_by_id(usuario_a, usuario_b)
-        if conexion is None:
-            raise NotFoundError("Conexión no encontrada.")
-
-        if conexion.estado != "pendiente":
-            raise ConflictError("Solo se pueden modificar conexiones pendientes.")
-
-        if self._destinatario_id(conexion) != usuario_autenticado_id:
-            raise ForbiddenError(
-                "Solo el destinatario puede responder la solicitud de conexión."
-            )
-
-        if conexion_data.estado not in ("aceptada", "rechazada"):
-            raise ConflictError("La conexión debe aceptarse o rechazarse.")
-
-        if conexion_data.estado == "rechazada":
-            conexion_actualizada = self.repository.update(conexion, conexion_data)
-            return ConexionMapper.to_response_dto(conexion_actualizada)
-
-        usuario_origen = self._obtener_usuario(usuario_autenticado_id)
         try:
+            conexion = self.repository.get_by_id_for_update(usuario_a, usuario_b)
+            if conexion is None:
+                raise NotFoundError("Conexión no encontrada.")
+
+            if conexion.estado != "pendiente":
+                raise ConflictError(
+                    "Solo se pueden modificar conexiones pendientes."
+                )
+
+            if self._destinatario_id(conexion) != usuario_autenticado_id:
+                raise ForbiddenError(
+                    "Solo el destinatario puede responder la solicitud de conexión."
+                )
+
+            if conexion_data.estado not in ("aceptada", "rechazada"):
+                raise ConflictError("La conexión debe aceptarse o rechazarse.")
+
             conexion_actualizada = self.repository.update(
                 conexion,
                 conexion_data,
                 commit=False,
             )
-            self.notificacion_service.create_many(
-                [
-                    CreateNotificacionDTO(
-                        usuario_id=conexion.solicitante_id,
-                        tipo="CONEXION_ACEPTADA",
-                        mensaje=(
-                            f"{usuario_origen.nombre} aceptó tu solicitud de conexión."
-                        ),
-                        usuario_origen_id=usuario_autenticado_id,
-                    )
-                ],
-                commit=False,
-            )
+            if conexion_data.estado == "aceptada":
+                usuario_origen = self._obtener_usuario(usuario_autenticado_id)
+                self.notificacion_service.create_many(
+                    [
+                        CreateNotificacionDTO(
+                            usuario_id=conexion.solicitante_id,
+                            tipo="CONEXION_ACEPTADA",
+                            mensaje=(
+                                f"{usuario_origen.nombre} aceptó tu solicitud de conexión."
+                            ),
+                            usuario_origen_id=usuario_autenticado_id,
+                        )
+                    ],
+                    commit=False,
+                )
             self.db.commit()
             self.db.refresh(conexion_actualizada)
         except Exception:

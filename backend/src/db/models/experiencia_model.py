@@ -36,6 +36,10 @@ class Experiencia(Base):
             "hasta IS NULL OR desde <= hasta",
             name="check_fechas_experiencia"
         ),
+        CheckConstraint(
+            "puesto ~ '[^[:space:]]'",
+            name="experiencia_puesto_no_blank_check",
+        ).ddl_if(dialect="postgresql"),
         ExcludeConstraint(
             (usuario_id, "="),
             (empresa_id, "="),

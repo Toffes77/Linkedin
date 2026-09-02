@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from sqlalchemy import case, func, or_, select, union_all
 from sqlalchemy.orm import Session, joinedload
 
@@ -7,6 +5,7 @@ from src.db.models.conexiones_model import Conexion
 from src.db.models.conversacion_model import Conversacion, ConversacionUsuario, Mensaje
 from src.db.models.publicacion_model import Publicacion
 from src.db.models.usuario_model import Usuario
+from src.utils.datetime_utils import utc_now
 
 
 class MensajeRepository:
@@ -38,7 +37,7 @@ class MensajeRepository:
 
     def create(self, usuario_a: int, usuario_b: int) -> Conversacion:
         menor, mayor = self.ordenar_par(usuario_a, usuario_b)
-        ahora = datetime.now()
+        ahora = utc_now()
         conversacion = Conversacion(
             usuario_menor_id=menor,
             usuario_mayor_id=mayor,
@@ -89,12 +88,9 @@ class MensajeRepository:
             .where(
                 Mensaje.conversacion_id == Conversacion.id,
                 Mensaje.autor_id != usuario_id,
-                or_(
-                    ConversacionUsuario.ultima_lectura.is_(None),
-                    Mensaje.fecha > ConversacionUsuario.ultima_lectura,
-                ),
+                Mensaje.leido_por_destinatario.is_(False),
             )
-            .correlate(Conversacion, ConversacionUsuario)
+            .correlate(Conversacion)
             .scalar_subquery()
         )
 
@@ -118,11 +114,6 @@ class MensajeRepository:
                         & (Conversacion.usuario_menor_id == Usuario.id)
                     ),
                 ),
-            )
-            .outerjoin(
-                ConversacionUsuario,
-                (ConversacionUsuario.conversacion_id == Conversacion.id)
-                & (ConversacionUsuario.usuario_id == usuario_id),
             )
             .outerjoin(Mensaje, Mensaje.id == ultimo_mensaje_id)
             .options(
@@ -168,11 +159,11 @@ class MensajeRepository:
             autor_id=autor_id,
             contenido=contenido,
             tipo="TEXTO",
-            fecha=datetime.now(),
+            fecha=utc_now(),
         )
         self.db.add(mensaje)
         self.db.flush()
-        conversacion.fecha_ultimo_mensaje = mensaje.fecha or datetime.now()
+        conversacion.fecha_ultimo_mensaje = mensaje.fecha or utc_now()
         self.db.commit()
         self.db.refresh(mensaje)
         return mensaje
@@ -190,11 +181,11 @@ class MensajeRepository:
             tipo="PUBLICACION",
             publicacion_id=publicacion.id,
             publicacion=publicacion,
-            fecha=datetime.now(),
+            fecha=utc_now(),
         )
         self.db.add(mensaje)
         self.db.flush()
-        conversacion.fecha_ultimo_mensaje = mensaje.fecha or datetime.now()
+        conversacion.fecha_ultimo_mensaje = mensaje.fecha or utc_now()
         self.db.commit()
         self.db.refresh(mensaje)
         return mensaje
@@ -202,7 +193,19 @@ class MensajeRepository:
     def mark_as_read(
         self, participacion: ConversacionUsuario
     ) -> ConversacionUsuario:
-        participacion.ultima_lectura = datetime.now()
+        (
+            self.db.query(Mensaje)
+            .filter(
+                Mensaje.conversacion_id == participacion.conversacion_id,
+                Mensaje.autor_id != participacion.usuario_id,
+                Mensaje.leido_por_destinatario.is_(False),
+            )
+            .update(
+                {Mensaje.leido_por_destinatario: True},
+                synchronize_session=False,
+            )
+        )
+        participacion.ultima_lectura = utc_now()
         self.db.commit()
         self.db.refresh(participacion)
         return participacion
@@ -217,7 +220,7 @@ class MensajeRepository:
             .filter(
                 ConversacionUsuario.usuario_id == usuario_id,
                 Mensaje.autor_id != usuario_id,
-                Mensaje.fecha > ConversacionUsuario.ultima_lectura,
+                Mensaje.leido_por_destinatario.is_(False),
             )
             .scalar()
             or 0

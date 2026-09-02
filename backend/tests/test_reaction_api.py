@@ -87,6 +87,22 @@ class ReactionApiTests(unittest.TestCase):
             1,
         )
 
+    def test_duplicate_creation_returns_safe_conflict_without_changing_type(self):
+        first = self._react("like")
+        duplicate = self._react("celebrar")
+
+        self.assertEqual(first.status_code, 201, first.text)
+        self.assertEqual(duplicate.status_code, 409, duplicate.text)
+        self.assertEqual(
+            duplicate.json()["message"],
+            "El usuario ya reaccionó a esta publicación.",
+        )
+        self.assertNotIn("reacciones_pkey", duplicate.text)
+        self.assertEqual(
+            self.db.get(Reacciones, (self.user.id, self.post.id)).tipo,
+            "like",
+        )
+
     def test_counts_include_all_users_and_their_independent_reactions(self):
         self._react("like")
         self.current_user = self.other_user

@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from sqlalchemy.orm import Session
 
 from src.dtos.oferta_dto import (
@@ -14,6 +12,7 @@ from src.repositories.empresa_repository import EmpresaRepository
 from src.repositories.empresa_usuario_repository import EmpresaUsuarioRepository
 from src.repositories.oferta_repository import OfertaRepository
 from src.repositories.postulacion_repository import PostulacionRepository
+from src.utils.datetime_utils import utc_now
 from src.utils.errors import ForbiddenError, NotFoundError
 
 
@@ -32,10 +31,14 @@ class OfertaService:
         self._validar_empresa(oferta_data.empresa_id)
         self._requerir_gestor_empresa(oferta_data.empresa_id, usuario_actual_id)
 
-        oferta = self.repository.create(oferta_data)
-        if oferta.publicada:
-            oferta.fecha_publicacion = datetime.now()
-            oferta = self.repository.update(oferta, UpdateOfertaDTO())
+        datos_finales = oferta_data.model_copy(
+            update={
+                "fecha_publicacion": utc_now()
+                if oferta_data.publicada
+                else None
+            }
+        )
+        oferta = self.repository.create(datos_finales)
 
         return OfertaMapper.to_response_dto(oferta)
 
@@ -90,7 +93,7 @@ class OfertaService:
             and "publicada" in oferta_data.model_fields_set
             and oferta_data.publicada is True
         ):
-            oferta.fecha_publicacion = datetime.now()
+            oferta.fecha_publicacion = utc_now()
 
         oferta_actualizada = self.repository.update(oferta, oferta_data)
         return OfertaMapper.to_response_dto(oferta_actualizada)
@@ -119,7 +122,7 @@ class OfertaService:
 
         dias_desde_publicacion = None
         if oferta.fecha_publicacion is not None:
-            dias_desde_publicacion = (datetime.now() - oferta.fecha_publicacion).days
+            dias_desde_publicacion = (utc_now() - oferta.fecha_publicacion).days
 
         return OfertaEstadisticasDTO(
             oferta_id=oferta.id,

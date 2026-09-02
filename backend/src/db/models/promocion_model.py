@@ -16,7 +16,7 @@ class Promocion(Base):
     titulo = Column(String(160), nullable=False)
     descripcion = Column(Text, nullable=False)
     fecha_creacion = Column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP"),
     )
@@ -32,13 +32,15 @@ class Promocion(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "length(trim(titulo)) BETWEEN 1 AND 160",
+            "length(titulo) BETWEEN 1 AND 160 "
+            "AND titulo ~ '[^[:space:]]'",
             name="promocion_titulo_check",
-        ),
+        ).ddl_if(dialect="postgresql"),
         CheckConstraint(
-            "length(trim(descripcion)) BETWEEN 1 AND 3000",
+            "length(descripcion) BETWEEN 1 AND 3000 "
+            "AND descripcion ~ '[^[:space:]]'",
             name="promocion_descripcion_check",
-        ),
+        ).ddl_if(dialect="postgresql"),
         Index(
             "idx_promocion_usuario_fecha",
             "usuario_id",

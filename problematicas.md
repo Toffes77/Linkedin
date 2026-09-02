@@ -1,6 +1,6 @@
 # Problemáticas pendientes
 
-Este documento contiene únicamente problemas actuales, verificables y accionables del proyecto Atanes. Fue depurado contra el código vigente el 29 de agosto de 2026. No conserva bugs ya corregidos, descripciones de arquitectura sana, recomendaciones opcionales ni cobertura faltante sin un defecto funcional asociado.
+Este documento contiene únicamente problemas actuales, verificables y accionables del proyecto Atanes. Fue depurado contra el código vigente el 2 de septiembre de 2026. No conserva bugs ya corregidos, descripciones de arquitectura sana, recomendaciones opcionales ni cobertura faltante sin un defecto funcional asociado.
 
 ## MEDIAS
 
@@ -15,34 +15,6 @@ Este documento contiene únicamente problemas actuales, verificables y accionabl
 **Consecuencia:** Quien tenga acceso al historial completo del repositorio puede recuperar imágenes personales eliminadas del árbol actual.
 
 **Qué habría que modificar:** Definir la política de retención/consentimiento y, si el repositorio fue compartido o se publicará, reescribir el historial de forma coordinada y rotar clones remotos.
-
----
-
-### 5. Crear una oferta inicialmente publicada usa dos commits
-
-**Área:** Ofertas / Transacciones
-
-**Problema:** Se inserta primero la oferta con `publicada=true` y se confirma; después se asigna `fecha_publicacion` y se ejecuta un segundo commit.
-
-**Evidencia:** `OfertaService.create()` llama a `OfertaRepository.create()` —que hace `commit`— y luego a `OfertaRepository.update()` para guardar la fecha.
-
-**Consecuencia:** Un fallo entre ambos commits deja una oferta visible sin fecha de publicación, rompiendo estadísticas y el invariante del dominio.
-
-**Qué habría que modificar:** Calcular la fecha antes del insert o mantener ambas escrituras dentro de una única transacción y un solo commit.
-
----
-
-### 6. Algunas colisiones de unicidad concurrentes todavía responden 500
-
-**Área:** Errores HTTP / Concurrencia / Integridad
-
-**Problema:** PostgreSQL impide duplicados en postulaciones, reacciones, seguimientos y membresías, pero esos flujos no convierten el `IntegrityError` esperado en un conflicto de negocio.
-
-**Evidencia:** `PostulacionService.create()`, `SeguimientoService.follow()` y `EmpresaUsuarioService.create()` solo usan captura genérica o ninguna captura específica; `ReaccionesService.create()` deja que el commit del Repository propague `IntegrityError`.
-
-**Consecuencia:** En requests simultáneos la integridad se conserva, pero el request perdedor recibe un 500 y puede dejar mensajes de error incoherentes en frontend.
-
-**Qué habría que modificar:** Hacer rollback y mapear únicamente las constraints conocidas a `409 Conflict`, sin exponer detalles SQL.
 
 ---
 
@@ -71,34 +43,6 @@ Este documento contiene únicamente problemas actuales, verificables y accionabl
 **Consecuencia:** Un mensaje realmente nuevo puede no incrementar nunca el contador ni el punto verde del destinatario.
 
 **Qué habría que modificar:** Registrar el último ID de mensaje efectivamente observado —o un límite transaccional equivalente— en vez de representar la lectura solo con la hora del proceso.
-
----
-
-### 9. Las fechas persistentes no tienen zona horaria
-
-**Área:** Fechas / PostgreSQL / Frontend
-
-**Problema:** El dominio mezcla `TIMESTAMP WITHOUT TIME ZONE`, `datetime.now()` naive e ISO sin offset. JWT usa UTC aware, pero publicaciones, ofertas, mensajes, postulaciones y notificaciones no.
-
-**Evidencia:** Los Models declaran `DateTime` sin `timezone=True`; `tables.sql` usa `TIMESTAMP`; `OfertaService` y `MensajeRepository` generan fechas con `datetime.now()`; `frontend/lib/format.ts` interpreta esas cadenas con `Date`.
-
-**Consecuencia:** Con servidor, PostgreSQL y navegador en zonas diferentes se muestran horarios desplazados y pueden calcularse incorrectamente los días desde publicación.
-
-**Qué habría que modificar:** Normalizar persistencia y cálculos a UTC timezone-aware, migrar datos existentes con una zona de origen definida y convertir solo al presentar.
-
----
-
-### 10. Varias entidades aceptan texto compuesto solo por espacios
-
-**Área:** Validación API / PostgreSQL
-
-**Problema:** Usuario, empresa, experiencia, publicación y oferta usan `min_length` sin trim uniforme. La constraint de publicación usa `LENGTH(texto)` en lugar de `LENGTH(TRIM(texto))`.
-
-**Evidencia:** Los DTOs/Schemas de esos módulos carecen de validadores de trim equivalentes a promociones, comentarios y mensajes; `publicacion_model.py` y `tables.sql` aceptan espacios como contenido.
-
-**Consecuencia:** Mediante una petición directa se pueden persistir nombres, headlines, puestos, publicaciones, títulos o descripciones visualmente vacíos.
-
-**Qué habría que modificar:** Normalizar y rechazar whitespace-only en backend para create/update y reforzar con checks de PostgreSQL donde el campo sea obligatorio.
 
 ---
 

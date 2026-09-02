@@ -159,7 +159,7 @@ class ConnectionFlowTests(unittest.TestCase):
         service = ConexionService(db)
         pending = connection(1, 2)
         service.repository = Mock()
-        service.repository.get_by_id.return_value = pending
+        service.repository.get_by_id_for_update.return_value = pending
         service.repository.update.return_value = pending
         service.usuario_repository = Mock()
         service.usuario_repository.get_by_id.return_value = user(2, "Pedro Gómez")
@@ -197,11 +197,12 @@ class ConnectionFlowTests(unittest.TestCase):
         self.assertEqual(result.usuario_b, 2)
 
     def test_rejection_does_not_create_acceptance_notification(self):
-        service = ConexionService(Mock())
+        db = Mock()
+        service = ConexionService(db)
         pending = connection(1, 2)
         rejected = connection(1, 2, "rechazada")
         service.repository = Mock()
-        service.repository.get_by_id.return_value = pending
+        service.repository.get_by_id_for_update.return_value = pending
         service.repository.update.return_value = rejected
         service.notificacion_service = Mock()
 
@@ -215,14 +216,22 @@ class ConnectionFlowTests(unittest.TestCase):
         service.repository.update.assert_called_once_with(
             pending,
             UpdateConexionDTO(estado="rechazada"),
+            commit=False,
         )
         service.notificacion_service.create_many.assert_not_called()
+        db.commit.assert_called_once_with()
+        db.refresh.assert_called_once_with(rejected)
+        db.rollback.assert_not_called()
         self.assertEqual(result.estado, "rechazada")
 
     def test_repeated_acceptance_does_not_create_another_notification(self):
         service = ConexionService(Mock())
         service.repository = Mock()
-        service.repository.get_by_id.return_value = connection(1, 2, "aceptada")
+        service.repository.get_by_id_for_update.return_value = connection(
+            1,
+            2,
+            "aceptada",
+        )
         service.notificacion_service = Mock()
 
         with self.assertRaises(ConflictError):
@@ -236,12 +245,33 @@ class ConnectionFlowTests(unittest.TestCase):
         service.repository.update.assert_not_called()
         service.notificacion_service.create_many.assert_not_called()
 
+    def test_repeated_rejection_does_not_apply_another_transition(self):
+        service = ConexionService(Mock())
+        service.repository = Mock()
+        service.repository.get_by_id_for_update.return_value = connection(
+            1,
+            2,
+            "rechazada",
+        )
+        service.notificacion_service = Mock()
+
+        with self.assertRaises(ConflictError):
+            service.update(
+                1,
+                2,
+                UpdateConexionDTO(estado="rechazada"),
+                usuario_autenticado_id=2,
+            )
+
+        service.repository.update.assert_not_called()
+        service.notificacion_service.create_many.assert_not_called()
+
     def test_notification_failure_rolls_back_acceptance(self):
         db = Mock()
         service = ConexionService(db)
         pending = connection(1, 2)
         service.repository = Mock()
-        service.repository.get_by_id.return_value = pending
+        service.repository.get_by_id_for_update.return_value = pending
         service.repository.update.return_value = pending
         service.usuario_repository = Mock()
         service.usuario_repository.get_by_id.return_value = user(2, "Pedro")

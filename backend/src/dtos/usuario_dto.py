@@ -1,6 +1,8 @@
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+from src.utils.text_validation import strip_non_blank
 
 
 class CreateUsuarioDTO(BaseModel):
@@ -10,6 +12,11 @@ class CreateUsuarioDTO(BaseModel):
     headline: str = Field(min_length=1, max_length=200)
     ciudad: str = Field(min_length=1, max_length=100)
 
+    @field_validator("nombre", "headline", "ciudad", mode="before")
+    @classmethod
+    def normalizar_texto(cls, value):
+        return strip_non_blank(value)
+
 
 class LegacyUpdateUsuarioDTO(BaseModel):
     email: EmailStr | None = Field(default=None, max_length=100)
@@ -18,11 +25,21 @@ class LegacyUpdateUsuarioDTO(BaseModel):
     headline: str | None = Field(default=None, min_length=1, max_length=200)
     ciudad: str | None = Field(default=None, min_length=1, max_length=100)
 
+    @field_validator("nombre", "headline", "ciudad", mode="before")
+    @classmethod
+    def normalizar_texto(cls, value):
+        return strip_non_blank(value)
+
 
 class UpdateUsuarioDTO(BaseModel):
     nombre: str | None = Field(default=None, min_length=1, max_length=100)
     headline: str | None = Field(default=None, min_length=1, max_length=200)
     ciudad: str | None = Field(default=None, min_length=1, max_length=100)
+
+    @field_validator("nombre", "headline", "ciudad", mode="before")
+    @classmethod
+    def normalizar_texto(cls, value):
+        return strip_non_blank(value)
 
 
 class UpdatePasswordDTO(BaseModel):

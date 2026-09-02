@@ -1,8 +1,18 @@
-from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    PrimaryKeyConstraint,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from src.db.connection import Base
+
+
+SEGUIMIENTO_UNIQUE_CONSTRAINT = "seguimiento_pkey"
 
 
 class Seguimiento(Base):
@@ -10,9 +20,12 @@ class Seguimiento(Base):
 
     seguidor_id = Column(Integer, ForeignKey("usuario.id"), primary_key=True)
     seguido_id = Column(Integer, ForeignKey("usuario.id"), primary_key=True)
-    fecha = Column(DateTime, server_default=func.now(), nullable=False)
+    fecha = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    __table_args__ = (CheckConstraint("seguidor_id <> seguido_id"),)
+    __table_args__ = (
+        PrimaryKeyConstraint(name=SEGUIMIENTO_UNIQUE_CONSTRAINT),
+        CheckConstraint("seguidor_id <> seguido_id"),
+    )
 
     seguidor = relationship(
         "Usuario", foreign_keys=[seguidor_id], back_populates="seguimientos_realizados"

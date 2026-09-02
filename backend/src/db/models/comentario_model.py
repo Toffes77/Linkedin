@@ -20,7 +20,7 @@ class Comentario(Base):
         nullable=False,
     )
     contenido = Column(String(1000), nullable=False)
-    fecha = Column(DateTime, server_default=func.now(), nullable=False)
+    fecha = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     comentario_padre_id = Column(
         Integer,
         ForeignKey("comentario.id", ondelete="CASCADE"),
@@ -46,9 +46,10 @@ class Comentario(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "LENGTH(TRIM(contenido)) BETWEEN 1 AND 1000",
+            "LENGTH(contenido) BETWEEN 1 AND 1000 "
+            "AND contenido ~ '[^[:space:]]'",
             name="comentario_contenido_check",
-        ),
+        ).ddl_if(dialect="postgresql"),
         Index("idx_comentario_publicacion_fecha", "publicacion_id", "fecha"),
         Index("idx_comentario_padre_fecha", "comentario_padre_id", "fecha"),
     )

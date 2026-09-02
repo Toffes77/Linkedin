@@ -1,6 +1,6 @@
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from threading import Barrier
+from threading import Barrier, Event
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -22,6 +22,7 @@ from src.middlewares.auth_middleware import (
     get_current_user,
     get_optional_current_user,
 )
+from src.repositories.conexion_repository import ConexionRepository
 from src.services.conexion_service import ConexionService
 from src.utils.errors import ConflictError, ForbiddenError
 
@@ -254,6 +255,148 @@ class CanonicalConnectionSecurityTests(unittest.TestCase):
         with SessionLocal() as db:
             self.assertEqual(db.query(Conexion).filter(Conexion.usuario_a == min(first, second), Conexion.usuario_b == max(first, second)).count(), 1)
             self.assertEqual(db.query(Notificacion).filter(Notificacion.usuario_id.in_((first, second)), Notificacion.tipo == "NUEVA_INVITACION_CONEXION").count(), 1)
+
+    def test_concurrent_acceptances_apply_one_transition_and_one_notification(self):
+        sender, recipient = self.user_ids[0], self.user_ids[1]
+        self._create(sender, recipient)
+        barrier = Barrier(2)
+
+        def accept() -> tuple[str, int]:
+            with SessionLocal() as db:
+                pid = db.execute(text("SELECT pg_backend_pid()")).scalar_one()
+                barrier.wait(timeout=5)
+                try:
+                    ConexionService(db).update(
+                        sender,
+                        recipient,
+                        UpdateConexionDTO(estado="aceptada"),
+                        recipient,
+                    )
+                    return "ok", pid
+                except ConflictError:
+                    return "conflict", pid
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(lambda _: accept(), range(2)))
+
+        self.assertEqual(sorted(result for result, _ in results), ["conflict", "ok"])
+        self.assertEqual(len({pid for _, pid in results}), 2)
+        with SessionLocal() as db:
+            stored = db.get(Conexion, canonical_pair(sender, recipient))
+            self.assertEqual(stored.estado, "aceptada")
+            self.assertEqual(
+                db.query(Notificacion)
+                .filter(
+                    Notificacion.usuario_id == sender,
+                    Notificacion.usuario_origen_id == recipient,
+                    Notificacion.tipo == "CONEXION_ACEPTADA",
+                )
+                .count(),
+                1,
+            )
+
+    def test_concurrent_accept_and_reject_leave_consistent_effects(self):
+        sender, recipient = self.user_ids[2], self.user_ids[3]
+        self._create(sender, recipient)
+        barrier = Barrier(2)
+
+        def respond(state: str) -> tuple[str, str, int]:
+            with SessionLocal() as db:
+                pid = db.execute(text("SELECT pg_backend_pid()")).scalar_one()
+                barrier.wait(timeout=5)
+                try:
+                    ConexionService(db).update(
+                        sender,
+                        recipient,
+                        UpdateConexionDTO(estado=state),
+                        recipient,
+                    )
+                    return "ok", state, pid
+                except ConflictError:
+                    return "conflict", state, pid
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(respond, ("aceptada", "rechazada")))
+
+        self.assertEqual(sorted(result for result, _, _ in results), ["conflict", "ok"])
+        self.assertEqual(len({pid for _, _, pid in results}), 2)
+        winning_state = next(state for result, state, _ in results if result == "ok")
+        with SessionLocal() as db:
+            stored = db.get(Conexion, canonical_pair(sender, recipient))
+            acceptance_notifications = (
+                db.query(Notificacion)
+                .filter(
+                    Notificacion.usuario_id == sender,
+                    Notificacion.usuario_origen_id == recipient,
+                    Notificacion.tipo == "CONEXION_ACEPTADA",
+                )
+                .count()
+            )
+            self.assertEqual(stored.estado, winning_state)
+            self.assertEqual(
+                acceptance_notifications,
+                1 if winning_state == "aceptada" else 0,
+            )
+            self.assertFalse(
+                stored.estado == "rechazada" and acceptance_notifications > 0
+            )
+
+    def test_for_update_lock_is_held_until_transition_commit(self):
+        sender, recipient = self.user_ids[4], self.user_ids[5]
+        self._create(sender, recipient)
+        second_started = Event()
+        second_finished = Event()
+
+        def reject_after_lock() -> str:
+            with SessionLocal() as db:
+                second_started.set()
+                try:
+                    ConexionService(db).update(
+                        sender,
+                        recipient,
+                        UpdateConexionDTO(estado="rechazada"),
+                        recipient,
+                    )
+                    return "ok"
+                except ConflictError:
+                    return "conflict"
+                finally:
+                    second_finished.set()
+
+        with SessionLocal() as first_db:
+            locked = ConexionRepository(first_db).get_by_id_for_update(
+                sender,
+                recipient,
+            )
+            self.assertEqual(locked.estado, "pendiente")
+
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(reject_after_lock)
+                self.assertTrue(second_started.wait(timeout=5))
+                self.assertFalse(second_finished.wait(timeout=0.2))
+
+                accepted = ConexionService(first_db).update(
+                    sender,
+                    recipient,
+                    UpdateConexionDTO(estado="aceptada"),
+                    recipient,
+                )
+                self.assertEqual(accepted.estado, "aceptada")
+                self.assertEqual(future.result(timeout=5), "conflict")
+
+        with SessionLocal() as verification:
+            stored = verification.get(Conexion, canonical_pair(sender, recipient))
+            self.assertEqual(stored.estado, "aceptada")
+            self.assertEqual(
+                verification.query(Notificacion)
+                .filter(
+                    Notificacion.usuario_id == sender,
+                    Notificacion.usuario_origen_id == recipient,
+                    Notificacion.tipo == "CONEXION_ACEPTADA",
+                )
+                .count(),
+                1,
+            )
 
 
 @unittest.skipUnless(

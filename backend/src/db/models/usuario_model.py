@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Index, Integer, String, func, text
+from sqlalchemy import CheckConstraint, Column, DateTime, Index, Integer, String, func, text
 from sqlalchemy.orm import relationship
 
 from src.db.connection import Base
@@ -15,7 +15,7 @@ class Usuario(Base):
     ciudad = Column(String(100), nullable=False)
     foto_perfil_url = Column(String(255), nullable=True)
     fecha_registro = Column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=False,
         server_default=text("CURRENT_TIMESTAMP")
     )
@@ -80,5 +80,17 @@ class Usuario(Base):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "nombre ~ '[^[:space:]]'",
+            name="usuario_nombre_no_blank_check",
+        ).ddl_if(dialect="postgresql"),
+        CheckConstraint(
+            "headline ~ '[^[:space:]]'",
+            name="usuario_headline_no_blank_check",
+        ).ddl_if(dialect="postgresql"),
+        CheckConstraint(
+            "ciudad ~ '[^[:space:]]'",
+            name="usuario_ciudad_no_blank_check",
+        ).ddl_if(dialect="postgresql"),
         Index("uq_usuario_email_lower", func.lower(email), unique=True),
     )

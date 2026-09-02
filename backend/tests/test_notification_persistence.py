@@ -193,6 +193,39 @@ class NotificationPersistenceTests(unittest.TestCase):
             .first()
         )
 
+    def test_duplicate_application_returns_safe_conflict(self):
+        first = self.client.post(
+            "/api/postulaciones",
+            json={
+                "oferta_id": self.offer.id,
+                "usuario_id": self.applicant.id,
+            },
+        )
+        duplicate = self.client.post(
+            "/api/postulaciones",
+            json={
+                "oferta_id": self.offer.id,
+                "usuario_id": self.applicant.id,
+            },
+        )
+
+        self.assertEqual(first.status_code, 201, first.text)
+        self.assertEqual(duplicate.status_code, 409, duplicate.text)
+        self.assertEqual(
+            duplicate.json()["message"],
+            "El usuario ya se postuló a esta oferta.",
+        )
+        self.assertNotIn("postulacion_oferta_id_usuario_id_key", duplicate.text)
+        self.assertEqual(
+            self.db.query(Postulacion)
+            .filter(
+                Postulacion.oferta_id == self.offer.id,
+                Postulacion.usuario_id == self.applicant.id,
+            )
+            .count(),
+            1,
+        )
+
     def test_hiring_unpublishes_offer_without_losing_application_history(self):
         second_applicant = self._user(
             f"second-applicant-{uuid4().hex}@example.com",
@@ -405,7 +438,8 @@ class NotificationPersistenceTests(unittest.TestCase):
 
         self.current_user = self.applicant
         duplicated = self.client.post(f"/api/usuarios/{self.outsider.id}/seguir")
-        self.assertEqual(duplicated.status_code, 200, duplicated.text)
+        self.assertEqual(duplicated.status_code, 409, duplicated.text)
+        self.assertEqual(duplicated.json()["message"], "Ya sigue a este usuario.")
         self.assertEqual(
             self.db.query(Notificacion)
             .filter(

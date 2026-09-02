@@ -1,6 +1,11 @@
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.db.models.empresa_usuario_model import EmpresaUsuario, RolEmpresa
+from src.db.models.empresa_usuario_model import (
+    EMPRESA_USUARIO_UNIQUE_CONSTRAINT,
+    EmpresaUsuario,
+    RolEmpresa,
+)
 from src.dtos.empresa_usuario_dto import (
     CreateEmpresaUsuarioDTO,
     EmpresaUsuarioResponseDTO,
@@ -14,6 +19,7 @@ from src.repositories.empresa_repository import EmpresaRepository
 from src.repositories.empresa_usuario_repository import EmpresaUsuarioRepository
 from src.repositories.usuario_repository import UsuarioRepository
 from src.utils.errors import ConflictError, ForbiddenError, NotFoundError
+from src.utils.integrity import violates_constraint
 
 
 class EmpresaUsuarioService:
@@ -73,7 +79,13 @@ class EmpresaUsuarioService:
             raise ConflictError("El usuario ya pertenece a la empresa.")
 
         relacion = EmpresaUsuarioMapper.to_model(empresa_id, empresa_usuario_data)
-        relacion_creada = self.repository.create(relacion)
+        try:
+            relacion_creada = self.repository.create(relacion)
+        except IntegrityError as exc:
+            self.db.rollback()
+            if violates_constraint(exc, EMPRESA_USUARIO_UNIQUE_CONSTRAINT):
+                raise ConflictError("El usuario ya pertenece a la empresa.") from exc
+            raise
         return EmpresaUsuarioMapper.to_response_dto(relacion_creada)
 
     def update(

@@ -1,11 +1,10 @@
-from datetime import datetime
-
 from sqlalchemy.orm import Session, joinedload
 
 from src.db.models.solicitud_contratacion_promocion_model import (
     EstadoSolicitudContratacionPromocion,
     SolicitudContratacionPromocion,
 )
+from src.utils.datetime_utils import utc_now
 
 
 class SolicitudContratacionPromocionRepository:
@@ -71,7 +70,7 @@ class SolicitudContratacionPromocionRepository:
         commit: bool = True,
     ) -> SolicitudContratacionPromocion:
         request.estado = EstadoSolicitudContratacionPromocion.ACEPTADA
-        request.fecha_respuesta = datetime.now()
+        request.fecha_respuesta = utc_now()
         if commit:
             self.db.commit()
             self.db.refresh(request)

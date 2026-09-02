@@ -1,6 +1,8 @@
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from src.utils.text_validation import strip_non_blank
 
 
 class CreateExperienciaDTO(BaseModel):
@@ -9,6 +11,11 @@ class CreateExperienciaDTO(BaseModel):
     puesto: str = Field(min_length=1, max_length=100)
     desde: date
     hasta: date | None = None
+
+    @field_validator("puesto", mode="before")
+    @classmethod
+    def normalizar_puesto(cls, value):
+        return strip_non_blank(value)
 
     @model_validator(mode="after")
     def validar_fechas(self):
@@ -24,6 +31,11 @@ class UpdateExperienciaDTO(BaseModel):
     puesto: str | None = Field(default=None, min_length=1, max_length=100)
     desde: date | None = None
     hasta: date | None = None
+
+    @field_validator("puesto", mode="before")
+    @classmethod
+    def normalizar_puesto(cls, value):
+        return strip_non_blank(value)
 
     @model_validator(mode="after")
     def validar_fechas(self):

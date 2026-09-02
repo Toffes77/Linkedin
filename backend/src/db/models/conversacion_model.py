@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -21,8 +22,12 @@ class Conversacion(Base):
     id = Column(Integer, primary_key=True)
     usuario_menor_id = Column(Integer, ForeignKey("usuario.id"), nullable=False)
     usuario_mayor_id = Column(Integer, ForeignKey("usuario.id"), nullable=False)
-    fecha_creacion = Column(DateTime, nullable=False, server_default=func.now())
-    fecha_ultimo_mensaje = Column(DateTime, nullable=True)
+    fecha_creacion = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    fecha_ultimo_mensaje = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         CheckConstraint(
@@ -62,7 +67,11 @@ class ConversacionUsuario(Base):
         ForeignKey("usuario.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    ultima_lectura = Column(DateTime, nullable=False, server_default=func.now())
+    ultima_lectura = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
 
     __table_args__ = (
         Index("idx_conversacion_usuario_usuario", "usuario_id", "conversacion_id"),
@@ -89,7 +98,17 @@ class Mensaje(Base):
         ForeignKey("publicacion.id", ondelete="SET NULL"),
         nullable=True,
     )
-    fecha = Column(DateTime, nullable=False, server_default=func.now())
+    fecha = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    leido_por_destinatario = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="FALSE",
+    )
 
     __table_args__ = (
         ForeignKeyConstraint(
@@ -102,9 +121,10 @@ class Mensaje(Base):
             name="fk_mensaje_autor_participante",
         ),
         CheckConstraint(
-            "length(trim(contenido)) BETWEEN 1 AND 2000",
+            "length(contenido) BETWEEN 1 AND 2000 "
+            "AND contenido ~ '[^[:space:]]'",
             name="mensaje_contenido_check",
-        ),
+        ).ddl_if(dialect="postgresql"),
         CheckConstraint(
             "tipo IN ('TEXTO', 'PUBLICACION')",
             name="mensaje_tipo_check",
@@ -118,6 +138,12 @@ class Mensaje(Base):
             "conversacion_id",
             "fecha",
             "id",
+        ),
+        Index(
+            "idx_mensaje_conversacion_no_leido",
+            "conversacion_id",
+            "autor_id",
+            postgresql_where=(leido_por_destinatario.is_(False)),
         ),
     )
 

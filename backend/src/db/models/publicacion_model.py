@@ -19,7 +19,7 @@ class Publicacion(Base):
     texto = Column(String(3000), nullable=False)
 
     fecha = Column(
-        DateTime,
+        DateTime(timezone=True),
         server_default=func.now(),
         nullable=False
     )
@@ -40,9 +40,10 @@ class Publicacion(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "LENGTH(texto) BETWEEN 1 AND 3000",
+            "LENGTH(texto) BETWEEN 1 AND 3000 "
+            "AND texto ~ '[^[:space:]]'",
             name="check_longitud_texto"
-        ),
+        ).ddl_if(dialect="postgresql"),
         Index(
             "idx_publicacion_autor_fecha_id",
             "autor_id",

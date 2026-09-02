@@ -450,7 +450,7 @@ class SocialFeedTests(unittest.TestCase):
         finally:
             app.dependency_overrides.clear()
 
-    def test_follow_is_idempotent_and_unfollow_deletes_existing_relation(self):
+    def test_duplicate_follow_is_a_conflict_and_unfollow_deletes_existing_relation(self):
         service = SeguimientoService(Mock())
         service.usuario_repository = Mock()
         service.usuario_repository.get_by_id.return_value = SimpleNamespace(id=2)
@@ -459,10 +459,10 @@ class SocialFeedTests(unittest.TestCase):
         service.repository = Mock()
         service.repository.get.return_value = existing
 
-        result = service.follow(1, 2)
+        with self.assertRaises(ConflictError):
+            service.follow(1, 2)
         service.repository.create.assert_not_called()
         service.notificacion_service.create_many.assert_not_called()
-        self.assertEqual(result.seguido_id, 2)
         service.unfollow(1, 2)
         service.repository.delete.assert_called_once_with(existing)
         service.notificacion_service.create_many.assert_not_called()

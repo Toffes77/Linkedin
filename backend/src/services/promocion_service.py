@@ -1,8 +1,14 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.db.models.empresa_usuario_model import RolEmpresa
-from src.db.models.solicitud_contratacion_promocion_model import EstadoSolicitudContratacionPromocion
+from src.db.models.empresa_usuario_model import (
+    EMPRESA_USUARIO_UNIQUE_CONSTRAINT,
+    RolEmpresa,
+)
+from src.db.models.solicitud_contratacion_promocion_model import (
+    SOLICITUD_PROMOCION_PENDING_UNIQUE_INDEX,
+    EstadoSolicitudContratacionPromocion,
+)
 from src.dtos.notificacion_dto import CreateNotificacionDTO
 from src.dtos.promocion_dto import (
     CreatePromocionDTO,
@@ -22,6 +28,7 @@ from src.repositories.solicitud_contratacion_promocion_repository import (
 )
 from src.services.notificacion_service import NotificacionService
 from src.utils.errors import ConflictError, ForbiddenError, NotFoundError
+from src.utils.integrity import violates_constraint
 
 
 class PromocionService:
@@ -141,9 +148,14 @@ class PromocionService:
             self.db.refresh(request)
         except IntegrityError as error:
             self.db.rollback()
-            raise ConflictError(
-                "La empresa ya tiene una propuesta pendiente para esta promoción."
-            ) from error
+            if violates_constraint(
+                error,
+                SOLICITUD_PROMOCION_PENDING_UNIQUE_INDEX,
+            ):
+                raise ConflictError(
+                    "La empresa ya tiene una propuesta pendiente para esta promoción."
+                ) from error
+            raise
         except Exception:
             self.db.rollback()
             raise
@@ -181,6 +193,11 @@ class PromocionService:
             accepted = self.hiring_request_repository.accept(request, commit=False)
             self.db.commit()
             self.db.refresh(accepted)
+        except IntegrityError as error:
+            self.db.rollback()
+            if violates_constraint(error, EMPRESA_USUARIO_UNIQUE_CONSTRAINT):
+                raise ConflictError("El usuario ya pertenece a la empresa.") from error
+            raise
         except Exception:
             self.db.rollback()
             raise

@@ -29,7 +29,7 @@ class Conexion(Base):
     )
 
     fecha = Column(
-        DateTime,
+        DateTime(timezone=True),
         server_default=func.now(),
         nullable=False
     )

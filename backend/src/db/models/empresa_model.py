@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import CheckConstraint, Column, Integer, String
 from sqlalchemy.orm import relationship
 
 from src.db.connection import Base
@@ -22,4 +22,11 @@ class Empresa(Base):
     solicitudes_contratacion_promocion = relationship(
         "SolicitudContratacionPromocion",
         back_populates="empresa",
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "nombre ~ '[^[:space:]]'",
+            name="empresa_nombre_no_blank_check",
+        ).ddl_if(dialect="postgresql"),
     )

@@ -1,6 +1,11 @@
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.db.models.empresa_usuario_model import RolEmpresa
+from src.db.models.empresa_usuario_model import (
+    EMPRESA_USUARIO_UNIQUE_CONSTRAINT,
+    RolEmpresa,
+)
+from src.db.models.postulacion_model import POSTULACION_UNIQUE_CONSTRAINT
 from src.dtos.postulacion_dto import (
     CreatePostulacionDTO,
     PostulacionResponseDTO,
@@ -16,6 +21,7 @@ from src.repositories.postulacion_repository import PostulacionRepository
 from src.repositories.usuario_repository import UsuarioRepository
 from src.services.notificacion_service import NotificacionService
 from src.utils.errors import ConflictError, ForbiddenError, NotFoundError
+from src.utils.integrity import violates_constraint
 
 
 class PostulacionService:
@@ -67,6 +73,13 @@ class PostulacionService:
             )
             self.db.commit()
             self.db.refresh(postulacion)
+        except IntegrityError as exc:
+            self.db.rollback()
+            if violates_constraint(exc, POSTULACION_UNIQUE_CONSTRAINT):
+                raise ConflictError(
+                    "El usuario ya se postuló a esta oferta."
+                ) from exc
+            raise
         except Exception:
             self.db.rollback()
             raise
@@ -157,6 +170,13 @@ class PostulacionService:
             )
             self.db.commit()
             self.db.refresh(postulacion_actualizada)
+        except IntegrityError as exc:
+            self.db.rollback()
+            if violates_constraint(exc, EMPRESA_USUARIO_UNIQUE_CONSTRAINT):
+                raise ConflictError(
+                    "El usuario ya pertenece a la empresa."
+                ) from exc
+            raise
         except Exception:
             self.db.rollback()
             raise

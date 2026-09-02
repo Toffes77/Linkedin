@@ -5,10 +5,11 @@ from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
 from src.app import app
-from src.db.connection import engine, get_db
+from src.db.connection import SessionLocal, engine, get_db
 from src.db.models.conexiones_model import Conexion
 from src.db.models.conversacion_model import Conversacion, ConversacionUsuario, Mensaje
 from src.db.models.notificacion_model import Notificacion
@@ -496,6 +497,189 @@ class PrivateMessagePersistenceTests(unittest.TestCase):
         self.assertIsNone(deleted_post_message.publicacion_id)
         self.assertIsNone(deleted_post_message.publicacion)
         self.assertIsNotNone(self.db.get(Mensaje, message_id))
+
+
+@unittest.skipUnless(
+    engine.dialect.name == "postgresql",
+    "Las regresiones concurrentes requieren la PostgreSQL configurada.",
+)
+class PrivateMessageConcurrencyTests(unittest.TestCase):
+    def setUp(self):
+        suffix = uuid4().hex
+        with SessionLocal() as db:
+            sender = Usuario(
+                email=f"message-sender-{suffix}@example.com",
+                nombre="Emisor concurrente",
+                password_hash="hash",
+                headline="Mensajes",
+                ciudad="Buenos Aires",
+            )
+            recipient = Usuario(
+                email=f"message-recipient-{suffix}@example.com",
+                nombre="Destinatario concurrente",
+                password_hash="hash",
+                headline="Mensajes",
+                ciudad="Buenos Aires",
+            )
+            db.add_all([sender, recipient])
+            db.flush()
+            self.sender_id = sender.id
+            self.recipient_id = recipient.id
+            db.add(
+                Conexion(
+                    usuario_a=min(sender.id, recipient.id),
+                    usuario_b=max(sender.id, recipient.id),
+                    solicitante_id=sender.id,
+                    estado="aceptada",
+                )
+            )
+            db.commit()
+
+        with SessionLocal() as db:
+            conversation = MensajeService(db).get_or_create(
+                CrearConversacionDTO(usuario_id=self.recipient_id),
+                self.sender_id,
+            )
+            self.conversation_id = conversation.id
+
+    def tearDown(self):
+        with SessionLocal() as db:
+            db.query(Conversacion).filter(
+                Conversacion.id == self.conversation_id
+            ).delete(synchronize_session=False)
+            db.query(Notificacion).filter(
+                or_(
+                    Notificacion.usuario_id.in_(
+                        (self.sender_id, self.recipient_id)
+                    ),
+                    Notificacion.usuario_origen_id.in_(
+                        (self.sender_id, self.recipient_id)
+                    ),
+                )
+            ).delete(synchronize_session=False)
+            db.query(Conexion).filter(
+                Conexion.usuario_a == min(self.sender_id, self.recipient_id),
+                Conexion.usuario_b == max(self.sender_id, self.recipient_id),
+            ).delete(synchronize_session=False)
+            db.query(Usuario).filter(
+                Usuario.id.in_((self.sender_id, self.recipient_id))
+            ).delete(synchronize_session=False)
+            db.commit()
+
+    def _uncommitted_incoming_message(self, db: Session, content: str) -> Mensaje:
+        conversation = db.get(Conversacion, self.conversation_id)
+        message = Mensaje(
+            conversacion_id=self.conversation_id,
+            autor_id=self.sender_id,
+            contenido=content,
+            tipo="TEXTO",
+        )
+        db.add(message)
+        db.flush()
+        conversation.fecha_ultimo_mensaje = message.fecha
+        return message
+
+    def test_normal_read_state_counts_only_incoming_messages(self):
+        with SessionLocal() as db:
+            service = MensajeService(db)
+            service.send_message(
+                self.conversation_id,
+                EnviarMensajeDTO(contenido="Primero"),
+                self.sender_id,
+            )
+            service.send_message(
+                self.conversation_id,
+                EnviarMensajeDTO(contenido="Segundo"),
+                self.sender_id,
+            )
+            service.send_message(
+                self.conversation_id,
+                EnviarMensajeDTO(contenido="Mensaje propio"),
+                self.recipient_id,
+            )
+
+            self.assertEqual(service.count_unread(self.recipient_id), 2)
+            summary = next(
+                item
+                for item in service.list_contacts(self.recipient_id)
+                if item.usuario_id == self.sender_id
+            )
+            self.assertEqual(summary.no_leidos, 2)
+
+            service.mark_as_read(self.conversation_id, self.recipient_id)
+            self.assertEqual(service.count_unread(self.recipient_id), 0)
+            self.assertEqual(db.execute(text("SELECT 1")).scalar_one(), 1)
+
+            service.send_message(
+                self.conversation_id,
+                EnviarMensajeDTO(contenido="Posterior"),
+                self.sender_id,
+            )
+            self.assertEqual(service.count_unread(self.recipient_id), 1)
+
+    def test_message_committed_after_mark_as_read_remains_unread(self):
+        writer = SessionLocal()
+        try:
+            pending = self._uncommitted_incoming_message(
+                writer,
+                "Creado antes y confirmado después",
+            )
+            pending_id = pending.id
+
+            with SessionLocal() as reader:
+                service = MensajeService(reader)
+                service.mark_as_read(self.conversation_id, self.recipient_id)
+                self.assertEqual(service.count_unread(self.recipient_id), 0)
+
+            writer.commit()
+        finally:
+            writer.close()
+
+        with SessionLocal() as verification:
+            stored = verification.get(Mensaje, pending_id)
+            self.assertFalse(stored.leido_por_destinatario)
+            self.assertEqual(
+                MensajeService(verification).count_unread(self.recipient_id),
+                1,
+            )
+
+    def test_out_of_order_commits_do_not_use_message_id_as_read_boundary(self):
+        first_writer = SessionLocal()
+        try:
+            first = self._uncommitted_incoming_message(
+                first_writer,
+                "ID menor, commit tardío",
+            )
+            first_id = first.id
+
+            with SessionLocal() as second_writer:
+                second = MensajeService(second_writer).send_message(
+                    self.conversation_id,
+                    EnviarMensajeDTO(contenido="ID mayor, commit temprano"),
+                    self.sender_id,
+                )
+                second_id = second.id
+            self.assertGreater(second_id, first_id)
+
+            with SessionLocal() as reader:
+                MensajeService(reader).mark_as_read(
+                    self.conversation_id,
+                    self.recipient_id,
+                )
+
+            first_writer.commit()
+        finally:
+            first_writer.close()
+
+        with SessionLocal() as verification:
+            stored_first = verification.get(Mensaje, first_id)
+            stored_second = verification.get(Mensaje, second_id)
+            self.assertFalse(stored_first.leido_por_destinatario)
+            self.assertTrue(stored_second.leido_por_destinatario)
+            self.assertEqual(
+                MensajeService(verification).count_unread(self.recipient_id),
+                1,
+            )
 
 
 if __name__ == "__main__":

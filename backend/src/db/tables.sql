@@ -10,7 +10,14 @@ CREATE TABLE Usuario (
     headline VARCHAR(200) NOT NULL,
     ciudad VARCHAR(100) NOT NULL,
     foto_perfil_url VARCHAR(255),
-    fecha_registro TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    fecha_registro TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT usuario_nombre_no_blank_check
+        CHECK (nombre ~ '[^[:space:]]'),
+    CONSTRAINT usuario_headline_no_blank_check
+        CHECK (headline ~ '[^[:space:]]'),
+    CONSTRAINT usuario_ciudad_no_blank_check
+        CHECK (ciudad ~ '[^[:space:]]')
 );
 
 -- ============================================================
@@ -21,7 +28,10 @@ CREATE TABLE Empresa (
     nombre VARCHAR(100) NOT NULL,
     industria VARCHAR(100),
     sitio_web VARCHAR(255),
-    foto_perfil_url VARCHAR(255)
+    foto_perfil_url VARCHAR(255),
+
+    CONSTRAINT empresa_nombre_no_blank_check
+        CHECK (nombre ~ '[^[:space:]]')
 );
 
 CREATE UNIQUE INDEX uq_usuario_email_lower
@@ -34,7 +44,7 @@ CREATE TABLE empresa_usuario (
     usuario_id INT NOT NULL,
     rol rol_empresa NOT NULL,
 
-    PRIMARY KEY (empresa_id, usuario_id),
+    CONSTRAINT empresa_usuario_pkey PRIMARY KEY (empresa_id, usuario_id),
 
     FOREIGN KEY (empresa_id) REFERENCES Empresa(id),
     FOREIGN KEY (usuario_id) REFERENCES Usuario(id)
@@ -50,13 +60,17 @@ CREATE TABLE promocion (
     usuario_id INT NOT NULL,
     titulo VARCHAR(160) NOT NULL,
     descripcion TEXT NOT NULL,
-    fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (usuario_id) REFERENCES Usuario(id) ON DELETE CASCADE,
-    CONSTRAINT promocion_titulo_check
-        CHECK (LENGTH(TRIM(titulo)) BETWEEN 1 AND 160),
-    CONSTRAINT promocion_descripcion_check
-        CHECK (LENGTH(TRIM(descripcion)) BETWEEN 1 AND 3000)
+    CONSTRAINT promocion_titulo_check CHECK (
+        LENGTH(titulo) BETWEEN 1 AND 160
+        AND titulo ~ '[^[:space:]]'
+    ),
+    CONSTRAINT promocion_descripcion_check CHECK (
+        LENGTH(descripcion) BETWEEN 1 AND 3000
+        AND descripcion ~ '[^[:space:]]'
+    )
 );
 
 CREATE INDEX idx_promocion_usuario_fecha
@@ -76,8 +90,8 @@ CREATE TABLE solicitud_contratacion_promocion (
     empresa_id INT NOT NULL,
     solicitante_id INT NOT NULL,
     estado estado_solicitud_contratacion_promocion NOT NULL DEFAULT 'PENDIENTE',
-    fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    fecha_respuesta TIMESTAMP,
+    fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_respuesta TIMESTAMPTZ,
 
     FOREIGN KEY (promocion_id) REFERENCES promocion(id) ON DELETE CASCADE,
     FOREIGN KEY (empresa_id) REFERENCES Empresa(id),
@@ -109,6 +123,8 @@ CREATE TABLE Experiencia (
     FOREIGN KEY (empresa_id) REFERENCES Empresa(id),
 
     CHECK (hasta IS NULL OR desde <= hasta),
+    CONSTRAINT experiencia_puesto_no_blank_check
+        CHECK (puesto ~ '[^[:space:]]'),
     CONSTRAINT exclude_experiencia_usuario_empresa_periodo
         EXCLUDE USING gist (
             usuario_id WITH =,
@@ -124,11 +140,14 @@ CREATE TABLE Publicacion (
     id SERIAL PRIMARY KEY,
     autor_id INT NOT NULL,
     texto VARCHAR(3000) NOT NULL,
-    fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (autor_id) REFERENCES Usuario(id),
 
-    CHECK (LENGTH(texto) BETWEEN 1 AND 3000)
+    CONSTRAINT check_longitud_texto CHECK (
+        LENGTH(texto) BETWEEN 1 AND 3000
+        AND texto ~ '[^[:space:]]'
+    )
 );
 
 CREATE INDEX idx_publicacion_autor_fecha_id
@@ -142,15 +161,17 @@ CREATE TABLE comentario (
     publicacion_id INT NOT NULL,
     usuario_id INT NOT NULL,
     contenido VARCHAR(1000) NOT NULL,
-    fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     comentario_padre_id INT,
 
     FOREIGN KEY (publicacion_id) REFERENCES Publicacion(id) ON DELETE CASCADE,
     FOREIGN KEY (usuario_id) REFERENCES Usuario(id) ON DELETE CASCADE,
     FOREIGN KEY (comentario_padre_id) REFERENCES comentario(id) ON DELETE CASCADE,
 
-    CONSTRAINT comentario_contenido_check
-        CHECK (LENGTH(TRIM(contenido)) BETWEEN 1 AND 1000)
+    CONSTRAINT comentario_contenido_check CHECK (
+        LENGTH(contenido) BETWEEN 1 AND 1000
+        AND contenido ~ '[^[:space:]]'
+    )
 );
 
 CREATE INDEX idx_comentario_publicacion_fecha
@@ -167,9 +188,13 @@ CREATE TABLE Oferta (
     titulo VARCHAR(200) NOT NULL,
     descripcion TEXT NOT NULL,
     publicada BOOLEAN NOT NULL DEFAULT FALSE,
-    fecha_publicacion TIMESTAMP,
+    fecha_publicacion TIMESTAMPTZ,
 
-    FOREIGN KEY (empresa_id) REFERENCES Empresa(id)
+    FOREIGN KEY (empresa_id) REFERENCES Empresa(id),
+    CONSTRAINT oferta_titulo_no_blank_check
+        CHECK (titulo ~ '[^[:space:]]'),
+    CONSTRAINT oferta_descripcion_no_blank_check
+        CHECK (descripcion ~ '[^[:space:]]')
 );
 
 -- ============================================================
@@ -179,13 +204,14 @@ CREATE TABLE Postulacion (
     id SERIAL PRIMARY KEY,
     oferta_id INT NOT NULL,
     usuario_id INT NOT NULL,
-    fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     estado VARCHAR(20) NOT NULL DEFAULT 'nueva',
 
     FOREIGN KEY (oferta_id) REFERENCES Oferta(id),
     FOREIGN KEY (usuario_id) REFERENCES Usuario(id),
 
-    UNIQUE (oferta_id, usuario_id),
+    CONSTRAINT postulacion_oferta_id_usuario_id_key
+        UNIQUE (oferta_id, usuario_id),
 
     CHECK (estado IN (
         'nueva',
@@ -203,7 +229,7 @@ CREATE TABLE conexiones (
     usuario_a INT NOT NULL,
     usuario_b INT NOT NULL,
     solicitante_id INT NOT NULL,
-    fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
 
     PRIMARY KEY (usuario_a, usuario_b),
@@ -232,7 +258,7 @@ CREATE TABLE reacciones (
     publicacion_id INT NOT NULL,
     tipo VARCHAR(20) NOT NULL,
 
-    PRIMARY KEY (usuario_id, publicacion_id),
+    CONSTRAINT reacciones_pkey PRIMARY KEY (usuario_id, publicacion_id),
 
     FOREIGN KEY (usuario_id) REFERENCES Usuario(id),
     FOREIGN KEY (publicacion_id) REFERENCES Publicacion(id) ON DELETE CASCADE,
@@ -254,7 +280,7 @@ CREATE TABLE notificacion (
     tipo VARCHAR(30) NOT NULL,
     mensaje VARCHAR(500) NOT NULL,
     leida BOOLEAN NOT NULL DEFAULT FALSE,
-    fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     postulacion_id INT,
     oferta_id INT,
     usuario_origen_id INT,
@@ -292,9 +318,9 @@ CREATE INDEX idx_notificacion_promocion
 CREATE TABLE seguimiento (
     seguidor_id INT NOT NULL,
     seguido_id INT NOT NULL,
-    fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    PRIMARY KEY (seguidor_id, seguido_id),
+    CONSTRAINT seguimiento_pkey PRIMARY KEY (seguidor_id, seguido_id),
 
     FOREIGN KEY (seguidor_id) REFERENCES Usuario(id),
     FOREIGN KEY (seguido_id) REFERENCES Usuario(id),
@@ -309,8 +335,8 @@ CREATE TABLE conversacion (
     id SERIAL PRIMARY KEY,
     usuario_menor_id INT NOT NULL,
     usuario_mayor_id INT NOT NULL,
-    fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    fecha_ultimo_mensaje TIMESTAMP,
+    fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha_ultimo_mensaje TIMESTAMPTZ,
 
     FOREIGN KEY (usuario_menor_id) REFERENCES Usuario(id),
     FOREIGN KEY (usuario_mayor_id) REFERENCES Usuario(id),
@@ -323,7 +349,7 @@ CREATE TABLE conversacion (
 CREATE TABLE conversacion_usuario (
     conversacion_id INT NOT NULL,
     usuario_id INT NOT NULL,
-    ultima_lectura TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ultima_lectura TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (conversacion_id, usuario_id),
     FOREIGN KEY (conversacion_id) REFERENCES conversacion(id) ON DELETE CASCADE,
@@ -337,7 +363,8 @@ CREATE TABLE mensaje (
     contenido VARCHAR(2000) NOT NULL,
     tipo VARCHAR(20) NOT NULL DEFAULT 'TEXTO',
     publicacion_id INT,
-    fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    fecha TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    leido_por_destinatario BOOLEAN NOT NULL DEFAULT FALSE,
 
     FOREIGN KEY (conversacion_id) REFERENCES conversacion(id) ON DELETE CASCADE,
     FOREIGN KEY (publicacion_id) REFERENCES Publicacion(id) ON DELETE SET NULL,
@@ -345,8 +372,10 @@ CREATE TABLE mensaje (
         FOREIGN KEY (conversacion_id, autor_id)
         REFERENCES conversacion_usuario(conversacion_id, usuario_id)
         ON DELETE CASCADE,
-    CONSTRAINT mensaje_contenido_check
-        CHECK (length(trim(contenido)) BETWEEN 1 AND 2000),
+    CONSTRAINT mensaje_contenido_check CHECK (
+        length(contenido) BETWEEN 1 AND 2000
+        AND contenido ~ '[^[:space:]]'
+    ),
     CONSTRAINT mensaje_tipo_check
         CHECK (tipo IN ('TEXTO', 'PUBLICACION')),
     CONSTRAINT mensaje_publicacion_tipo_check
@@ -361,3 +390,6 @@ CREATE INDEX idx_mensaje_conversacion_fecha
     ON mensaje (conversacion_id, fecha, id);
 CREATE INDEX idx_mensaje_publicacion
     ON mensaje (publicacion_id);
+CREATE INDEX idx_mensaje_conversacion_no_leido
+    ON mensaje (conversacion_id, autor_id)
+    WHERE leido_por_destinatario = FALSE;

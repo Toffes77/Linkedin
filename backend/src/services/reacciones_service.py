@@ -1,6 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from src.db.models.reaciones_model import REACCIONES_UNIQUE_CONSTRAINT
 from src.dtos.reacciones_dto import (
     CreateReaccionDTO,
     ReaccionResponseDTO,
@@ -11,6 +12,7 @@ from src.repositories.publicacion_repository import PublicacionRepository
 from src.repositories.reacciones_repository import ReaccionRepository
 from src.repositories.usuario_repository import UsuarioRepository
 from src.utils.errors import ConflictError, NotFoundError
+from src.utils.integrity import violates_constraint
 
 
 class ReaccionesService:
@@ -37,9 +39,11 @@ class ReaccionesService:
             reaccion = self.repository.create(reaccion_data)
         except IntegrityError as exc:
             self.db.rollback()
-            raise ConflictError(
-                "El usuario ya reaccionó a esta publicación."
-            ) from exc
+            if violates_constraint(exc, REACCIONES_UNIQUE_CONSTRAINT):
+                raise ConflictError(
+                    "El usuario ya reaccionó a esta publicación."
+                ) from exc
+            raise
         return ReaccionMapper.to_response_dto(reaccion)
 
     def get_optional_by_usuario_and_publicacion(

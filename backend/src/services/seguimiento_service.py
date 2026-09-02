@@ -1,5 +1,7 @@
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from src.db.models.seguimiento_model import SEGUIMIENTO_UNIQUE_CONSTRAINT
 from src.dtos.notificacion_dto import CreateNotificacionDTO
 from src.dtos.seguimiento_dto import (
     EstadoSeguimientoResponseDTO,
@@ -10,6 +12,7 @@ from src.repositories.seguimiento_repository import SeguimientoRepository
 from src.repositories.usuario_repository import UsuarioRepository
 from src.services.notificacion_service import NotificacionService
 from src.utils.errors import ConflictError, NotFoundError
+from src.utils.integrity import violates_constraint
 
 
 class SeguimientoService:
@@ -23,7 +26,7 @@ class SeguimientoService:
         self._validar_destino(seguidor_id, seguido_id)
         seguimiento = self.repository.get(seguidor_id, seguido_id)
         if seguimiento is not None:
-            return SeguimientoMapper.to_response_dto(seguimiento)
+            raise ConflictError("Ya sigue a este usuario.")
 
         seguidor = self._obtener_usuario(seguidor_id)
         try:
@@ -45,6 +48,11 @@ class SeguimientoService:
             )
             self.db.commit()
             self.db.refresh(seguimiento)
+        except IntegrityError as exc:
+            self.db.rollback()
+            if violates_constraint(exc, SEGUIMIENTO_UNIQUE_CONSTRAINT):
+                raise ConflictError("Ya sigue a este usuario.") from exc
+            raise
         except Exception:
             self.db.rollback()
             raise

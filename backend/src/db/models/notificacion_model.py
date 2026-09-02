@@ -12,7 +12,7 @@ class Notificacion(Base):
     tipo = Column(String(30), nullable=False)
     mensaje = Column(String(500), nullable=False)
     leida = Column(Boolean, nullable=False, default=False, server_default="false")
-    fecha = Column(DateTime, nullable=False, server_default=func.now())
+    fecha = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     postulacion_id = Column(Integer, ForeignKey("postulacion.id"), nullable=True)
     oferta_id = Column(Integer, ForeignKey("oferta.id"), nullable=True)
     usuario_origen_id = Column(Integer, ForeignKey("usuario.id"), nullable=True)

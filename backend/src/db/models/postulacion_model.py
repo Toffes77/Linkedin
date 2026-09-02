@@ -5,6 +5,9 @@ from sqlalchemy.orm import relationship
 from src.db.connection import Base
 
 
+POSTULACION_UNIQUE_CONSTRAINT = "postulacion_oferta_id_usuario_id_key"
+
+
 class Postulacion(Base):
     __tablename__ = "postulacion"
 
@@ -12,7 +15,7 @@ class Postulacion(Base):
     oferta_id = Column(Integer, ForeignKey("oferta.id"), nullable=False)
     usuario_id = Column(Integer, ForeignKey("usuario.id"), nullable=False)
 
-    fecha = Column(DateTime, server_default=func.now(), nullable=False)
+    fecha = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     estado = Column(
         String(20),
@@ -25,7 +28,11 @@ class Postulacion(Base):
     usuario = relationship("Usuario", back_populates="postulaciones")
 
     __table_args__ = (
-        UniqueConstraint("oferta_id", "usuario_id"),
+        UniqueConstraint(
+            "oferta_id",
+            "usuario_id",
+            name=POSTULACION_UNIQUE_CONSTRAINT,
+        ),
         CheckConstraint(
             "estado IN ('nueva', 'vista', 'entrevista', 'contratado', 'rechazada')"
         ),

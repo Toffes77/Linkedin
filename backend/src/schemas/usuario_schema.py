@@ -2,6 +2,8 @@ from datetime import date
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from src.utils.text_validation import strip_non_blank
+
 
 class CreateUsuarioSchema(BaseModel):
     email: EmailStr = Field(max_length=100)
@@ -9,6 +11,11 @@ class CreateUsuarioSchema(BaseModel):
     nombre: str = Field(min_length=1, max_length=100)
     headline: str = Field(min_length=1, max_length=200)
     ciudad: str = Field(min_length=1, max_length=100)
+
+    @field_validator("nombre", "headline", "ciudad", mode="before")
+    @classmethod
+    def normalizar_texto(cls, value):
+        return strip_non_blank(value)
 
     @field_validator("password")
     @classmethod
@@ -25,6 +32,11 @@ class LegacyUpdateUsuarioSchema(BaseModel):
     headline: str | None = Field(default=None, min_length=1, max_length=200)
     ciudad: str | None = Field(default=None, min_length=1, max_length=100)
 
+    @field_validator("nombre", "headline", "ciudad", mode="before")
+    @classmethod
+    def normalizar_texto(cls, value):
+        return strip_non_blank(value)
+
     @field_validator("password")
     @classmethod
     def validar_password(cls, value: str | None):
@@ -39,6 +51,11 @@ class UpdateUsuarioSchema(BaseModel):
     nombre: str | None = Field(default=None, min_length=1, max_length=100)
     headline: str | None = Field(default=None, min_length=1, max_length=200)
     ciudad: str | None = Field(default=None, min_length=1, max_length=100)
+
+    @field_validator("nombre", "headline", "ciudad", mode="before")
+    @classmethod
+    def normalizar_texto(cls, value):
+        return strip_non_blank(value)
 
 
 class UpdatePasswordSchema(BaseModel):

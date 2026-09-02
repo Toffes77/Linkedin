@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, text
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, Integer, String, Text, text
 from sqlalchemy.orm import relationship
 
 from src.db.connection import Base
@@ -27,8 +27,19 @@ class Oferta(Base):
     )
 
     fecha_publicacion = Column(
-        DateTime,
+        DateTime(timezone=True),
         nullable=True
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "titulo ~ '[^[:space:]]'",
+            name="oferta_titulo_no_blank_check",
+        ).ddl_if(dialect="postgresql"),
+        CheckConstraint(
+            "descripcion ~ '[^[:space:]]'",
+            name="oferta_descripcion_no_blank_check",
+        ).ddl_if(dialect="postgresql"),
     )
 
     empresa = relationship("Empresa", back_populates="ofertas")

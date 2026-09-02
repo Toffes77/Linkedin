@@ -3,7 +3,10 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 from src.config.env import settings
 
-engine = create_engine(settings.DATABASE_URL)
+engine = create_engine(
+    settings.DATABASE_URL,
+    connect_args={"options": "-c timezone=UTC"},
+)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 Base = declarative_base()
 

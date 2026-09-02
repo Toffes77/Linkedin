@@ -42,6 +42,23 @@ class ConexionRepository:
     def get_by_id(self, usuario_a: int, usuario_b: int) -> Conexion | None:
         return self.db.get(Conexion, self.ordenar_par(usuario_a, usuario_b))
 
+    def get_by_id_for_update(
+        self,
+        usuario_a: int,
+        usuario_b: int,
+    ) -> Conexion | None:
+        usuario_a, usuario_b = self.ordenar_par(usuario_a, usuario_b)
+        return (
+            self.db.query(Conexion)
+            .populate_existing()
+            .filter(
+                Conexion.usuario_a == usuario_a,
+                Conexion.usuario_b == usuario_b,
+            )
+            .with_for_update(of=Conexion)
+            .first()
+        )
+
     def get_by_usuarios(self, usuario_a: int, usuario_b: int) -> Conexion | None:
         return self.get_by_id(usuario_a, usuario_b)
 
