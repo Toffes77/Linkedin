@@ -14,7 +14,7 @@ import {
   usersApi,
   type Company,
   type ConnectionStatus,
-  type Post,
+  type FeedPost,
   type User,
 } from "@/lib/api";
 import { formatMonth } from "@/lib/format";
@@ -32,7 +32,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const { user: current, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState<User | null>(null);
   const [companies, setCompanies] = useState<Record<number, Company>>({});
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<FeedPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
@@ -50,7 +50,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       .then(async (loaded) => {
         const ids = [...new Set(loaded.experiencias.map((experience) => experience.empresa_id))];
         const [list, profilePosts, followStatus, relationStatus] = await Promise.all([
-          Promise.all(ids.map((companyId) => companiesApi.get(companyId).catch(() => null))),
+          ids.length ? companiesApi.getBatch(ids) : Promise.resolve([]),
           postsApi.byAuthor(userId),
           current.id !== userId ? followsApi.status(userId) : Promise.resolve(null),
           current.id !== userId ? connectionsApi.status(userId) : Promise.resolve(null),
@@ -64,7 +64,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         setCompanies(
           Object.fromEntries(
             list
-              .filter((company): company is Company => company !== null)
               .map((company) => [company.id, company]),
           ),
         );
@@ -147,7 +146,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
             </section>
             <section className="profile-posts">
               <h2>Publicaciones</h2>
-              {posts.length ? posts.map((post) => <PostCard key={post.id} post={post} author={profile} currentUser={current!} onDelete={(postId) => setPosts((items) => items.filter((item) => item.id !== postId))} onUpdate={(updated) => setPosts((items) => items.map((item) => item.id === updated.id ? updated : item))}/>) : <section className="card profile-section"><p className="muted">{current?.id === profile.id ? "Todavía no realizaste publicaciones." : "Este usuario todavía no realizó publicaciones."}</p></section>}
+              {posts.length ? posts.map((post) => <PostCard key={post.id} post={post} currentUser={current!} onDelete={(postId) => setPosts((items) => items.filter((item) => item.id !== postId))} onUpdate={(updated) => setPosts((items) => items.map((item) => item.id === updated.id ? updated : item))}/>) : <section className="card profile-section"><p className="muted">{current?.id === profile.id ? "Todavía no realizaste publicaciones." : "Este usuario todavía no realizó publicaciones."}</p></section>}
             </section>
             {error && <p className="inline-error">{error}</p>}
           </>}

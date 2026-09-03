@@ -50,6 +50,23 @@ class Comentario(Base):
             "AND contenido ~ '[^[:space:]]'",
             name="comentario_contenido_check",
         ).ddl_if(dialect="postgresql"),
-        Index("idx_comentario_publicacion_fecha", "publicacion_id", "fecha"),
-        Index("idx_comentario_padre_fecha", "comentario_padre_id", "fecha"),
+        Index(
+            "idx_comentario_publicacion_fecha",
+            "publicacion_id",
+            fecha.desc(),
+            id.desc(),
+        ),
+        Index(
+            "idx_comentario_raiz_publicacion_fecha",
+            "publicacion_id",
+            fecha.desc(),
+            id.desc(),
+            postgresql_where=comentario_padre_id.is_(None),
+        ),
+        Index(
+            "idx_comentario_padre_fecha",
+            "comentario_padre_id",
+            fecha.asc(),
+            id.asc(),
+        ),
     )

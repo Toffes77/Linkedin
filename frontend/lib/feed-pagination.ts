@@ -54,3 +54,35 @@ export function canRequestFeedCursor(
 ) {
   return cursor !== null && !loading && hasMore && !requestedCursors.has(cursor);
 }
+
+export type FeedContinuation = {
+  cursor: string | null;
+  hasMore: boolean;
+  loadError: string;
+};
+
+export function successfulFeedContinuation(
+  nextCursor: string | null,
+  apiHasMore: boolean,
+): FeedContinuation {
+  return {
+    cursor: nextCursor,
+    hasMore: apiHasMore && nextCursor !== null,
+    loadError: "",
+  };
+}
+
+export function failedFeedContinuation(
+  cursor: string,
+  hasMore: boolean,
+  message: string,
+): FeedContinuation {
+  return { cursor, hasMore, loadError: message };
+}
+
+export function releaseFailedFeedCursor(
+  requestedCursors: Set<string>,
+  cursor: string,
+) {
+  requestedCursors.delete(cursor);
+}

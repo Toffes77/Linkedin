@@ -67,6 +67,15 @@ def create_empresa(
     return EmpresaMapper.to_response_schema(empresa)
 
 
+@router.get("/batch", response_model=list[GetEmpresaSchema])
+def get_empresas_batch(
+    ids: list[int] = Query(min_length=1, max_length=50),
+    db: Session = Depends(get_db),
+):
+    empresas = EmpresaService(db).get_by_ids(ids)
+    return [EmpresaMapper.to_response_schema(empresa) for empresa in empresas]
+
+
 @router.get("/{empresa_id}", response_model=GetEmpresaSchema)
 def get_empresa(empresa_id: int, db: Session = Depends(get_db)):
     empresa: EmpresaResponseDTO = EmpresaService(db).get_by_id(empresa_id)

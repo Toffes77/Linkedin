@@ -9,7 +9,7 @@ from src.mappers.empresa_mapper import EmpresaMapper
 from src.repositories.empresa_repository import EmpresaRepository
 from src.repositories.empresa_usuario_repository import EmpresaUsuarioRepository
 from src.db.models.empresa_usuario_model import RolEmpresa
-from src.utils.errors import ForbiddenError, NotFoundError
+from src.utils.errors import BadRequestError, ForbiddenError, NotFoundError
 from src.utils.image_storage import (
     delete_managed_image,
     save_image,
@@ -18,6 +18,8 @@ from src.utils.image_storage import (
 
 
 class EmpresaService:
+    MAX_BATCH_IDS = 50
+
     def __init__(self, db: Session):
         self.db = db
         self.repository = EmpresaRepository(db)
@@ -37,6 +39,20 @@ class EmpresaService:
             raise NotFoundError("Empresa no encontrada.")
 
         return EmpresaMapper.to_response_dto(empresa)
+
+    def get_by_ids(self, empresa_ids: list[int]) -> list[EmpresaResponseDTO]:
+        unique_ids = list(dict.fromkeys(empresa_ids))
+        if not unique_ids or len(unique_ids) > self.MAX_BATCH_IDS:
+            raise BadRequestError(
+                f"Debe solicitar entre 1 y {self.MAX_BATCH_IDS} empresas."
+            )
+        empresas = self.repository.get_by_ids(unique_ids)
+        by_id = {empresa.id: empresa for empresa in empresas}
+        return [
+            EmpresaMapper.to_response_dto(by_id[empresa_id])
+            for empresa_id in unique_ids
+            if empresa_id in by_id
+        ]
 
     def search(self, nombre: str) -> list[EmpresaResponseDTO]:
         empresas = self.repository.search_by_name(nombre.strip())

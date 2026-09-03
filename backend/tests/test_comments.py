@@ -130,34 +130,19 @@ class CommentServiceTests(unittest.TestCase):
 
         service.repository.create.assert_not_called()
 
-    def test_list_reconstructs_the_complete_response_tree(self):
+    def test_list_returns_only_a_bounded_page_of_roots(self):
         service = self.service()
         root = comment(11)
-        direct_reply = comment(12, parent_id=11)
-        nested_reply = comment(13, parent_id=12)
-        sibling_reply = comment(14, parent_id=11)
-        second_nested_reply = comment(15, parent_id=12)
-        service.repository.get_all_by_publicacion.return_value = [
-            root,
-            direct_reply,
-            nested_reply,
-            sibling_reply,
-            second_nested_reply,
-        ]
+        service.repository.get_roots_page.return_value = [(root, 4)]
 
-        result = service.list_by_publicacion(3)
+        result = service.list_roots(3, cursor=None, limit=10)
 
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0].cantidad_respuestas, 2)
-        self.assertEqual(result[0].respuestas[0].comentario_padre_id, 11)
-        self.assertEqual(result[0].respuestas[0].cantidad_respuestas, 2)
-        self.assertEqual(
-            result[0].respuestas[0].respuestas[0].comentario_padre_id,
-            12,
-        )
-        self.assertEqual(
-            result[0].respuestas[0].respuestas[1].comentario_padre_id,
-            12,
+        self.assertEqual([item.id for item in result.items], [11])
+        self.assertEqual(result.items[0].cantidad_respuestas, 4)
+        service.repository.get_roots_page.assert_called_once_with(
+            3,
+            limit=11,
+            after=None,
         )
 
     def test_own_comment_can_be_deleted(self):
@@ -333,19 +318,14 @@ class CommentPersistenceTests(unittest.TestCase):
     def test_listing_order_count_and_cascade_are_persisted(self):
         repository = ComentarioRepository(self.db)
 
-        roots = ComentarioMapper.to_response_tree(
-            repository.get_all_by_publicacion(self.post.id)
-        )
+        roots = repository.get_roots_page(self.post.id, limit=10)
 
-        self.assertEqual([item.contenido for item in roots], ["Segundo", "Primero"])
+        self.assertEqual([item.contenido for item, _ in roots], ["Segundo", "Primero"])
         self.assertEqual(
-            [item.contenido for item in roots[1].respuestas],
+            [item.contenido for item, _ in repository.get_direct_replies_page(self.old_root_id, limit=10)],
             ["Respuesta antigua", "Respuesta nueva"],
         )
-        self.assertEqual(
-            roots[1].respuestas[0].respuestas[0].contenido,
-            "Respuesta anidada",
-        )
+        self.assertEqual(roots[1][1], 2)
         self.assertEqual(repository.count_by_publicacion(self.post.id), 5)
 
         repository.delete(repository.get_by_id(self.old_root_id))

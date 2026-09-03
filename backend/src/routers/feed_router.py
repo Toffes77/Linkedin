@@ -6,7 +6,7 @@ from src.mappers.feed_mapper import FeedMapper
 from src.schemas.feed_schema import FeedPageSchema
 from src.services.feed_service import FeedService
 from src.db.models.usuario_model import Usuario
-from src.middlewares.auth_middleware import get_current_user
+from src.middlewares.auth_middleware import get_current_user, get_optional_current_user
 
 router = APIRouter(tags=["feed"])
 
@@ -24,6 +24,7 @@ def get_my_feed(
         cursor,
         page_size,
         exclude_publicacion_id,
+        current_user.id,
     )
     return FeedMapper.to_response_schema(page)
 
@@ -38,11 +39,13 @@ def get_feed(
     page_size: int = Query(default=20, ge=1, le=50),
     exclude_publicacion_id: int | None = Query(default=None, ge=1),
     db: Session = Depends(get_db),
+    current_user: Usuario | None = Depends(get_optional_current_user),
 ):
     page = FeedService(db).get_feed(
         usuario_id,
         cursor,
         page_size,
         exclude_publicacion_id,
+        current_user.id if current_user else None,
     )
     return FeedMapper.to_response_schema(page)

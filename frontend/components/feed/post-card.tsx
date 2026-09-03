@@ -1,21 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Avatar } from "@/components/common/avatar";
 import { Icon } from "@/components/common/icons";
 import { CommentsSection } from "@/components/feed/comments-section";
 import { SharePostModal } from "@/components/feed/share-post-modal";
-import { commentsApi, postsApi, type Post, type ReactionCounts, type ReactionType, type User } from "@/lib/api";
+import { postsApi, type FeedPost, type ReactionCounts, type ReactionType, type User } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { countsAfterReaction, countsAfterRemoval } from "@/lib/reaction-state";
 
 const reactionLabels: Record<ReactionType, string> = { like: "Me gusta", celebrar: "Celebrar", apoyar: "Apoyar", interesante: "Interesante" };
 
-export function PostCard({ post, author, currentUser, onDelete, onUpdate, highlighted = false }: { post: Post; author?: User; currentUser: User; onDelete: (id: number) => void; onUpdate: (post: Post) => void; highlighted?: boolean }) {
-  const [counts, setCounts] = useState<ReactionCounts | null>(null);
-  const [reaction, setReaction] = useState<ReactionType | null>(null);
-  const [commentCount, setCommentCount] = useState<number | null>(null);
+export function PostCard({ post, currentUser, onDelete, onUpdate, highlighted = false }: { post: FeedPost; currentUser: User; onDelete: (id: number) => void; onUpdate: (post: FeedPost) => void; highlighted?: boolean }) {
+  const [counts, setCounts] = useState<ReactionCounts>(post.reacciones);
+  const [reaction, setReaction] = useState<ReactionType | null>(post.mi_reaccion);
+  const [commentCount, setCommentCount] = useState(post.cantidad_comentarios);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -26,26 +26,6 @@ export function PostCard({ post, author, currentUser, onDelete, onUpdate, highli
   const [shareStatus, setShareStatus] = useState("");
   const updateCommentCount = useCallback((count: number) => setCommentCount(count), []);
 
-  useEffect(() => {
-    let active = true;
-    postsApi.reactionCounts(post.id).then((value) => {
-      if (active) setCounts(value);
-    }).catch(() => {
-      if (active) setCounts(null);
-    });
-    postsApi.myReaction(post.id).then((value) => {
-      if (active) setReaction(value?.tipo ?? null);
-    }).catch(() => {
-      if (active) setReaction(null);
-    });
-    commentsApi.count(post.id).then(({ cantidad }) => {
-      if (active) setCommentCount(cantidad);
-    }).catch(() => {
-      if (active) setCommentCount(null);
-    });
-    return () => { active = false; };
-  }, [post.id]);
-
   async function react(tipo: ReactionType) {
     if (busy) return;
     setBusy(true);
@@ -53,13 +33,13 @@ export function PostCard({ post, author, currentUser, onDelete, onUpdate, highli
     try {
       if (reaction === tipo) {
         await postsApi.removeReaction(post.id);
-        setCounts((old) => countsAfterRemoval(old, reaction));
+        setCounts((old) => countsAfterRemoval(old, reaction)!);
         setReaction(null);
         return;
       }
       if (reaction) await postsApi.changeReaction(post.id, tipo);
       else await postsApi.react(post.id, tipo);
-      setCounts((old) => countsAfterReaction(old, reaction, tipo));
+      setCounts((old) => countsAfterReaction(old, reaction, tipo)!);
       setReaction(tipo);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No se pudo reaccionar");
@@ -72,7 +52,7 @@ export function PostCard({ post, author, currentUser, onDelete, onUpdate, highli
     setBusy(true);
     try {
       const updated = await postsApi.update(post.id, text.trim());
-      onUpdate(updated);
+      onUpdate({ ...post, ...updated });
       setEditing(false);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "No se pudo editar");
@@ -93,20 +73,20 @@ export function PostCard({ post, author, currentUser, onDelete, onUpdate, highli
     }
   }
 
-  const name = author?.nombre ?? `Usuario ${post.autor_id}`;
-  const reactionCount = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : null;
+  const name = post.autor.nombre;
+  const reactionCount = Object.values(counts).reduce((a, b) => a + b, 0);
   return <article className={`card post-card${highlighted ? " shared-post-highlight" : ""}`}>
     {highlighted ? <p className="shared-post-label">Publicación compartida</p> : null}
     <header>
-      <Link href={`/perfil/${post.autor_id}`}><Avatar name={name} src={author?.foto_perfil_url} size={48}/></Link>
-      <div><Link href={`/perfil/${post.autor_id}`}><strong>{name}</strong></Link><span>{author?.headline ?? "Profesional de la red"}</span><small>{formatDate(post.fecha)}</small></div>
+      <Link href={`/perfil/${post.autor_id}`}><Avatar name={name} src={post.autor.foto_perfil_url} size={48}/></Link>
+      <div><Link href={`/perfil/${post.autor_id}`}><strong>{name}</strong></Link><span>{post.autor.headline}</span><small>{formatDate(post.fecha)}</small></div>
       {post.autor_id === currentUser.id && <div className="post-menu"><button onClick={() => setMenu(!menu)} aria-label="Opciones"><Icon name="more"/></button>{menu && <div><button onClick={() => { setEditing(true); setMenu(false); }}><Icon name="edit"/>Editar</button><button onClick={remove}><Icon name="trash"/>Eliminar</button></div>}</div>}
     </header>
     {editing ? <div className="post-edit"><textarea value={text} onChange={(event) => setText(event.target.value)} maxLength={3000}/><button onClick={() => setEditing(false)} className="text-button">Cancelar</button><button onClick={save} disabled={busy || !text.trim()} className="primary-button">Guardar</button></div> : <p className="post-text">{post.texto}</p>}
-    {(reactionCount !== null || commentCount !== null) && <div className="post-summary">
-      <span>{reactionCount !== null && <>👍 {reactionCount} reacciones</>}</span>
-      {commentCount !== null && <button type="button" onClick={() => setCommentsOpen((open) => !open)} aria-expanded={commentsOpen}>{commentCount} {commentCount === 1 ? "comentario" : "comentarios"}</button>}
-    </div>}
+    <div className="post-summary">
+      <span>👍 {reactionCount} reacciones</span>
+      <button type="button" onClick={() => setCommentsOpen((open) => !open)} aria-expanded={commentsOpen}>{commentCount} {commentCount === 1 ? "comentario" : "comentarios"}</button>
+    </div>
     {error && <p className="inline-error">{error}</p>}
     {shareStatus ? <p className="post-share-status" role="status">{shareStatus}</p> : null}
     <footer>

@@ -36,6 +36,8 @@ CREATE TABLE Empresa (
 
 CREATE UNIQUE INDEX uq_usuario_email_lower
     ON Usuario (LOWER(email));
+CREATE INDEX idx_usuario_nombre_id
+    ON Usuario (LOWER(nombre), id);
 
 CREATE TYPE rol_empresa AS ENUM ('OWNER', 'RECRUITER', 'COLLABORATOR');
 
@@ -178,6 +180,9 @@ CREATE INDEX idx_comentario_publicacion_fecha
     ON comentario (publicacion_id, fecha DESC, id DESC);
 CREATE INDEX idx_comentario_padre_fecha
     ON comentario (comentario_padre_id, fecha, id);
+CREATE INDEX idx_comentario_raiz_publicacion_fecha
+    ON comentario (publicacion_id, fecha DESC, id DESC)
+    WHERE comentario_padre_id IS NULL;
 
 -- ============================================================
 -- OFERTAd
@@ -196,6 +201,12 @@ CREATE TABLE Oferta (
     CONSTRAINT oferta_descripcion_no_blank_check
         CHECK (descripcion ~ '[^[:space:]]')
 );
+
+CREATE INDEX idx_oferta_publicada_fecha_id
+    ON Oferta (fecha_publicacion DESC, id DESC)
+    WHERE publicada = TRUE;
+CREATE INDEX idx_oferta_empresa_id
+    ON Oferta (empresa_id, id DESC);
 
 -- ============================================================
 -- POSTULACION
@@ -221,6 +232,11 @@ CREATE TABLE Postulacion (
         'rechazada'
     ))
 );
+
+CREATE INDEX idx_postulacion_usuario_fecha_id
+    ON Postulacion (usuario_id, fecha DESC, id DESC);
+CREATE INDEX idx_postulacion_oferta_fecha_id
+    ON Postulacion (oferta_id, fecha DESC, id DESC);
 
 -- ============================================================
 -- CONEXIONES (N a M)
@@ -270,6 +286,9 @@ CREATE TABLE reacciones (
         'interesante'
     ))
 );
+
+CREATE INDEX idx_reacciones_publicacion_tipo
+    ON reacciones (publicacion_id, tipo);
 
 -- ============================================================
 -- NOTIFICACION

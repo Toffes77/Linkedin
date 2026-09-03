@@ -44,6 +44,11 @@ class EmpresaRepository:
     def get_by_id(self, empresa_id: int) -> Empresa | None:
         return self.db.query(Empresa).filter(Empresa.id == empresa_id).first()
 
+    def get_by_ids(self, empresa_ids: list[int]) -> list[Empresa]:
+        if not empresa_ids:
+            return []
+        return self.db.query(Empresa).filter(Empresa.id.in_(empresa_ids)).all()
+
     def get_by_id_for_update(self, empresa_id: int) -> Empresa | None:
         return (
             self.db.query(Empresa)

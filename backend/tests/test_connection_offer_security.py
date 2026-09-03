@@ -493,9 +493,9 @@ class PrivateOfferVisibilityTests(unittest.TestCase):
         listing = self.client.get("/api/ofertas/publicadas")
         search = self.client.get("/api/ofertas/publicadas", params={"q": "Secret Draft"})
         self.assertEqual(listing.status_code, 200, listing.text)
-        self.assertNotIn(self.draft_offer.id, [item["id"] for item in listing.json()])
+        self.assertNotIn(self.draft_offer.id, [item["id"] for item in listing.json()["items"]])
         self.assertEqual(search.status_code, 200, search.text)
-        self.assertEqual(search.json(), [])
+        self.assertEqual(search.json()["items"], [])
 
     def test_company_listing_filters_drafts_except_for_correct_managers(self):
         for viewer in (self.candidate, self.collaborator, self.other_owner):
@@ -503,13 +503,13 @@ class PrivateOfferVisibilityTests(unittest.TestCase):
                 self._as(viewer)
                 response = self.client.get(f"/api/empresas/{self.company.id}/ofertas")
                 self.assertEqual(response.status_code, 200, response.text)
-                self.assertNotIn(self.draft_offer.id, [item["id"] for item in response.json()])
+                self.assertNotIn(self.draft_offer.id, [item["id"] for item in response.json()["items"]])
 
         for manager in (self.owner, self.recruiter):
             with self.subTest(manager=manager.nombre):
                 self._as(manager)
                 response = self.client.get(f"/api/empresas/{self.company.id}/ofertas")
-                self.assertIn(self.draft_offer.id, [item["id"] for item in response.json()])
+                self.assertIn(self.draft_offer.id, [item["id"] for item in response.json()["items"]])
 
     def test_candidate_cannot_apply_to_draft(self):
         self._as(self.other_candidate)
@@ -527,7 +527,7 @@ class PrivateOfferVisibilityTests(unittest.TestCase):
         self._as(self.candidate)
         response = self.client.get(f"/api/usuarios/{self.candidate.id}/postulaciones")
         self.assertEqual(response.status_code, 200, response.text)
-        historical = next(item for item in response.json() if item["id"] == self.historical_application.id)
+        historical = next(item for item in response.json()["items"] if item["id"] == self.historical_application.id)
         self.assertEqual(historical["oferta_titulo"], self.draft_offer.titulo)
 
     def test_hiring_unpublishes_offer_without_losing_history_or_allowing_new_applications(self):
@@ -539,7 +539,7 @@ class PrivateOfferVisibilityTests(unittest.TestCase):
 
         self._as(self.other_candidate)
         self.assertEqual(self.client.get(f"/api/ofertas/{self.hiring_offer.id}").status_code, 404)
-        public_ids = [item["id"] for item in self.client.get("/api/ofertas/publicadas").json()]
+        public_ids = [item["id"] for item in self.client.get("/api/ofertas/publicadas").json()["items"]]
         self.assertNotIn(self.hiring_offer.id, public_ids)
         rejected = self.client.post(
             "/api/postulaciones",
@@ -552,7 +552,7 @@ class PrivateOfferVisibilityTests(unittest.TestCase):
 
         self._as(self.candidate)
         history = self.client.get(f"/api/usuarios/{self.candidate.id}/postulaciones")
-        self.assertIn(self.hiring_application.id, [item["id"] for item in history.json()])
+        self.assertIn(self.hiring_application.id, [item["id"] for item in history.json()["items"]])
 
     def test_statistics_keep_owner_recruiter_only_policy(self):
         for manager in (self.owner, self.recruiter):

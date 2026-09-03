@@ -2,6 +2,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     ForeignKey,
+    Index,
     Integer,
     PrimaryKeyConstraint,
     String,
@@ -44,4 +45,5 @@ class Reacciones(Base):
         CheckConstraint(
             "tipo IN ('like', 'celebrar', 'apoyar', 'interesante')"
         ),
+        Index("idx_reacciones_publicacion_tipo", "publicacion_id", "tipo"),
     )

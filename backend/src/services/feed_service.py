@@ -3,11 +3,11 @@ import secrets
 from sqlalchemy.orm import Session
 
 from src.dtos.feed_dto import FeedPageDTO
-from src.mappers.publicacion_mapper import PublicacionMapper
 from src.repositories.conexion_repository import ConexionRepository
 from src.repositories.publicacion_repository import PublicacionRepository
 from src.repositories.seguimiento_repository import SeguimientoRepository
 from src.repositories.usuario_repository import UsuarioRepository
+from src.services.publicacion_service import PublicacionService
 from src.utils.errors import BadRequestError, NotFoundError
 from src.utils.feed_cursor import FeedCursor, decode_feed_cursor, encode_feed_cursor
 
@@ -21,6 +21,7 @@ class FeedService:
         self.usuario_repository = UsuarioRepository(db)
         self.conexion_repository = ConexionRepository(db)
         self.seguimiento_repository = SeguimientoRepository(db)
+        self.publicacion_service = PublicacionService(db)
 
     def get_feed(
         self,
@@ -28,6 +29,7 @@ class FeedService:
         cursor: str | None = None,
         page_size: int = 20,
         excluded_publicacion_id: int | None = None,
+        viewer_id: int | None = None,
     ) -> FeedPageDTO:
         if self.usuario_repository.get_by_id(usuario_id) is None:
             raise NotFoundError("Usuario no encontrado.")
@@ -92,10 +94,10 @@ class FeedService:
             )
 
         return FeedPageDTO(
-            items=[
-                PublicacionMapper.to_response_dto(row.publicacion)
-                for row in page_rows
-            ],
+            items=self.publicacion_service.to_card_dtos(
+                [row.publicacion for row in page_rows],
+                viewer_id,
+            ),
             next_cursor=next_cursor,
             has_more=has_more,
         )

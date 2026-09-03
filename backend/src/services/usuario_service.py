@@ -9,6 +9,7 @@ from src.dtos.usuario_dto import (
     UpdateUsuarioDTO,
     UsuarioResponseDTO,
 )
+from src.dtos.pagination_dto import CursorPageDTO
 from src.mappers.usuario_mapper import UsuarioMapper
 from src.repositories.usuario_repository import UsuarioRepository
 from src.utils.email import normalize_email
@@ -19,6 +20,7 @@ from src.utils.image_storage import (
     save_image,
     validate_and_get_extension,
 )
+from src.utils.pagination_cursor import decode_cursor, encode_cursor
 
 
 class UsuarioService:
@@ -58,9 +60,48 @@ class UsuarioService:
         self,
         texto: str,
         ciudad: str | None = None,
-    ) -> list[UsuarioResponseDTO]:
-        usuarios = self.repository.search(texto, ciudad)
-        return [UsuarioMapper.to_response_dto(usuario) for usuario in usuarios]
+        *,
+        cursor: str | None = None,
+        limit: int = 20,
+    ) -> CursorPageDTO[UsuarioResponseDTO]:
+        normalized_text = texto.strip()
+        normalized_city = ciudad.strip() if ciudad else None
+        scope = {"q": normalized_text, "ciudad": normalized_city}
+        after = None
+        if cursor is not None:
+            try:
+                values = decode_cursor(
+                    cursor,
+                    expected_kind="user_search",
+                    expected_scope=scope,
+                )
+                if len(values) != 2 or not isinstance(values[0], str):
+                    raise ValueError
+                after = (values[0], int(values[1]))
+            except (TypeError, ValueError) as exc:
+                raise BadRequestError("Cursor de búsqueda inválido.") from exc
+
+        rows = self.repository.search(
+            normalized_text,
+            normalized_city,
+            limit=limit + 1,
+            after=after,
+        )
+        has_more = len(rows) > limit
+        page_rows = rows[:limit]
+        next_cursor = None
+        if has_more and page_rows:
+            last_user, last_name = page_rows[-1]
+            next_cursor = encode_cursor(
+                "user_search",
+                scope,
+                [last_name, last_user.id],
+            )
+        return CursorPageDTO[UsuarioResponseDTO](
+            items=[UsuarioMapper.to_response_dto(user) for user, _ in page_rows],
+            next_cursor=next_cursor,
+            has_more=has_more,
+        )
 
     def update_profile(
         self,

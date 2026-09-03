@@ -21,9 +21,8 @@ class ComentarioMapper:
     def to_response_dto(
         model: Comentario,
         *,
-        responses: list[ComentarioResponseDTO] | None = None,
+        cantidad_respuestas: int = 0,
     ) -> ComentarioResponseDTO:
-        respuestas = responses or []
         return ComentarioResponseDTO(
             id=model.id,
             publicacion_id=model.publicacion_id,
@@ -37,45 +36,8 @@ class ComentarioMapper:
                 headline=model.autor.headline,
                 foto_perfil_url=model.autor.foto_perfil_url,
             ),
-            cantidad_respuestas=len(respuestas),
-            respuestas=respuestas,
+            cantidad_respuestas=cantidad_respuestas,
         )
-
-    @staticmethod
-    def to_response_tree(
-        models: list[Comentario],
-    ) -> list[ComentarioResponseDTO]:
-        children_by_parent: dict[int, list[Comentario]] = {}
-        roots: list[Comentario] = []
-        model_ids = {model.id for model in models}
-
-        for model in models:
-            if (
-                model.comentario_padre_id is None
-                or model.comentario_padre_id not in model_ids
-            ):
-                roots.append(model)
-            else:
-                children_by_parent.setdefault(
-                    model.comentario_padre_id,
-                    [],
-                ).append(model)
-
-        for children in children_by_parent.values():
-            children.sort(key=lambda model: (model.fecha, model.id))
-
-        def build_node(model: Comentario) -> ComentarioResponseDTO:
-            responses = [
-                build_node(child)
-                for child in children_by_parent.get(model.id, [])
-            ]
-            return ComentarioMapper.to_response_dto(
-                model,
-                responses=responses,
-            )
-
-        roots.sort(key=lambda model: (model.fecha, model.id), reverse=True)
-        return [build_node(root) for root in roots]
 
     @staticmethod
     def to_response_schema(dto: ComentarioResponseDTO) -> GetComentarioSchema:

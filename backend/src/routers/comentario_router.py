@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.db.connection import get_db
@@ -11,6 +11,7 @@ from src.schemas.comentario_schema import (
     CrearComentarioSchema,
     GetComentarioSchema,
 )
+from src.schemas.pagination_schema import CursorPageSchema
 from src.services.comentario_service import ComentarioService
 
 router = APIRouter(tags=["comentarios"])
@@ -58,18 +59,40 @@ def reply_comentario(
 
 @router.get(
     "/publicaciones/{publicacion_id}/comentarios",
-    response_model=list[GetComentarioSchema],
+    response_model=CursorPageSchema[GetComentarioSchema],
 )
 def get_comentarios(
     publicacion_id: int,
+    limit: int = Query(default=10, ge=1, le=50),
+    cursor: str | None = Query(default=None, max_length=2048),
     db: Session = Depends(get_db),
     _current_user: Usuario = Depends(get_current_user),
 ):
-    comentarios = ComentarioService(db).list_by_publicacion(publicacion_id)
-    return [
-        ComentarioMapper.to_response_schema(comentario)
-        for comentario in comentarios
-    ]
+    page = ComentarioService(db).list_roots(
+        publicacion_id,
+        cursor=cursor,
+        limit=limit,
+    )
+    return CursorPageSchema[GetComentarioSchema].model_validate(page)
+
+
+@router.get(
+    "/comentarios/{comentario_id}/respuestas",
+    response_model=CursorPageSchema[GetComentarioSchema],
+)
+def get_respuestas(
+    comentario_id: int,
+    limit: int = Query(default=10, ge=1, le=50),
+    cursor: str | None = Query(default=None, max_length=2048),
+    db: Session = Depends(get_db),
+    _current_user: Usuario = Depends(get_current_user),
+):
+    page = ComentarioService(db).list_replies(
+        comentario_id,
+        cursor=cursor,
+        limit=limit,
+    )
+    return CursorPageSchema[GetComentarioSchema].model_validate(page)
 
 
 @router.get(

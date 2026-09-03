@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -18,6 +20,7 @@ from src.dtos.promocion_dto import (
     PromocionesPaginadasDTO,
     SolicitudContratacionPromocionResponseDTO,
 )
+from src.dtos.pagination_dto import CursorPageDTO
 from src.mappers.empresa_usuario_mapper import EmpresaUsuarioMapper
 from src.mappers.promocion_mapper import PromocionMapper
 from src.repositories.empresa_repository import EmpresaRepository
@@ -27,8 +30,9 @@ from src.repositories.solicitud_contratacion_promocion_repository import (
     SolicitudContratacionPromocionRepository,
 )
 from src.services.notificacion_service import NotificacionService
-from src.utils.errors import ConflictError, ForbiddenError, NotFoundError
+from src.utils.errors import BadRequestError, ConflictError, ForbiddenError, NotFoundError
 from src.utils.integrity import violates_constraint
+from src.utils.pagination_cursor import decode_cursor, encode_cursor
 
 
 class PromocionService:
@@ -72,11 +76,51 @@ class PromocionService:
             total=total,
         )
 
-    def get_mine(self, current_user_id: int) -> list[PromocionResponseDTO]:
-        return [
-            PromocionMapper.to_response_dto(item, include_requests=True)
-            for item in self.repository.get_by_user(current_user_id)
-        ]
+    def get_mine(
+        self,
+        current_user_id: int,
+        *,
+        cursor: str | None = None,
+        limit: int = 10,
+    ) -> CursorPageDTO[PromocionResponseDTO]:
+        scope = {"usuario_id": current_user_id}
+        after = None
+        if cursor is not None:
+            try:
+                values = decode_cursor(
+                    cursor,
+                    expected_kind="my_promotions",
+                    expected_scope=scope,
+                )
+                if len(values) != 2 or not isinstance(values[0], str):
+                    raise ValueError
+                after = (datetime.fromisoformat(values[0]), int(values[1]))
+            except (TypeError, ValueError) as exc:
+                raise BadRequestError("Cursor de promociones inválido.") from exc
+
+        rows = self.repository.get_by_user_page(
+            current_user_id,
+            limit=limit + 1,
+            after=after,
+        )
+        has_more = len(rows) > limit
+        page_rows = rows[:limit]
+        next_cursor = None
+        if has_more and page_rows:
+            last = page_rows[-1]
+            next_cursor = encode_cursor(
+                "my_promotions",
+                scope,
+                [last.fecha_creacion.isoformat(), last.id],
+            )
+        return CursorPageDTO[PromocionResponseDTO](
+            items=[
+                PromocionMapper.to_response_dto(item, include_requests=True)
+                for item in page_rows
+            ],
+            next_cursor=next_cursor,
+            has_more=has_more,
+        )
 
     def get_hiring_companies(
         self,

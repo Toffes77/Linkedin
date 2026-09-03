@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -13,6 +15,7 @@ from src.dtos.postulacion_dto import (
 )
 from src.dtos.notificacion_dto import CreateNotificacionDTO
 from src.dtos.oferta_dto import UpdateOfertaDTO
+from src.dtos.pagination_dto import CursorPageDTO
 from src.mappers.empresa_usuario_mapper import EmpresaUsuarioMapper
 from src.mappers.postulacion_mapper import PostulacionMapper
 from src.repositories.oferta_repository import OfertaRepository
@@ -20,8 +23,9 @@ from src.repositories.empresa_usuario_repository import EmpresaUsuarioRepository
 from src.repositories.postulacion_repository import PostulacionRepository
 from src.repositories.usuario_repository import UsuarioRepository
 from src.services.notificacion_service import NotificacionService
-from src.utils.errors import ConflictError, ForbiddenError, NotFoundError
+from src.utils.errors import BadRequestError, ConflictError, ForbiddenError, NotFoundError
 from src.utils.integrity import violates_constraint
+from src.utils.pagination_cursor import decode_cursor, encode_cursor
 
 
 class PostulacionService:
@@ -101,23 +105,61 @@ class PostulacionService:
         self,
         oferta_id: int,
         usuario_actual_id: int,
-    ) -> list[PostulacionResponseDTO]:
+        *,
+        cursor: str | None = None,
+        limit: int = 20,
+    ) -> CursorPageDTO[PostulacionResponseDTO]:
         oferta = self._obtener_oferta(oferta_id)
         self._requerir_gestor_empresa(oferta.empresa_id, usuario_actual_id)
-        postulaciones = self.repository.get_by_oferta(oferta_id)
-        return [PostulacionMapper.to_response_dto(postulacion) for postulacion in postulaciones]
+        scope = {"oferta_id": oferta_id}
+        after = self._decode_cursor(
+            cursor,
+            kind="offer_applications",
+            scope=scope,
+        )
+        rows = self.repository.get_by_oferta_page(
+            oferta_id,
+            limit=limit + 1,
+            after=after,
+        )
+        return self._build_page(
+            rows,
+            limit,
+            kind="offer_applications",
+            scope=scope,
+        )
 
     def get_by_usuario(
         self,
         usuario_id: int,
         usuario_actual_id: int,
-    ) -> list[PostulacionResponseDTO]:
+        *,
+        oferta_id: int | None = None,
+        cursor: str | None = None,
+        limit: int = 20,
+    ) -> CursorPageDTO[PostulacionResponseDTO]:
         if usuario_id != usuario_actual_id:
             raise ForbiddenError("No puede consultar postulaciones de otro usuario.")
 
         self._validar_usuario(usuario_id)
-        postulaciones = self.repository.get_by_usuario(usuario_id)
-        return [PostulacionMapper.to_response_dto(postulacion) for postulacion in postulaciones]
+        scope = {"usuario_id": usuario_id, "oferta_id": oferta_id}
+        after = self._decode_cursor(
+            cursor,
+            kind="user_applications",
+            scope=scope,
+        )
+        rows = self.repository.get_by_usuario_page(
+            usuario_id,
+            oferta_id=oferta_id,
+            limit=limit + 1,
+            after=after,
+        )
+        return self._build_page(
+            rows,
+            limit,
+            kind="user_applications",
+            scope=scope,
+        )
 
     def update(
         self,
@@ -239,6 +281,51 @@ class PostulacionService:
         self._requerir_gestor_empresa(
             postulacion.oferta.empresa_id,
             usuario_actual_id,
+        )
+
+    @staticmethod
+    def _decode_cursor(
+        cursor: str | None,
+        *,
+        kind: str,
+        scope: dict,
+    ) -> tuple[datetime, int] | None:
+        if cursor is None:
+            return None
+        try:
+            values = decode_cursor(
+                cursor,
+                expected_kind=kind,
+                expected_scope=scope,
+            )
+            if len(values) != 2 or not isinstance(values[0], str):
+                raise ValueError
+            return datetime.fromisoformat(values[0]), int(values[1])
+        except (TypeError, ValueError) as exc:
+            raise BadRequestError("Cursor de postulaciones inválido.") from exc
+
+    @staticmethod
+    def _build_page(
+        rows,
+        limit: int,
+        *,
+        kind: str,
+        scope: dict,
+    ) -> CursorPageDTO[PostulacionResponseDTO]:
+        has_more = len(rows) > limit
+        page_rows = rows[:limit]
+        next_cursor = None
+        if has_more and page_rows:
+            last = page_rows[-1]
+            next_cursor = encode_cursor(
+                kind,
+                scope,
+                [last.fecha.isoformat(), last.id],
+            )
+        return CursorPageDTO[PostulacionResponseDTO](
+            items=[PostulacionMapper.to_response_dto(item) for item in page_rows],
+            next_cursor=next_cursor,
+            has_more=has_more,
         )
 
     @staticmethod

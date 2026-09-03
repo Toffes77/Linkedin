@@ -12,6 +12,7 @@ from src.db.connection import Base, get_db
 from src.db.models.empresa_model import Empresa
 from src.db.models.oferta_model import Oferta
 from src.dtos.oferta_dto import OfertaResponseDTO
+from src.dtos.pagination_dto import CursorPageDTO
 from src.repositories.oferta_repository import OfertaRepository
 from src.services.oferta_service import OfertaService
 
@@ -88,10 +89,10 @@ class JobSearchRepositoryTests(unittest.TestCase):
         self.assertEqual(
             self.titles(),
             [
-                "Desarrollador Backend",
-                "Desarrollador Python",
-                "DESARROLLADOR Frontend Senior",
                 "Analista funcional",
+                "DESARROLLADOR Frontend Senior",
+                "Desarrollador Python",
+                "Desarrollador Backend",
             ],
         )
 
@@ -99,9 +100,9 @@ class JobSearchRepositoryTests(unittest.TestCase):
         self.assertEqual(
             self.titles("Desarrollador"),
             [
-                "Desarrollador Backend",
-                "Desarrollador Python",
                 "DESARROLLADOR Frontend Senior",
+                "Desarrollador Python",
+                "Desarrollador Backend",
             ],
         )
 
@@ -112,9 +113,9 @@ class JobSearchRepositoryTests(unittest.TestCase):
         self.assertEqual(
             self.titles("desarroll"),
             [
-                "Desarrollador Backend",
-                "Desarrollador Python",
                 "DESARROLLADOR Frontend Senior",
+                "Desarrollador Python",
+                "Desarrollador Backend",
             ],
         )
 
@@ -132,6 +133,8 @@ class JobSearchRepositoryTests(unittest.TestCase):
         query = Mock()
         db.query.return_value = query
         query.filter.return_value = query
+        query.order_by.return_value = query
+        query.limit.return_value = query
         query.all.return_value = []
 
         OfertaRepository(db).get_publicadas("Desarrollador")
@@ -140,7 +143,7 @@ class JobSearchRepositoryTests(unittest.TestCase):
         query.all.assert_called_once_with()
         self.assertEqual(
             [method_call[0] for method_call in query.method_calls],
-            ["filter", "filter", "all"],
+            ["filter", "filter", "order_by", "limit", "all"],
         )
 
 
@@ -152,15 +155,15 @@ class JobSearchServiceTests(unittest.TestCase):
 
     def test_empty_query_uses_the_unfiltered_repository_query(self):
         self.service.get_publicadas("")
-        self.service.repository.get_publicadas.assert_called_once_with(None)
+        self.service.repository.get_publicadas.assert_called_once_with(None, limit=21, after=None)
 
     def test_whitespace_only_query_uses_the_unfiltered_repository_query(self):
         self.service.get_publicadas("   ")
-        self.service.repository.get_publicadas.assert_called_once_with(None)
+        self.service.repository.get_publicadas.assert_called_once_with(None, limit=21, after=None)
 
     def test_query_is_trimmed_before_filtering(self):
         self.service.get_publicadas("   Desarrollador   ")
-        self.service.repository.get_publicadas.assert_called_once_with("Desarrollador")
+        self.service.repository.get_publicadas.assert_called_once_with("Desarrollador", limit=21, after=None)
 
 
 class JobSearchEndpointTests(unittest.TestCase):
@@ -181,18 +184,18 @@ class JobSearchEndpointTests(unittest.TestCase):
     def test_endpoint_without_q_preserves_the_existing_request(self):
         with patch(
             "src.routers.oferta_router.OfertaService.get_publicadas",
-            return_value=[self.offer],
+            return_value=CursorPageDTO[OfertaResponseDTO](items=[self.offer], next_cursor=None, has_more=False),
         ) as get_publicadas:
             response = TestClient(app).get("/api/ofertas/publicadas")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()[0]["titulo"], "Desarrollador Backend")
-        get_publicadas.assert_called_once_with(None)
+        self.assertEqual(response.json()["items"][0]["titulo"], "Desarrollador Backend")
+        get_publicadas.assert_called_once_with(None, cursor=None, limit=20)
 
     def test_endpoint_forwards_q_to_the_service(self):
         with patch(
             "src.routers.oferta_router.OfertaService.get_publicadas",
-            return_value=[self.offer],
+            return_value=CursorPageDTO[OfertaResponseDTO](items=[self.offer], next_cursor=None, has_more=False),
         ) as get_publicadas:
             response = TestClient(app).get(
                 "/api/ofertas/publicadas",
@@ -200,7 +203,7 @@ class JobSearchEndpointTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        get_publicadas.assert_called_once_with("Desarrollador")
+        get_publicadas.assert_called_once_with("Desarrollador", cursor=None, limit=20)
 
 
 if __name__ == "__main__":

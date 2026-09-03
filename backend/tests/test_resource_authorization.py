@@ -393,7 +393,7 @@ class ResourceAuthorizationTests(unittest.TestCase):
 
         self.assertEqual(own.status_code, 200, own.text)
         self.assertEqual(
-            [application["usuario_id"] for application in own.json()],
+            [application["usuario_id"] for application in own.json()["items"]],
             [self.applicant_a.id],
         )
         self.assertEqual(foreign.status_code, 403, foreign.text)
@@ -414,7 +414,7 @@ class ResourceAuthorizationTests(unittest.TestCase):
                     f"/api/ofertas/{self.offer.id}/postulaciones"
                 )
                 self.assertEqual(response.status_code, 200, response.text)
-                self.assertEqual(len(response.json()), 2)
+                self.assertEqual(len(response.json()["items"]), 2)
 
     def test_unauthorized_roles_cannot_list_offer_applications(self):
         unauthorized = (

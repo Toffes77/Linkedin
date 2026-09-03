@@ -1,4 +1,6 @@
-from sqlalchemy import func
+from datetime import datetime
+
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from src.db.models.promocion_model import Promocion
@@ -68,8 +70,14 @@ class PromocionRepository:
         )
         return items, total
 
-    def get_by_user(self, usuario_id: int) -> list[Promocion]:
-        return (
+    def get_by_user_page(
+        self,
+        usuario_id: int,
+        *,
+        limit: int,
+        after: tuple[datetime, int] | None = None,
+    ) -> list[Promocion]:
+        query = (
             self.db.query(Promocion)
             .options(
                 joinedload(Promocion.usuario),
@@ -78,6 +86,20 @@ class PromocionRepository:
                 ),
             )
             .filter(Promocion.usuario_id == usuario_id)
-            .order_by(Promocion.fecha_creacion.desc(), Promocion.id.desc())
+        )
+        if after is not None:
+            fecha, promocion_id = after
+            query = query.filter(
+                or_(
+                    Promocion.fecha_creacion < fecha,
+                    and_(
+                        Promocion.fecha_creacion == fecha,
+                        Promocion.id < promocion_id,
+                    ),
+                )
+            )
+        return (
+            query.order_by(Promocion.fecha_creacion.desc(), Promocion.id.desc())
+            .limit(limit)
             .all()
         )

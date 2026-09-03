@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from src.db.connection import get_db
@@ -13,6 +13,7 @@ from src.schemas.postulacion_schema import (
     GetPostulacionSchema,
     UpdatePostulacionSchema,
 )
+from src.schemas.pagination_schema import CursorPageSchema
 from src.services.postulacion_service import PostulacionService
 
 router = APIRouter(tags=["postulaciones"])
@@ -33,30 +34,46 @@ def create_postulacion(
     return PostulacionMapper.to_response_schema(postulacion)
 
 
-@router.get("/ofertas/{oferta_id}/postulaciones", response_model=list[GetPostulacionSchema])
+@router.get(
+    "/ofertas/{oferta_id}/postulaciones",
+    response_model=CursorPageSchema[GetPostulacionSchema],
+)
 def get_postulaciones_by_oferta(
     oferta_id: int,
+    limit: int = Query(default=20, ge=1, le=50),
+    cursor: str | None = Query(default=None, max_length=2048),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    postulaciones: list[PostulacionResponseDTO] = PostulacionService(db).get_by_oferta(
+    page = PostulacionService(db).get_by_oferta(
         oferta_id,
         current_user.id,
+        cursor=cursor,
+        limit=limit,
     )
-    return [PostulacionMapper.to_response_schema(postulacion) for postulacion in postulaciones]
+    return CursorPageSchema[GetPostulacionSchema].model_validate(page)
 
 
-@router.get("/usuarios/{usuario_id}/postulaciones", response_model=list[GetPostulacionSchema])
+@router.get(
+    "/usuarios/{usuario_id}/postulaciones",
+    response_model=CursorPageSchema[GetPostulacionSchema],
+)
 def get_postulaciones_by_usuario(
     usuario_id: int,
+    oferta_id: int | None = Query(default=None, ge=1),
+    limit: int = Query(default=20, ge=1, le=50),
+    cursor: str | None = Query(default=None, max_length=2048),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    postulaciones: list[PostulacionResponseDTO] = PostulacionService(db).get_by_usuario(
+    page = PostulacionService(db).get_by_usuario(
         usuario_id,
         current_user.id,
+        oferta_id=oferta_id,
+        cursor=cursor,
+        limit=limit,
     )
-    return [PostulacionMapper.to_response_schema(postulacion) for postulacion in postulaciones]
+    return CursorPageSchema[GetPostulacionSchema].model_validate(page)
 
 
 @router.get("/postulaciones/{postulacion_id}", response_model=GetPostulacionSchema)

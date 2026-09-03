@@ -11,11 +11,29 @@ import {
   appendUniqueById,
   canRequestFeedCursor,
   excludeItemById,
+  failedFeedContinuation,
+  releaseFailedFeedCursor,
+  successfulFeedContinuation,
   uniqueById,
 } from "@/lib/feed-pagination";
-import { postsApi, usersApi, type Post, type User } from "@/lib/api";
+import { postsApi, type FeedPost, type Post, type User } from "@/lib/api";
 
 const FEED_PAGE_SIZE = 10;
+
+function enrichCreatedPost(post: Post, author: User): FeedPost {
+  return {
+    ...post,
+    autor: {
+      id: author.id,
+      nombre: author.nombre,
+      headline: author.headline,
+      foto_perfil_url: author.foto_perfil_url,
+    },
+    reacciones: { like: 0, celebrar: 0, apoyar: 0, interesante: 0 },
+    mi_reaccion: null,
+    cantidad_comentarios: 0,
+  };
+}
 
 export default function FeedPage({
   searchParams,
@@ -27,39 +45,20 @@ export default function FeedPage({
   const requestedSharedPostId = Number.isInteger(parsedSharedPostId) && parsedSharedPostId > 0 ? parsedSharedPostId : null;
   const { user } = useAuth();
   const [sharedPostId] = useState(requestedSharedPostId);
-  const [posts, setPosts] = useState<Post[]>([]);
-  const [sharedPost, setSharedPost] = useState<Post | null>(null);
-  const [authors, setAuthors] = useState<Record<number, User>>({});
+  const [posts, setPosts] = useState<FeedPost[]>([]);
+  const [sharedPost, setSharedPost] = useState<FeedPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState("");
+  const [loadMoreError, setLoadMoreError] = useState("");
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const loadingPageRef = useRef(false);
   const hasMoreRef = useRef(true);
   const nextCursorRef = useRef<string | null>(null);
   const requestedCursorsRef = useRef(new Set<string>());
-  const authorIdsRef = useRef(new Set<number>());
   const requestRef = useRef<AbortController | null>(null);
   const activeUserRef = useRef<number | null>(null);
-
-  const loadAuthors = useCallback(async (items: Post[], signal: AbortSignal) => {
-    const ids = [...new Set(items.map((post) => post.autor_id))].filter(
-      (id) => !authorIdsRef.current.has(id),
-    );
-    ids.forEach((id) => authorIdsRef.current.add(id));
-    if (!ids.length) return;
-
-    const loaded = await Promise.all(
-      ids.map((id) => usersApi.get(id).catch(() => null)),
-    );
-    if (signal.aborted) return;
-    const validAuthors = loaded.filter((author): author is User => author !== null);
-    setAuthors((current) => ({
-      ...current,
-      ...Object.fromEntries(validAuthors.map((author) => [author.id, author])),
-    }));
-  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -73,7 +72,6 @@ export default function FeedPage({
     hasMoreRef.current = true;
     nextCursorRef.current = null;
     requestedCursorsRef.current = new Set<string>();
-    authorIdsRef.current = new Set<number>([currentUser.id]);
     async function loadFirstPage() {
       try {
         const [feedPage, requestedPost] = await Promise.all([
@@ -89,22 +87,19 @@ export default function FeedPage({
         if (controller.signal.aborted || activeUserRef.current !== currentUser.id) return;
         const items = feedPage.items;
         const firstPage = excludeItemById(uniqueById(items), requestedPost?.id);
-        setAuthors({ [currentUser.id]: currentUser });
         setSharedPost(requestedPost);
         setError("");
+        setLoadMoreError("");
         setLoadingMore(false);
-        nextCursorRef.current = feedPage.next_cursor;
-        const canLoadMore = feedPage.has_more && feedPage.next_cursor !== null;
-        hasMoreRef.current = canLoadMore;
-        setHasMore(canLoadMore);
+        const continuation = successfulFeedContinuation(feedPage.next_cursor, feedPage.has_more);
+        nextCursorRef.current = continuation.cursor;
+        hasMoreRef.current = continuation.hasMore;
+        setHasMore(continuation.hasMore);
         setPosts(firstPage);
-        await loadAuthors(requestedPost ? [requestedPost, ...firstPage] : firstPage, controller.signal);
         if (sharedPostId) window.history.replaceState(window.history.state, "", "/feed");
       } catch (reason) {
         if (controller.signal.aborted) return;
         setPosts([]);
-        hasMoreRef.current = false;
-        setHasMore(false);
         setError(reason instanceof Error ? reason.message : "No se pudo cargar el feed");
       } finally {
         if (!controller.signal.aborted && activeUserRef.current === currentUser.id) {
@@ -120,7 +115,7 @@ export default function FeedPage({
       requestRef.current?.abort();
       if (requestRef.current === controller) requestRef.current = null;
     };
-  }, [loadAuthors, sharedPostId, user]);
+  }, [sharedPostId, user]);
 
   const loadNextPage = useCallback(async () => {
     if (!user) return;
@@ -136,7 +131,7 @@ export default function FeedPage({
     requestedCursorsRef.current.add(cursor);
     loadingPageRef.current = true;
     setLoadingMore(true);
-    setError("");
+    setLoadMoreError("");
     const controller = new AbortController();
     requestRef.current = controller;
 
@@ -149,29 +144,33 @@ export default function FeedPage({
       });
       if (controller.signal.aborted || activeUserRef.current !== user.id) return;
       const items = feedPage.items;
-      nextCursorRef.current = feedPage.next_cursor;
-      const canLoadMore = feedPage.has_more && feedPage.next_cursor !== null;
-      hasMoreRef.current = canLoadMore;
-      setHasMore(canLoadMore);
+      const continuation = successfulFeedContinuation(feedPage.next_cursor, feedPage.has_more);
+      nextCursorRef.current = continuation.cursor;
+      hasMoreRef.current = continuation.hasMore;
+      setHasMore(continuation.hasMore);
       const incoming = excludeItemById(uniqueById(items), sharedPostId);
       setPosts((current) => appendUniqueById(current, incoming));
-      await loadAuthors(incoming, controller.signal);
     } catch (reason) {
       if (controller.signal.aborted) return;
-      hasMoreRef.current = false;
-      setHasMore(false);
-      setError(reason instanceof Error ? reason.message : "No se pudo cargar más publicaciones");
+      releaseFailedFeedCursor(requestedCursorsRef.current, cursor);
+      const continuation = failedFeedContinuation(
+        cursor,
+        hasMoreRef.current,
+        reason instanceof Error ? reason.message : "No se pudo cargar más publicaciones",
+      );
+      nextCursorRef.current = continuation.cursor;
+      setLoadMoreError(continuation.loadError);
     } finally {
       if (!controller.signal.aborted && activeUserRef.current === user.id) {
         loadingPageRef.current = false;
         setLoadingMore(false);
       }
     }
-  }, [loadAuthors, sharedPostId, user]);
+  }, [sharedPostId, user]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
-    if (!sentinel || loading || loadingMore || !hasMore) return;
+    if (!sentinel || loading || loadingMore || loadMoreError || !hasMore) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -181,16 +180,17 @@ export default function FeedPage({
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, loadNextPage, loading, loadingMore, posts.length]);
+  }, [hasMore, loadMoreError, loadNextPage, loading, loadingMore, posts.length]);
 
   if (!user) return null;
   return <AppShell><main className="app-background"><div className="feed-grid"><ProfileCard user={user}/><div className="feed-center">
     <section className="card onboarding"><div><h1>Ponte en marcha en Atanes</h1><span>1/3 completado</span></div><div className="progress"><i/></div><div className="onboarding-visual"><strong>Mostrá tu experiencia profesional</strong><p>Completá tu perfil para que tu red conozca tu recorrido.</p><Link href="/perfil/editar?tab=experience#experiencias" className="primary-button">Agregar experiencia</Link></div></section>
-    <Composer user={user} onCreated={(post) => setPosts((current) => [post, ...current.filter((item) => item.id !== post.id && item.id !== sharedPost?.id)])}/>
-    {!loading && sharedPost ? <PostCard key={`shared-${sharedPost.id}`} post={sharedPost} highlighted author={authors[sharedPost.autor_id] ?? (sharedPost.autor_id === user.id ? user : undefined)} currentUser={user} onDelete={() => setSharedPost(null)} onUpdate={setSharedPost}/> : null}
-    {loading ? <><div className="card skeleton post-skeleton"/><div className="card skeleton post-skeleton"/></> : posts.length ? posts.map((post) => <PostCard key={post.id} post={post} author={authors[post.autor_id] ?? (post.autor_id === user.id ? user : undefined)} currentUser={user} onDelete={(id) => setPosts((current) => current.filter((post) => post.id !== id))} onUpdate={(updated) => setPosts((current) => current.map((post) => post.id === updated.id ? updated : post))}/>) : !sharedPost && !error && <section className="card empty-state"><strong>Tu feed está tranquilo</strong><p>Todavía no hay publicaciones para mostrar.</p></section>}
+    <Composer user={user} onCreated={(post) => setPosts((current) => [enrichCreatedPost(post, user), ...current.filter((item) => item.id !== post.id && item.id !== sharedPost?.id)])}/>
+    {!loading && sharedPost ? <PostCard key={`shared-${sharedPost.id}`} post={sharedPost} highlighted currentUser={user} onDelete={() => setSharedPost(null)} onUpdate={setSharedPost}/> : null}
+    {loading ? <><div className="card skeleton post-skeleton"/><div className="card skeleton post-skeleton"/></> : posts.length ? posts.map((post) => <PostCard key={post.id} post={post} currentUser={user} onDelete={(id) => setPosts((current) => current.filter((post) => post.id !== id))} onUpdate={(updated) => setPosts((current) => current.map((post) => post.id === updated.id ? updated : post))}/>) : !sharedPost && !error && <section className="card empty-state"><strong>Tu feed está tranquilo</strong><p>Todavía no hay publicaciones para mostrar.</p></section>}
     {error && <section className="card empty-state feed-pagination-error" role="alert">{error}</section>}
+    {loadMoreError && <section className="card empty-state feed-pagination-error" role="alert"><p>{loadMoreError}</p><button type="button" className="secondary-button" disabled={loadingMore} onClick={() => void loadNextPage()}>Reintentar</button></section>}
     {loadingMore && <div className="feed-page-loader" role="status"><span className="session-spinner"/><span>Cargando más publicaciones...</span></div>}
-    {!loading && hasMore && posts.length > 0 && <div ref={sentinelRef} className="feed-sentinel" aria-hidden="true"/>}
+    {!loading && !loadMoreError && hasMore && posts.length > 0 && <div ref={sentinelRef} className="feed-sentinel" aria-hidden="true"/>}
   </div><aside className="feed-right card"><h2>Añadir a tu feed</h2><p>Descubrí profesionales mediante la búsqueda y ampliá tu red.</p><Link href="/buscar?q=desarrollador">Buscar personas →</Link><hr/><h3>Tu comunidad profesional</h3><p>Creá publicaciones y compartí novedades con tus contactos.</p></aside></div></main></AppShell>;
 }

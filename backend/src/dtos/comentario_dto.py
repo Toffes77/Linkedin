@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import datetime
 
 from pydantic import BaseModel, Field
@@ -32,7 +30,6 @@ class ComentarioResponseDTO(BaseModel):
     comentario_padre_id: int | None = None
     autor: AutorComentarioDTO
     cantidad_respuestas: int = 0
-    respuestas: list[ComentarioResponseDTO] = Field(default_factory=list)
 
 
 class CantidadComentariosDTO(BaseModel):

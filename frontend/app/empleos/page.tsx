@@ -19,6 +19,10 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [companies, setCompanies] = useState<Record<number, Company>>({});
   const [applications, setApplications] = useState<Application[]>([]);
+  const [jobsCursor, setJobsCursor] = useState<string | null>(null);
+  const [jobsHasMore, setJobsHasMore] = useState(false);
+  const [applicationsCursor, setApplicationsCursor] = useState<string | null>(null);
+  const [applicationsHasMore, setApplicationsHasMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -30,8 +34,8 @@ export default function JobsPage() {
     let active = true;
     jobsApi
       .applicationsByUser(user.id)
-      .then((items) => {
-        if (active) setApplications(items);
+      .then((page) => {
+        if (active) { setApplications(page.items); setApplicationsCursor(page.next_cursor); setApplicationsHasMore(page.has_more); }
       })
       .catch((cause) => {
         if (active) {
@@ -60,23 +64,23 @@ export default function JobsPage() {
         setLoading(true);
 
         jobsApi
-          .published(query || undefined, controller.signal)
-          .then(async (offers) => {
+          .published(query || undefined, { signal: controller.signal })
+          .then(async (page) => {
+            const offers = page.items;
             const companyIds = [
               ...new Set(offers.map((item) => item.empresa_id)),
             ];
-            const companyList = await Promise.all(
-              companyIds.map((id) => companiesApi.get(id).catch(() => null)),
-            );
+            const companyList = companyIds.length
+              ? await companiesApi.getBatch(companyIds)
+              : [];
 
             if (!active) return;
             setJobs(offers);
+            setJobsCursor(page.next_cursor);
+            setJobsHasMore(page.has_more);
             setCompanies(
               Object.fromEntries(
                 companyList
-                  .filter(
-                    (company): company is Company => company !== null,
-                  )
                   .map((company) => [company.id, company]),
               ),
             );
@@ -107,6 +111,26 @@ export default function JobsPage() {
   }, [searchQuery, user]);
 
   const activeSearch = searchQuery.trim().length > 0;
+
+  async function loadMoreJobs() {
+    const page = await jobsApi.published(searchQuery.trim() || undefined, { cursor: jobsCursor });
+    const missingCompanyIds = [...new Set(page.items.map((item) => item.empresa_id))]
+      .filter((id) => !companies[id]);
+    const loadedCompanies = missingCompanyIds.length
+      ? await companiesApi.getBatch(missingCompanyIds)
+      : [];
+    setCompanies((current) => ({
+      ...current,
+      ...Object.fromEntries(loadedCompanies.map((company) => [company.id, company])),
+    }));
+    setJobs((current) => [...current, ...page.items]); setJobsCursor(page.next_cursor); setJobsHasMore(page.has_more);
+  }
+
+  async function loadMoreApplications() {
+    if (!user) return;
+    const page = await jobsApi.applicationsByUser(user.id, { cursor: applicationsCursor });
+    setApplications((current) => [...current, ...page.items]); setApplicationsCursor(page.next_cursor); setApplicationsHasMore(page.has_more);
+  }
 
   return (
     <AppShell>
@@ -170,6 +194,7 @@ export default function JobsPage() {
                     : "No hay ofertas publicadas."}
                 </div>
               )}
+              {jobsHasMore && !loading && <button type="button" className="secondary-button" onClick={() => void loadMoreJobs()}>Cargar más ofertas</button>}
             </section>
             <section id="applications" className="card jobs-list applications">
               <h2>Mis postulaciones</h2>
@@ -191,6 +216,7 @@ export default function JobsPage() {
                   Todavía no te postulaste a ninguna oferta.
                 </p>
               ) : null}
+              {applicationsHasMore && <button type="button" className="secondary-button" onClick={() => void loadMoreApplications()}>Cargar más postulaciones</button>}
             </section>
           </div>
         </div>

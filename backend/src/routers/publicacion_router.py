@@ -7,9 +7,10 @@ from src.dtos.publicacion_dto import (
     PublicacionResponseDTO,
 )
 from src.mappers.publicacion_mapper import PublicacionMapper
-from src.middlewares.auth_middleware import get_current_user
+from src.middlewares.auth_middleware import get_current_user, get_optional_current_user
 from src.schemas.publicación_schemas import (
     CreatePublicacionSchema,
+    GetPublicacionCardSchema,
     GetPublicacionSchema,
     UpdatePublicacionSchema,
 )
@@ -18,15 +19,21 @@ from src.services.publicacion_service import PublicacionService
 router = APIRouter(prefix="/publicaciones", tags=["publicaciones"])
 
 
-@router.get("/autor/{usuario_id}", response_model=list[GetPublicacionSchema])
+@router.get("/autor/{usuario_id}", response_model=list[GetPublicacionCardSchema])
 def get_publicaciones_por_autor(
     usuario_id: int,
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
+    current_user: Usuario | None = Depends(get_optional_current_user),
 ):
-    publicaciones = PublicacionService(db).get_by_autor(usuario_id, limit, offset)
-    return [PublicacionMapper.to_response_schema(publicacion) for publicacion in publicaciones]
+    publicaciones = PublicacionService(db).get_by_autor(
+        usuario_id,
+        limit,
+        offset,
+        current_user.id if current_user else None,
+    )
+    return [PublicacionMapper.to_card_schema(publicacion) for publicacion in publicaciones]
 
 
 @router.post("", response_model=GetPublicacionSchema, status_code=status.HTTP_201_CREATED)
@@ -40,14 +47,14 @@ def create_publicacion(
     return PublicacionMapper.to_response_schema(publicacion)
 
 
-@router.get("/{publicacion_id}", response_model=GetPublicacionSchema)
+@router.get("/{publicacion_id}", response_model=GetPublicacionCardSchema)
 def get_publicacion(
     publicacion_id: int,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    publicacion = PublicacionService(db).get_by_id(publicacion_id)
-    return PublicacionMapper.to_response_schema(publicacion)
+    publicacion = PublicacionService(db).get_by_id(publicacion_id, current_user.id)
+    return PublicacionMapper.to_card_schema(publicacion)
 
 
 @router.put("/{publicacion_id}", response_model=GetPublicacionSchema)

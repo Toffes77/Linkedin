@@ -2,6 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from src.dtos.reacciones_dto import TipoReaccion
 from src.utils.text_validation import strip_non_blank
 
 
@@ -35,3 +36,19 @@ class PublicacionResponseDTO(BaseModel):
     autor_id: int
     texto: str
     fecha: datetime
+
+
+class AutorPublicacionDTO(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nombre: str
+    headline: str
+    foto_perfil_url: str | None = None
+
+
+class PublicacionCardDTO(PublicacionResponseDTO):
+    autor: AutorPublicacionDTO
+    reacciones: dict[TipoReaccion, int]
+    mi_reaccion: TipoReaccion | None = None
+    cantidad_comentarios: int

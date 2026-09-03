@@ -8,7 +8,7 @@ class FeedMapper:
     def to_response_schema(dto: FeedPageDTO) -> FeedPageSchema:
         return FeedPageSchema(
             items=[
-                PublicacionMapper.to_response_schema(publicacion)
+                PublicacionMapper.to_card_schema(publicacion)
                 for publicacion in dto.items
             ],
             next_cursor=dto.next_cursor,

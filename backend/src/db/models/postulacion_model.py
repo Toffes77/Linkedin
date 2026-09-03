@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint, CheckConstraint, text
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Index, UniqueConstraint, CheckConstraint, text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 
@@ -35,5 +35,17 @@ class Postulacion(Base):
         ),
         CheckConstraint(
             "estado IN ('nueva', 'vista', 'entrevista', 'contratado', 'rechazada')"
+        ),
+        Index(
+            "idx_postulacion_usuario_fecha_id",
+            "usuario_id",
+            fecha.desc(),
+            id.desc(),
+        ),
+        Index(
+            "idx_postulacion_oferta_fecha_id",
+            "oferta_id",
+            fecha.desc(),
+            id.desc(),
         ),
     )

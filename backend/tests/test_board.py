@@ -176,7 +176,7 @@ class BoardIntegrationTests(unittest.TestCase):
         self.db.commit()
         response = self.client.get("/api/promociones/mias")
         self.assertEqual(response.status_code, 200, response.text)
-        self.assertEqual([item["id"] for item in response.json()], [second.id, first.id])
+        self.assertEqual([item["id"] for item in response.json()["items"]], [second.id, first.id])
 
     def test_public_board_returns_only_latest_promotion_per_user(self):
         first = self._promotion(self.users["outsider"], "Programador Java", date=datetime.now() - timedelta(days=1))
@@ -327,7 +327,7 @@ class BoardIntegrationTests(unittest.TestCase):
         promotion = self._promotion(self.users["candidate"], "Backend")
         request = self._request(promotion)
         response = self.client.get("/api/promociones/mias")
-        item = response.json()[0]
+        item = response.json()["items"][0]
         self.assertEqual(item["estado"], "PENDIENTE_CONTRATACION")
         self.assertEqual(item["solicitudes_pendientes"][0]["id"], request.id)
         self.assertEqual(item["solicitudes_pendientes"][0]["empresa_nombre"], "Atanes")

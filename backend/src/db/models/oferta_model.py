@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, Integer, String, Text, text
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.orm import relationship
 
 from src.db.connection import Base
@@ -40,6 +40,13 @@ class Oferta(Base):
             "descripcion ~ '[^[:space:]]'",
             name="oferta_descripcion_no_blank_check",
         ).ddl_if(dialect="postgresql"),
+        Index(
+            "idx_oferta_publicada_fecha_id",
+            fecha_publicacion.desc(),
+            id.desc(),
+            postgresql_where=publicada.is_(True),
+        ),
+        Index("idx_oferta_empresa_id", "empresa_id", id.desc()),
     )
 
     empresa = relationship("Empresa", back_populates="ofertas")

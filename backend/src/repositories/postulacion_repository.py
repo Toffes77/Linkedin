@@ -1,4 +1,6 @@
-from sqlalchemy import func
+from datetime import datetime
+
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from src.db.models.postulacion_model import Postulacion
@@ -42,21 +44,36 @@ class PostulacionRepository:
             .first()
         )
 
-    def get_by_oferta(self, oferta_id: int) -> list[Postulacion]:
-        return (
+    def get_by_oferta_page(
+        self,
+        oferta_id: int,
+        *,
+        limit: int,
+        after: tuple[datetime, int] | None = None,
+    ) -> list[Postulacion]:
+        query = (
             self.db.query(Postulacion)
             .options(joinedload(Postulacion.oferta))
             .filter(Postulacion.oferta_id == oferta_id)
-            .all()
         )
+        return self._ordered_page(query, limit=limit, after=after)
 
-    def get_by_usuario(self, usuario_id: int) -> list[Postulacion]:
-        return (
+    def get_by_usuario_page(
+        self,
+        usuario_id: int,
+        *,
+        oferta_id: int | None,
+        limit: int,
+        after: tuple[datetime, int] | None = None,
+    ) -> list[Postulacion]:
+        query = (
             self.db.query(Postulacion)
             .options(joinedload(Postulacion.oferta))
             .filter(Postulacion.usuario_id == usuario_id)
-            .all()
         )
+        if oferta_id is not None:
+            query = query.filter(Postulacion.oferta_id == oferta_id)
+        return self._ordered_page(query, limit=limit, after=after)
 
     def get_by_oferta_and_usuario(
         self,
@@ -110,5 +127,24 @@ class PostulacionRepository:
             self.db.query(Postulacion.estado, func.count(Postulacion.id))
             .filter(Postulacion.oferta_id == oferta_id)
             .group_by(Postulacion.estado)
+            .all()
+        )
+
+    @staticmethod
+    def _ordered_page(query, *, limit: int, after: tuple[datetime, int] | None):
+        if after is not None:
+            fecha, postulacion_id = after
+            query = query.filter(
+                or_(
+                    Postulacion.fecha < fecha,
+                    and_(
+                        Postulacion.fecha == fecha,
+                        Postulacion.id < postulacion_id,
+                    ),
+                )
+            )
+        return (
+            query.order_by(Postulacion.fecha.desc(), Postulacion.id.desc())
+            .limit(limit)
             .all()
         )

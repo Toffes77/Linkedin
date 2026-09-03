@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from sqlalchemy import BigInteger, and_, case, cast, extract, func, literal, or_, text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from src.db.models.publicacion_model import Publicacion
 from src.dtos.publicacion_dto import CreatePublicacionDTO, UpdatePublicacionDTO
@@ -23,17 +23,25 @@ class PublicacionRepository:
         publicacion = PublicacionMapper.to_model(publicacion_data)
         self.db.add(publicacion)
         self.db.commit()
-        self.db.refresh(publicacion)
-        return publicacion
+        created = self.get_by_id(publicacion.id)
+        if created is None:
+            raise RuntimeError("No se pudo recuperar la publicación creada.")
+        return created
 
     def get_by_id(self, publicacion_id: int) -> Publicacion | None:
-        return self.db.get(Publicacion, publicacion_id)
+        return (
+            self.db.query(Publicacion)
+            .options(joinedload(Publicacion.autor))
+            .filter(Publicacion.id == publicacion_id)
+            .first()
+        )
 
     def get_by_autor(
         self, autor_id: int, limit: int | None = None, offset: int = 0
     ) -> list[Publicacion]:
         query = (
             self.db.query(Publicacion)
+            .options(joinedload(Publicacion.autor))
             .filter(Publicacion.autor_id == autor_id)
             .order_by(Publicacion.fecha.desc(), Publicacion.id.desc())
             .offset(offset)
@@ -128,6 +136,7 @@ class PublicacionRepository:
                 stable_jitter.label("jitter"),
                 diversified.c.fecha.label("feed_fecha"),
             )
+            .options(joinedload(Publicacion.autor))
             .join(diversified, Publicacion.id == diversified.c.id)
         )
         if excluded_publicacion_id is not None:
@@ -203,8 +212,10 @@ class PublicacionRepository:
         PublicacionMapper.apply_update(publicacion, publicacion_data)
 
         self.db.commit()
-        self.db.refresh(publicacion)
-        return publicacion
+        updated = self.get_by_id(publicacion.id)
+        if updated is None:
+            raise RuntimeError("No se pudo recuperar la publicación actualizada.")
+        return updated
 
     def delete(self, publicacion: Publicacion) -> None:
         self.db.delete(publicacion)

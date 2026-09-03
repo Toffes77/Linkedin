@@ -298,11 +298,11 @@ class NotificationPersistenceTests(unittest.TestCase):
         self.assertEqual(searched_offers.status_code, 200, searched_offers.text)
         self.assertNotIn(
             self.offer.id,
-            [offer["id"] for offer in public_offers.json()],
+            [offer["id"] for offer in public_offers.json()["items"]],
         )
         self.assertNotIn(
             self.offer.id,
-            [offer["id"] for offer in searched_offers.json()],
+            [offer["id"] for offer in searched_offers.json()["items"]],
         )
 
         self.current_user = self.applicant
@@ -316,19 +316,19 @@ class NotificationPersistenceTests(unittest.TestCase):
         self.assertEqual(company_offers.status_code, 200, company_offers.text)
         self.assertIn(
             first_application_id,
-            [application["id"] for application in my_applications.json()],
+            [application["id"] for application in my_applications.json()["items"]],
         )
         self.assertEqual(
             next(
                 application
-                for application in my_applications.json()
+                for application in my_applications.json()["items"]
                 if application["id"] == first_application_id
             )["estado"],
             "contratado",
         )
         self.assertNotIn(
             self.offer.id,
-            [offer["id"] for offer in company_offers.json()],
+            [offer["id"] for offer in company_offers.json()["items"]],
         )
 
         self.current_user = self.outsider

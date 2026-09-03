@@ -12,6 +12,7 @@ from src.schemas.usuario_schema import (
     UpdatePasswordSchema,
     UpdateUsuarioSchema,
 )
+from src.schemas.pagination_schema import CursorPageSchema
 from src.services.conexion_service import ConexionService
 from src.services.usuario_service import UsuarioService
 from src.utils.image_storage import read_limited_upload
@@ -96,7 +97,10 @@ def get_sugerencias(usuario_id: int, db: Session = Depends(get_db)):
     return [UsuarioMapper.to_response_schema(usuario) for usuario in usuarios]
 
 
-@router.get("/buscar/usuarios", response_model=list[GetUsuarioSchema])
+@router.get(
+    "/buscar/usuarios",
+    response_model=CursorPageSchema[GetUsuarioSchema],
+)
 def buscar_usuarios(
     q: str = Query(min_length=1, max_length=200, pattern=r".*\S.*"),
     ciudad: str | None = Query(
@@ -105,7 +109,14 @@ def buscar_usuarios(
         max_length=100,
         pattern=r".*\S.*",
     ),
+    limit: int = Query(default=20, ge=1, le=50),
+    cursor: str | None = Query(default=None, max_length=2048),
     db: Session = Depends(get_db),
 ):
-    usuarios = UsuarioService(db).search(q, ciudad)
-    return [UsuarioMapper.to_response_schema(usuario) for usuario in usuarios]
+    page = UsuarioService(db).search(
+        q,
+        ciudad,
+        cursor=cursor,
+        limit=limit,
+    )
+    return CursorPageSchema[GetUsuarioSchema].model_validate(page)

@@ -1,4 +1,4 @@
-from sqlalchemy import func, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, selectinload
 
 from src.db.models.experiencia_model import Experiencia
@@ -28,9 +28,20 @@ class UsuarioRepository:
             .first()
         )
 
-    def search(self, texto: str, ciudad: str | None = None) -> list[Usuario]:
+    def search(
+        self,
+        texto: str,
+        ciudad: str | None = None,
+        *,
+        limit: int = 21,
+        after: tuple[str, int] | None = None,
+    ) -> list[tuple[Usuario, str]]:
         patron = f"%{texto}%"
-        query = self.db.query(Usuario).options(selectinload(Usuario.experiencias))
+        sort_name = func.lower(Usuario.nombre)
+        query = (
+            self.db.query(Usuario, sort_name.label("sort_name"))
+            .options(selectinload(Usuario.experiencias))
+        )
 
         query = query.filter(
             or_(
@@ -43,7 +54,16 @@ class UsuarioRepository:
         if ciudad is not None:
             query = query.filter(Usuario.ciudad.ilike(f"%{ciudad}%"))
 
-        return query.all()
+        if after is not None:
+            name, usuario_id = after
+            query = query.filter(
+                or_(
+                    sort_name > name,
+                    and_(sort_name == name, Usuario.id > usuario_id),
+                )
+            )
+
+        return query.order_by(sort_name.asc(), Usuario.id.asc()).limit(limit).all()
 
     def update(self, usuario: Usuario) -> Usuario:
         self.db.add(usuario)

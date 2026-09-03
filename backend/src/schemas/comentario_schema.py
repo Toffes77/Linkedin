@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -39,7 +37,6 @@ class GetComentarioSchema(BaseModel):
     comentario_padre_id: int | None = None
     autor: AutorComentarioSchema
     cantidad_respuestas: int = 0
-    respuestas: list[GetComentarioSchema] = Field(default_factory=list)
 
 
 class CantidadComentariosSchema(BaseModel):

@@ -111,13 +111,18 @@ class ReaccionesService:
 
     def get_counts_by_publicacion(self, publicacion_id: int) -> dict[str, int]:
         self._validar_publicacion(publicacion_id)
-        return {
-            tipo: self.repository.count_by_publicacion_and_tipo(
-                publicacion_id,
-                tipo,
-            )
-            for tipo in ("like", "celebrar", "apoyar", "interesante")
+        counts = {
+            "like": 0,
+            "celebrar": 0,
+            "apoyar": 0,
+            "interesante": 0,
         }
+        for _, tipo, cantidad, _ in self.repository.summarize_by_publicaciones(
+            [publicacion_id],
+            None,
+        ):
+            counts[tipo] = cantidad
+        return counts
 
     def _validar_usuario(self, usuario_id: int) -> None:
         if self.usuario_repository.get_by_id(usuario_id) is None:

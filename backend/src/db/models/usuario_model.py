@@ -93,4 +93,5 @@ class Usuario(Base):
             name="usuario_ciudad_no_blank_check",
         ).ddl_if(dialect="postgresql"),
         Index("uq_usuario_email_lower", func.lower(email), unique=True),
+        Index("idx_usuario_nombre_id", func.lower(nombre), id.asc()),
     )

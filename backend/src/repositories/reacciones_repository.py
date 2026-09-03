@@ -1,4 +1,4 @@
-from sqlalchemy import func
+from sqlalchemy import case, func, literal
 from sqlalchemy.orm import Session
 
 from src.db.models.reaciones_model import Reacciones
@@ -31,18 +31,28 @@ class ReaccionRepository:
             .all()
         )
 
-    def count_by_publicacion_and_tipo(
+    def summarize_by_publicaciones(
         self,
-        publicacion_id: int,
-        tipo: str,
-    ) -> int:
+        publicacion_ids: list[int],
+        usuario_id: int | None,
+    ) -> list[tuple[int, str, int, int]]:
+        if not publicacion_ids:
+            return []
+        is_current_user = (
+            case((Reacciones.usuario_id == usuario_id, 1), else_=0)
+            if usuario_id is not None
+            else literal(0)
+        )
         return (
-            self.db.query(func.count())
-            .filter(
-                Reacciones.publicacion_id == publicacion_id,
-                Reacciones.tipo == tipo,
+            self.db.query(
+                Reacciones.publicacion_id,
+                Reacciones.tipo,
+                func.count().label("cantidad"),
+                func.max(is_current_user).label("es_reaccion_actual"),
             )
-            .scalar()
+            .filter(Reacciones.publicacion_id.in_(publicacion_ids))
+            .group_by(Reacciones.publicacion_id, Reacciones.tipo)
+            .all()
         )
 
     def update(

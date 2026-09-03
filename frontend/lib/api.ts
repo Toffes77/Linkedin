@@ -19,13 +19,16 @@ export type ConnectionStatus = { estado: ConnectionState; usuario_a: number | nu
 export type ReceivedInvitation = Connection & { usuario: User };
 export type NetworkSummary = { invitaciones_enviadas: number; contactos: number; siguiendo: number };
 export type Follow = { seguidor_id: number; seguido_id: number; fecha: string };
-export type Post = { id: number; autor_id: number; texto: string; fecha: string };
-export type FeedPage = { items: Post[]; next_cursor: string | null; has_more: boolean };
 export type ReactionType = "like" | "celebrar" | "apoyar" | "interesante";
 export type Reaction = { usuario_id: number; publicacion_id: number; tipo: ReactionType };
 export type ReactionCounts = Record<ReactionType, number>;
+export type Post = { id: number; autor_id: number; texto: string; fecha: string };
+export type PostAuthor = { id: number; nombre: string; headline: string; foto_perfil_url: string | null };
+export type FeedPost = Post & { autor: PostAuthor; reacciones: ReactionCounts; mi_reaccion: ReactionType | null; cantidad_comentarios: number };
+export type FeedPage = { items: FeedPost[]; next_cursor: string | null; has_more: boolean };
+export type CursorPage<T> = { items: T[]; next_cursor: string | null; has_more: boolean };
 export type CommentAuthor = { id: number; nombre: string; headline: string | null; foto_perfil_url: string | null };
-export type Comment = { id: number; publicacion_id: number; usuario_id: number; contenido: string; fecha: string; comentario_padre_id: number | null; autor: CommentAuthor; cantidad_respuestas: number; respuestas: Comment[] };
+export type Comment = { id: number; publicacion_id: number; usuario_id: number; contenido: string; fecha: string; comentario_padre_id: number | null; autor: CommentAuthor; cantidad_respuestas: number };
 export type Job = { id: number; empresa_id: number; titulo: string; descripcion: string; publicada: boolean; fecha_publicacion: string | null };
 export type ApplicationStatus = "nueva" | "vista" | "entrevista" | "contratado" | "rechazada";
 export type Application = { id: number; oferta_id: number; oferta_titulo: string; usuario_id: number; fecha: string; estado: ApplicationStatus };
@@ -100,7 +103,11 @@ export const authApi = {
 export const usersApi = {
   create: (data: { email: string; password: string; nombre: string; headline: string; ciudad: string }) => apiFetch<User>("/api/usuarios", { method: "POST", json: data }),
   get: (id: number) => apiFetch<User>(`/api/usuarios/${id}`),
-  search: (q: string, ciudad?: string) => apiFetch<User[]>(`/api/buscar/usuarios?${new URLSearchParams({ q, ...(ciudad ? { ciudad } : {}) })}`),
+  search: (q: string, ciudad?: string, { cursor, limit = 20, signal }: { cursor?: string | null; limit?: number; signal?: AbortSignal } = {}) => {
+    const params = new URLSearchParams({ q, limit: String(limit), ...(ciudad ? { ciudad } : {}) });
+    if (cursor) params.set("cursor", cursor);
+    return apiFetch<CursorPage<User>>(`/api/buscar/usuarios?${params}`, { signal });
+  },
   suggestions: (id: number) => apiFetch<User[]>(`/api/usuarios/${id}/sugerencias`),
   update: (data: { nombre?: string; headline?: string; ciudad?: string }) => apiFetch<User>("/api/usuarios/me", { method: "PUT", json: data }),
   password: (password_actual: string, password_nueva: string) => apiFetch<{ message: string }>("/api/usuarios/me/password", { method: "PUT", json: { password_actual, password_nueva } }),
@@ -128,7 +135,11 @@ export const boardApi = {
     if (q.trim()) params.set("q", q.trim());
     return apiFetch<PromotionPage>(`/api/promociones?${params}`, { signal });
   },
-  getMyPromotions: (signal?: AbortSignal) => apiFetch<Promotion[]>("/api/promociones/mias", { signal }),
+  getMyPromotions: ({ cursor, limit = 10, signal }: { cursor?: string | null; limit?: number; signal?: AbortSignal } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set("cursor", cursor);
+    return apiFetch<CursorPage<Promotion>>(`/api/promociones/mias?${params}`, { signal });
+  },
   createPromotion: (data: { titulo: string; descripcion: string }) => apiFetch<Promotion>("/api/promociones", { method: "POST", json: data }),
   getHiringCompanies: (promotionId: number, signal?: AbortSignal) => apiFetch<HiringCompany[]>(`/api/promociones/${promotionId}/empresas-contratantes`, { signal }),
   createHiringRequest: (promotionId: number, companyId: number) => apiFetch<HiringRequest>(`/api/promociones/${promotionId}/solicitudes-contratacion`, { method: "POST", json: { empresa_id: companyId } }),
@@ -156,8 +167,8 @@ export const postsApi = {
     const params = feedQueryParams({ cursor, pageSize, excludePostId });
     return apiFetch<FeedPage>(`/api/feed?${params}`, { signal });
   },
-  get: (id: number, signal?: AbortSignal) => apiFetch<Post>(`/api/publicaciones/${id}`, { signal }),
-  byAuthor: (userId: number, limit = 20, offset = 0) => apiFetch<Post[]>(`/api/publicaciones/autor/${userId}?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`),
+  get: (id: number, signal?: AbortSignal) => apiFetch<FeedPost>(`/api/publicaciones/${id}`, { signal }),
+  byAuthor: (userId: number, limit = 20, offset = 0) => apiFetch<FeedPost[]>(`/api/publicaciones/autor/${userId}?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`),
   create: (texto: string) => apiFetch<Post>("/api/publicaciones", { method: "POST", json: { texto } }),
   update: (id: number, texto: string) => apiFetch<Post>(`/api/publicaciones/${id}`, { method: "PUT", json: { texto } }),
   delete: (id: number) => apiFetch<void>(`/api/publicaciones/${id}`, { method: "DELETE" }),
@@ -169,7 +180,16 @@ export const postsApi = {
 };
 
 export const commentsApi = {
-  list: (postId: number) => apiFetch<Comment[]>(`/api/publicaciones/${postId}/comentarios`),
+  list: (postId: number, cursor?: string | null, limit = 10) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set("cursor", cursor);
+    return apiFetch<CursorPage<Comment>>(`/api/publicaciones/${postId}/comentarios?${params}`);
+  },
+  replies: (commentId: number, cursor?: string | null, limit = 10) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set("cursor", cursor);
+    return apiFetch<CursorPage<Comment>>(`/api/comentarios/${commentId}/respuestas?${params}`);
+  },
   count: (postId: number) => apiFetch<{ cantidad: number }>(`/api/publicaciones/${postId}/comentarios/count`),
   create: (postId: number, contenido: string) => apiFetch<Comment>(`/api/publicaciones/${postId}/comentarios`, { method: "POST", json: { contenido } }),
   reply: (commentId: number, contenido: string) => apiFetch<Comment>(`/api/comentarios/${commentId}/respuestas`, { method: "POST", json: { contenido } }),
@@ -180,6 +200,11 @@ export const companiesApi = {
   mine: () => apiFetch<MyCompany[]>("/api/empresas/me"),
   search: (q: string, signal?: AbortSignal) => apiFetch<Company[]>(`/api/empresas?${new URLSearchParams({ q: q.trim() })}`, { signal }),
   get: (id: number) => apiFetch<Company>(`/api/empresas/${id}`),
+  getBatch: (ids: number[]) => {
+    const params = new URLSearchParams();
+    [...new Set(ids)].forEach((id) => params.append("ids", String(id)));
+    return apiFetch<Company[]>(`/api/empresas/batch?${params}`);
+  },
   create: (data: { nombre: string; industria: string | null; sitio_web: string | null }) => apiFetch<Company>("/api/empresas", { method: "POST", json: data }),
   update: (id: number, data: Partial<Pick<Company, "nombre" | "industria" | "sitio_web">>) => apiFetch<Company>(`/api/empresas/${id}`, { method: "PUT", json: data }),
   photo: (id: number, foto: File) => { const body = new FormData(); body.append("foto", foto); return apiFetch<Company>(`/api/empresas/${id}/foto-perfil`, { method: "PUT", body }); },
@@ -191,18 +216,33 @@ export const companiesApi = {
 };
 
 export const jobsApi = {
-  published: (q?: string, signal?: AbortSignal) => {
+  published: (q?: string, { cursor, limit = 20, signal }: { cursor?: string | null; limit?: number; signal?: AbortSignal } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
     const query = q?.trim();
-    const params = query ? `?${new URLSearchParams({ q: query })}` : "";
-    return apiFetch<Job[]>(`/api/ofertas/publicadas${params}`, { signal });
+    if (query) params.set("q", query);
+    if (cursor) params.set("cursor", cursor);
+    return apiFetch<CursorPage<Job>>(`/api/ofertas/publicadas?${params}`, { signal });
   },
   get: (id: number) => apiFetch<Job>(`/api/ofertas/${id}`),
-  byCompany: (id: number) => apiFetch<Job[]>(`/api/empresas/${id}/ofertas`),
+  byCompany: (id: number, cursor?: string | null, limit = 20) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set("cursor", cursor);
+    return apiFetch<CursorPage<Job>>(`/api/empresas/${id}/ofertas?${params}`);
+  },
   create: (data: { empresa_id: number; titulo: string; descripcion: string; publicada: boolean }) => apiFetch<Job>("/api/ofertas", { method: "POST", json: data }),
   update: (id: number, data: Partial<Pick<Job, "titulo" | "descripcion" | "publicada">>) => apiFetch<Job>(`/api/ofertas/${id}`, { method: "PUT", json: data }),
   stats: (id: number) => apiFetch<JobStats>(`/api/ofertas/${id}/estadisticas`),
   apply: (jobId: number, userId: number) => apiFetch<Application>("/api/postulaciones", { method: "POST", json: { oferta_id: jobId, usuario_id: userId } }),
-  applicationsByUser: (userId: number) => apiFetch<Application[]>(`/api/usuarios/${userId}/postulaciones`),
-  applicationsByJob: (jobId: number) => apiFetch<Application[]>(`/api/ofertas/${jobId}/postulaciones`),
+  applicationsByUser: (userId: number, { offerId, cursor, limit = 20 }: { offerId?: number; cursor?: string | null; limit?: number } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (offerId) params.set("oferta_id", String(offerId));
+    if (cursor) params.set("cursor", cursor);
+    return apiFetch<CursorPage<Application>>(`/api/usuarios/${userId}/postulaciones?${params}`);
+  },
+  applicationsByJob: (jobId: number, cursor?: string | null, limit = 20) => {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.set("cursor", cursor);
+    return apiFetch<CursorPage<Application>>(`/api/ofertas/${jobId}/postulaciones?${params}`);
+  },
   updateApplication: (id: number, estado: ApplicationStatus) => apiFetch<Application>(`/api/postulaciones/${id}`, { method: "PATCH", json: { estado } }),
 };

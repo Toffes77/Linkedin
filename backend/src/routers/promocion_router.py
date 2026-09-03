@@ -14,6 +14,7 @@ from src.schemas.promocion_schema import (
     GetPromocionesPaginadasSchema,
     GetSolicitudContratacionPromocionSchema,
 )
+from src.schemas.pagination_schema import CursorPageSchema
 from src.services.promocion_service import PromocionService
 
 router = APIRouter(tags=["tablón"])
@@ -53,15 +54,22 @@ def get_public_promotions(
     return PromocionMapper.to_page_schema(result)
 
 
-@router.get("/promociones/mias", response_model=list[GetPromocionSchema])
+@router.get(
+    "/promociones/mias",
+    response_model=CursorPageSchema[GetPromocionSchema],
+)
 def get_my_promotions(
+    limit: int = Query(default=10, ge=1, le=50),
+    cursor: str | None = Query(default=None, max_length=2048),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    promotions: list[PromocionResponseDTO] = PromocionService(db).get_mine(
-        current_user.id
+    page = PromocionService(db).get_mine(
+        current_user.id,
+        cursor=cursor,
+        limit=limit,
     )
-    return [PromocionMapper.to_response_schema(item) for item in promotions]
+    return CursorPageSchema[GetPromocionSchema].model_validate(page)
 
 
 @router.get(

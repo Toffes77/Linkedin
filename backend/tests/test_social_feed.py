@@ -17,7 +17,10 @@ from src.db.models.seguimiento_model import Seguimiento
 from src.db.models.usuario_model import Usuario
 from src.dtos.conexiones_dto import ResumenRedResponseDTO
 from src.dtos.feed_dto import FeedPageDTO
-from src.dtos.publicacion_dto import PublicacionResponseDTO
+from src.dtos.publicacion_dto import (
+    AutorPublicacionDTO,
+    PublicacionCardDTO,
+)
 from src.dtos.seguimiento_dto import EstadoSeguimientoResponseDTO
 from src.mappers.conexion_mapper import ConexionMapper
 from src.mappers.seguimiento_mapper import SeguimientoMapper
@@ -37,6 +40,25 @@ def post(post_id: int, author_id: int, minutes: int):
         autor_id=author_id,
         texto=f"Post {post_id}",
         fecha=datetime(2026, 1, 1) + timedelta(minutes=minutes),
+        autor=SimpleNamespace(
+            id=author_id,
+            nombre=f"Autor {author_id}",
+            headline="Profesional",
+            foto_perfil_url=None,
+        ),
+    )
+
+
+def card(publication) -> PublicacionCardDTO:
+    return PublicacionCardDTO(
+        id=publication.id,
+        autor_id=publication.autor_id,
+        texto=publication.texto,
+        fecha=publication.fecha,
+        autor=AutorPublicacionDTO.model_validate(publication.autor),
+        reacciones={"like": 0, "celebrar": 0, "apoyar": 0, "interesante": 0},
+        mi_reaccion=None,
+        cantidad_comentarios=0,
     )
 
 
@@ -384,6 +406,10 @@ class SocialFeedTests(unittest.TestCase):
         service.usuario_repository.get_by_id.return_value = SimpleNamespace(id=7)
         service.repository = Mock()
         service.repository.get_by_autor.return_value = [post(3, 7, 3)]
+        service.reaccion_repository = Mock()
+        service.reaccion_repository.summarize_by_publicaciones.return_value = []
+        service.comentario_repository = Mock()
+        service.comentario_repository.count_by_publicaciones.return_value = {}
 
         result = service.get_by_autor(7, limit=20, offset=40)
 
@@ -564,6 +590,10 @@ class SocialFeedTests(unittest.TestCase):
             feed_row(post(21, 2, 9)),
             feed_row(post(22, 5, 8)),
         ]
+        service.publicacion_service = Mock()
+        service.publicacion_service.to_card_dtos.side_effect = (
+            lambda publications, _viewer_id: [card(item) for item in publications]
+        )
 
         result = service.get_feed(1, page_size=2)
 
@@ -599,6 +629,10 @@ class SocialFeedTests(unittest.TestCase):
             ],
             [feed_row(post(32, 5, 6))],
         ]
+        service.publicacion_service = Mock()
+        service.publicacion_service.to_card_dtos.side_effect = (
+            lambda publications, _viewer_id: [card(item) for item in publications]
+        )
 
         first = service.get_feed(1, page_size=2)
         second = service.get_feed(1, cursor=first.next_cursor, page_size=2)
@@ -656,7 +690,7 @@ class SocialFeedTests(unittest.TestCase):
             with patch(
                 "src.routers.feed_router.FeedService.get_feed",
                 return_value=FeedPageDTO(
-                    items=[PublicacionResponseDTO.model_validate(post(50, 4, 1))],
+                    items=[card(post(50, 4, 1))],
                     next_cursor="next",
                     has_more=True,
                 ),
@@ -675,7 +709,7 @@ class SocialFeedTests(unittest.TestCase):
             self.assertEqual(response.json()["next_cursor"], "next")
             self.assertTrue(response.json()["has_more"])
             self.assertEqual(excessive.status_code, 422, excessive.text)
-            get_feed.assert_called_once_with(9, "current", 7, None)
+            get_feed.assert_called_once_with(9, "current", 7, None, 9)
         finally:
             app.dependency_overrides.clear()
 
