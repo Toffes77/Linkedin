@@ -60,9 +60,10 @@ export function ConversationList({
       {!loading && filtered.length === 0 ? <p className="messages-list-state">No se encontraron contactos</p> : null}
       {filtered.map((contact) => <button
         type="button"
-        className={`message-contact-row${selectedUserId === contact.usuario_id ? " selected" : ""}`}
+        className={`message-contact-row${selectedUserId === contact.usuario_id ? " selected" : ""}${contact.conectados ? "" : " historical"}`}
         key={contact.usuario_id}
         onClick={() => onSelect(contact)}
+        aria-label={`${contact.nombre}${contact.conectados ? "" : ", conversación histórica, ya no están conectados"}`}
       >
         <Avatar name={contact.nombre} src={contact.foto_perfil_url} size={48}/>
         <span className="message-contact-copy">
@@ -75,10 +76,10 @@ export function ConversationList({
               ? `${contact.ultimo_mensaje_autor_id === contact.usuario_id ? "" : "Vos: "}${contact.ultimo_mensaje}`
               : contact.headline || "Iniciá una conversación"}
           </span>
+          {!contact.conectados ? <span className="message-contact-status">Ya no están conectados</span> : null}
         </span>
         {contact.no_leidos > 0 ? <span className="message-unread-dot" aria-label={`${contact.no_leidos} mensajes sin leer`}/> : null}
       </button>)}
     </div>
   </>;
 }
-

@@ -12,6 +12,7 @@ function messageTime(value: string) {
 
 export function ChatWindow({
   contact,
+  connected,
   currentUserId,
   messages,
   draft,
@@ -29,6 +30,7 @@ export function ChatWindow({
   messageFontFamily,
 }: {
   contact: MessageContact;
+  connected: boolean;
   currentUserId: number;
   messages: PrivateMessage[];
   draft: string;
@@ -52,11 +54,12 @@ export function ChatWindow({
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    if (!connected) return;
     onSend();
   }
 
   function keyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (connected && event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       onSend();
     }
@@ -96,8 +99,9 @@ export function ChatWindow({
             <time>{messageTime(message.fecha)}</time>
           </div>
         </div>)}
+        {!connected ? <div className="message-disconnected-state" role="status"><span>Ya no están conectados</span></div> : null}
       </div>
-      <form className="message-composer" onSubmit={submit}>
+      {connected ? <form className="message-composer" onSubmit={submit}>
         <label className="sr-only" htmlFor={`message-draft-${contact.usuario_id}`}>Escribir mensaje</label>
         <textarea
           id={`message-draft-${contact.usuario_id}`}
@@ -113,7 +117,7 @@ export function ChatWindow({
           <button type="submit" disabled={busy || !draft.trim()} aria-label="Enviar mensaje"><Icon name="send" width={19}/></button>
         </div>
         {error ? <p className="message-error">{error}</p> : null}
-      </form>
+      </form> : error ? <p className="message-error message-history-error" role="alert">{error}</p> : null}
     </> : null}
   </section>;
 }

@@ -62,6 +62,7 @@ class ContactoConversacionSchema(BaseModel):
     ultimo_mensaje_autor_id: int | None = None
     fecha_ultimo_mensaje: datetime | None = None
     no_leidos: int
+    conectados: bool
 
 
 class MensajesNoLeidosSchema(BaseModel):

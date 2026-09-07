@@ -14,7 +14,7 @@ from src.dtos.conexiones_dto import (
 )
 from src.middlewares.auth_middleware import get_current_user
 from src.services.conexion_service import ConexionService
-from src.utils.errors import ConflictError
+from src.utils.errors import ConflictError, NotFoundError
 
 
 def user(user_id: int, nombre: str = "Usuario"):
@@ -89,6 +89,21 @@ class ConnectionFlowTests(unittest.TestCase):
     def test_status_endpoint_requires_a_session(self):
         response = TestClient(app).get("/api/conexiones/estado/4")
         self.assertEqual(response.status_code, 401)
+
+    def test_delete_endpoint_requires_a_session(self):
+        response = TestClient(app).delete("/api/conexiones/4")
+        self.assertEqual(response.status_code, 401)
+
+    def test_delete_endpoint_uses_authenticated_user_and_target_only(self):
+        app.dependency_overrides[get_db] = lambda: Mock()
+        app.dependency_overrides[get_current_user] = lambda: user(9)
+        with patch(
+            "src.routers.conexion_router.ConexionService.delete"
+        ) as delete_connection:
+            response = TestClient(app).delete("/api/conexiones/4")
+
+        self.assertEqual(response.status_code, 204)
+        delete_connection.assert_called_once_with(4, 9)
 
     def test_new_connection_and_notification_share_one_commit(self):
         db = Mock()
@@ -298,6 +313,45 @@ class ConnectionFlowTests(unittest.TestCase):
         )
         db.rollback.assert_called_once_with()
         db.commit.assert_not_called()
+
+    def test_accepted_connection_can_be_deleted_atomically(self):
+        db = Mock()
+        service = ConexionService(db)
+        accepted = connection(1, 2, "aceptada")
+        service.repository = Mock()
+        service.repository.get_by_id_for_update.return_value = accepted
+
+        service.delete(2, usuario_autenticado_id=1)
+
+        service.repository.get_by_id_for_update.assert_called_once_with(1, 2)
+        service.repository.delete.assert_called_once_with(accepted, commit=False)
+        db.commit.assert_called_once_with()
+        db.rollback.assert_not_called()
+
+    def test_missing_connection_delete_is_controlled_and_rolls_back(self):
+        db = Mock()
+        service = ConexionService(db)
+        service.repository = Mock()
+        service.repository.get_by_id_for_update.return_value = None
+
+        with self.assertRaises(NotFoundError):
+            service.delete(2, usuario_autenticado_id=1)
+
+        service.repository.delete.assert_not_called()
+        db.rollback.assert_called_once_with()
+        db.commit.assert_not_called()
+
+    def test_pending_connection_cannot_be_disconnected(self):
+        db = Mock()
+        service = ConexionService(db)
+        service.repository = Mock()
+        service.repository.get_by_id_for_update.return_value = connection(1, 2)
+
+        with self.assertRaises(ConflictError):
+            service.delete(2, usuario_autenticado_id=1)
+
+        service.repository.delete.assert_not_called()
+        db.rollback.assert_called_once_with()
 
 
 if __name__ == "__main__":

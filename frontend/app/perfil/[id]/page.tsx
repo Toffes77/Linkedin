@@ -17,13 +17,14 @@ import {
   type FeedPost,
   type User,
 } from "@/lib/api";
+import { emitConnectionChanged } from "@/lib/connection-events";
 import { formatMonth } from "@/lib/format";
 
 const connectionLabels = {
   SIN_CONEXION: "Conectar",
   PENDIENTE_ENVIADA: "Pendiente",
   PENDIENTE_RECIBIDA: "Aceptar conexión",
-  CONECTADO: "Conectado",
+  CONECTADO: "Desconectar",
   RECHAZADA: "Solicitud rechazada",
 } as const;
 
@@ -37,6 +38,8 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [error, setError] = useState("");
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
   const [connectionBusy, setConnectionBusy] = useState(false);
+  const [disconnectConfirming, setDisconnectConfirming] = useState(false);
+  const [disconnectError, setDisconnectError] = useState("");
   const [following, setFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
 
@@ -61,6 +64,8 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         setPosts(profilePosts);
         setFollowing(followStatus?.siguiendo ?? false);
         setConnectionStatus(relationStatus);
+        setDisconnectConfirming(false);
+        setDisconnectError("");
         setCompanies(
           Object.fromEntries(
             list
@@ -82,6 +87,15 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
   async function handleConnection() {
     if (!current || !profile || !connectionStatus) return;
+    if (connectionStatus.estado === "CONECTADO") {
+      if (!disconnectConfirming) {
+        setDisconnectError("");
+        setDisconnectConfirming(true);
+        return;
+      }
+      await disconnect();
+      return;
+    }
     if (connectionStatus.estado !== "SIN_CONEXION" && connectionStatus.estado !== "PENDIENTE_RECIBIDA") return;
 
     setConnectionBusy(true);
@@ -93,12 +107,35 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       } else if (connectionStatus.usuario_a !== null && connectionStatus.usuario_b !== null) {
         await connectionsApi.respond(connectionStatus.usuario_a, connectionStatus.usuario_b, "aceptada");
         setConnectionStatus({ ...connectionStatus, estado: "CONECTADO" });
+        emitConnectionChanged({ usuarioId: profile.id, conectados: true });
       }
     } catch (connectionError) {
       setError(connectionError instanceof Error ? connectionError.message : "No se pudo actualizar la conexión");
     } finally {
       setConnectionBusy(false);
     }
+  }
+
+  async function disconnect() {
+    if (!profile || connectionStatus?.estado !== "CONECTADO") return;
+    setConnectionBusy(true);
+    setDisconnectError("");
+    try {
+      await connectionsApi.remove(profile.id);
+      setConnectionStatus({ estado: "SIN_CONEXION", usuario_a: null, usuario_b: null });
+      setDisconnectConfirming(false);
+      emitConnectionChanged({ usuarioId: profile.id, conectados: false });
+    } catch (disconnectFailure) {
+      setDisconnectError(disconnectFailure instanceof Error ? disconnectFailure.message : "No se pudo eliminar la conexión.");
+    } finally {
+      setConnectionBusy(false);
+    }
+  }
+
+  function cancelDisconnect() {
+    if (connectionBusy) return;
+    setDisconnectConfirming(false);
+    setDisconnectError("");
   }
 
   async function toggleFollow() {
@@ -116,8 +153,17 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
     }
   }
 
-  const canActOnConnection = connectionStatus?.estado === "SIN_CONEXION" || connectionStatus?.estado === "PENDIENTE_RECIBIDA";
-  const connectionLabel = connectionBusy ? "Actualizando..." : connectionStatus ? connectionLabels[connectionStatus.estado] : "Cargando...";
+  const canActOnConnection = connectionStatus?.estado === "SIN_CONEXION" || connectionStatus?.estado === "PENDIENTE_RECIBIDA" || connectionStatus?.estado === "CONECTADO";
+  const disconnecting = connectionBusy && disconnectConfirming && connectionStatus?.estado === "CONECTADO";
+  const connectionLabel = disconnecting
+    ? "Desconectando..."
+    : disconnectConfirming
+      ? "Confirmar"
+      : connectionBusy
+        ? "Actualizando..."
+        : connectionStatus
+          ? connectionLabels[connectionStatus.estado]
+          : "Cargando...";
 
   return (
     <AppShell>
@@ -131,9 +177,26 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 <h1>{profile.nombre}</h1>
                 <p>{profile.headline}</p>
                 <span>{profile.ciudad}</span>
-                <div>
+                <div className="profile-actions">
                   {current?.id === profile.id ? <Link href="/perfil/editar" className="primary-button">Editar perfil</Link> : <>
-                    <button onClick={handleConnection} disabled={connectionBusy || !canActOnConnection} className="primary-button">{connectionLabel}</button>
+                    <div className="profile-connection-action">
+                      <button
+                        type="button"
+                        onClick={() => void handleConnection()}
+                        disabled={connectionBusy || !canActOnConnection}
+                        className="primary-button"
+                        aria-expanded={disconnectConfirming}
+                        aria-controls={disconnectConfirming ? "disconnect-inline-confirmation" : undefined}
+                      >
+                        {connectionLabel}
+                      </button>
+                      {disconnectConfirming ? <div className="disconnect-inline-confirmation" id="disconnect-inline-confirmation">
+                        <p>¿Seguro que querés eliminar esta conexión?</p>
+                        <p>Podrás seguir viendo los mensajes anteriores, pero no podrán enviarse mensajes nuevos mientras no vuelvan a conectarse.</p>
+                        {disconnectError ? <p className="inline-error disconnect-inline-error" role="alert">{disconnectError}</p> : null}
+                        <button type="button" className="disconnect-cancel" onClick={cancelDisconnect} disabled={connectionBusy}>Cancelar</button>
+                      </div> : null}
+                    </div>
                     <button onClick={toggleFollow} disabled={followBusy} className="secondary-button">{followBusy ? "Actualizando..." : following ? "Siguiendo" : "Seguir"}</button>
                   </>}
                 </div>

@@ -1,4 +1,4 @@
-from sqlalchemy import case, func, or_, select, union_all
+from sqlalchemy import and_, case, func, or_, select, union, union_all
 from sqlalchemy.orm import Session, joinedload
 
 from src.db.models.conexiones_model import Conexion
@@ -64,7 +64,7 @@ class MensajeRepository:
         return conversacion
 
     def list_contact_summaries(self, usuario_id: int):
-        contactos = union_all(
+        contactos_aceptados = union_all(
             select(Conexion.usuario_b.label("usuario_id")).where(
                 Conexion.usuario_a == usuario_id,
                 Conexion.estado == "aceptada",
@@ -74,6 +74,18 @@ class MensajeRepository:
                 Conexion.estado == "aceptada",
             ),
         ).subquery("contactos_aceptados")
+        conversaciones_historicas = union_all(
+            select(Conversacion.usuario_mayor_id.label("usuario_id")).where(
+                Conversacion.usuario_menor_id == usuario_id,
+            ),
+            select(Conversacion.usuario_menor_id.label("usuario_id")).where(
+                Conversacion.usuario_mayor_id == usuario_id,
+            ),
+        ).subquery("conversaciones_historicas")
+        contactos = union(
+            select(contactos_aceptados.c.usuario_id),
+            select(conversaciones_historicas.c.usuario_id),
+        ).subquery("contactos_mensajeria")
 
         ultimo_mensaje_id = (
             select(Mensaje.id)
@@ -100,8 +112,28 @@ class MensajeRepository:
                 Conversacion,
                 Mensaje,
                 no_leidos.label("no_leidos"),
+                case(
+                    (Conexion.estado == "aceptada", True),
+                    else_=False,
+                ).label("conectados"),
             )
             .join(contactos, contactos.c.usuario_id == Usuario.id)
+            .outerjoin(
+                Conexion,
+                and_(
+                    Conexion.estado == "aceptada",
+                    or_(
+                        and_(
+                            Conexion.usuario_a == usuario_id,
+                            Conexion.usuario_b == Usuario.id,
+                        ),
+                        and_(
+                            Conexion.usuario_b == usuario_id,
+                            Conexion.usuario_a == Usuario.id,
+                        ),
+                    ),
+                ),
+            )
             .outerjoin(
                 Conversacion,
                 or_(

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Avatar } from "@/components/common/avatar";
 import { Icon } from "@/components/common/icons";
 import { ApiError, messagesApi, type MessageContact, type Post } from "@/lib/api";
+import { activeMessagingContacts } from "@/lib/connection-events";
 
 function normalize(value: string) {
   return value.trim().toLocaleLowerCase("es").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -28,7 +29,7 @@ export function SharePostModal({
     let active = true;
     messagesApi.listConversations()
       .then((items) => {
-        if (active) setContacts(items);
+        if (active) setContacts(activeMessagingContacts(items));
       })
       .catch((reason) => {
         if (active) setError(reason instanceof ApiError ? reason.message : "No se pudieron cargar tus contactos.");

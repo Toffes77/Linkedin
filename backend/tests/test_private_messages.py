@@ -49,6 +49,9 @@ class PrivateMessageServiceTests(unittest.TestCase):
         service = MensajeService(Mock())
         service.repository = Mock()
         service.conexion_repository = Mock()
+        service.conexion_repository.get_by_id_for_update.return_value = (
+            SimpleNamespace(estado="aceptada")
+        )
         service.usuario_repository = Mock()
         service.publicacion_repository = Mock()
         return service
@@ -56,7 +59,6 @@ class PrivateMessageServiceTests(unittest.TestCase):
     def test_creates_conversation_only_for_accepted_contact(self):
         service = self.service()
         service.usuario_repository.get_by_id.return_value = usuario(9)
-        service.conexion_repository.has_accepted_connection.return_value = True
         service.repository.get_by_pair.return_value = None
         service.repository.create.return_value = conversacion(4, 3, 9)
 
@@ -69,7 +71,6 @@ class PrivateMessageServiceTests(unittest.TestCase):
     def test_reuses_existing_conversation_in_reverse_direction(self):
         service = self.service()
         service.usuario_repository.get_by_id.return_value = usuario(3)
-        service.conexion_repository.has_accepted_connection.return_value = True
         existing = conversacion(4, 3, 9)
         service.repository.get_by_pair.return_value = existing
 
@@ -82,7 +83,7 @@ class PrivateMessageServiceTests(unittest.TestCase):
     def test_rejects_users_that_are_not_accepted_contacts(self):
         service = self.service()
         service.usuario_repository.get_by_id.return_value = usuario(9)
-        service.conexion_repository.has_accepted_connection.return_value = False
+        service.conexion_repository.get_by_id_for_update.return_value = None
 
         with self.assertRaises(ForbiddenError):
             service.get_or_create(CrearConversacionDTO(usuario_id=9), 3)
@@ -217,6 +218,21 @@ class PrivateMessageServiceTests(unittest.TestCase):
 
         service.repository.get_messages.assert_called_once_with(8, 20, 40)
 
+    def test_historical_read_and_mark_read_do_not_require_active_connection(self):
+        service = self.service()
+        participation = SimpleNamespace()
+        service.repository.get_by_id.return_value = conversacion()
+        service.repository.get_participation.return_value = participation
+        service.repository.get_messages.return_value = []
+        service.conexion_repository.get_by_id_for_update.return_value = None
+
+        result = service.get_messages(8, usuario_id=1, limit=30, offset=0)
+        service.mark_as_read(8, usuario_id=1)
+
+        self.assertEqual(result, [])
+        service.repository.mark_as_read.assert_called_once_with(participation)
+        service.conexion_repository.get_by_id_for_update.assert_not_called()
+
     def test_contact_mapping_keeps_conversations_and_contacts_without_messages(self):
         service = self.service()
         active = conversacion()
@@ -227,14 +243,15 @@ class PrivateMessageServiceTests(unittest.TestCase):
             fecha=datetime(2026, 8, 24, 12, 0),
         )
         service.repository.list_contact_summaries.return_value = [
-            (usuario(2, "Ana"), active, last, 2),
-            (usuario(3, "Bruno"), None, None, 0),
+            (usuario(2, "Ana"), active, last, 2, True),
+            (usuario(3, "Bruno"), None, None, 0, True),
         ]
 
         result = service.list_contacts(1)
 
         self.assertEqual([item.nombre for item in result], ["Ana", "Bruno"])
         self.assertEqual(result[0].no_leidos, 2)
+        self.assertTrue(result[0].conectados)
         self.assertIsNone(result[1].conversacion_id)
 
 

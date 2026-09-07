@@ -21,6 +21,7 @@ import {
 } from "@/components/messages/message-preferences-storage";
 import { MessageResizeHandles, type MessageResizeDirection } from "@/components/messages/message-resize-handles";
 import { ApiError, messagesApi, type MessageContact, type PrivateMessage } from "@/lib/api";
+import { applyConnectionChanged, CONNECTION_CHANGED_EVENT, type ConnectionChangedDetail } from "@/lib/connection-events";
 
 const PAGE_SIZE = 50;
 const POLLING_MS = 5000;
@@ -166,6 +167,17 @@ export function MessagesDock() {
     }
   }, []);
 
+  useEffect(() => {
+    function connectionChanged(event: Event) {
+      const { usuarioId, conectados } = (event as CustomEvent<ConnectionChangedDetail>).detail;
+      setContacts((current) => applyConnectionChanged(current, { usuarioId, conectados }));
+      setSelected((current) => current?.usuario_id === usuarioId ? { ...current, conectados } : current);
+      void refreshContacts();
+    }
+    window.addEventListener(CONNECTION_CHANGED_EVENT, connectionChanged);
+    return () => window.removeEventListener(CONNECTION_CHANGED_EVENT, connectionChanged);
+  }, [refreshContacts]);
+
   const refreshActiveMessages = useCallback(async () => {
     const active = selectedRef.current;
     if (!active?.conversacion_id) return;
@@ -222,7 +234,7 @@ export function MessagesDock() {
   }
 
   async function sendMessage() {
-    if (!selected?.conversacion_id) return;
+    if (!selected?.conversacion_id || !selected.conectados) return;
     const draft = drafts[selected.usuario_id] ?? "";
     const content = draft.trim();
     if (!content || sending) return;
@@ -238,6 +250,7 @@ export function MessagesDock() {
       await refreshContacts();
     } catch (error) {
       setChatError(error instanceof ApiError ? error.message : "No se pudo enviar el mensaje.");
+      if (error instanceof ApiError && error.status === 403) await refreshContacts();
     } finally {
       setSending(false);
     }
@@ -351,6 +364,7 @@ export function MessagesDock() {
   return <div className="messages-dock-layer">
     {selected ? <ChatWindow
       contact={selected}
+      connected={selected.conectados}
       currentUserId={userId}
       messages={selectedMessages}
       draft={drafts[selected.usuario_id] ?? ""}

@@ -54,3 +54,4 @@ class ContactoConversacionDTO(BaseModel):
     ultimo_mensaje_autor_id: int | None = None
     fecha_ultimo_mensaje: datetime | None = None
     no_leidos: int = 0
+    conectados: bool

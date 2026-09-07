@@ -45,8 +45,9 @@ class MensajeService:
                     ultimo_mensaje.fecha if ultimo_mensaje else None
                 ),
                 no_leidos=int(no_leidos or 0),
+                conectados=bool(conectados),
             )
-            for usuario, conversacion, ultimo_mensaje, no_leidos
+            for usuario, conversacion, ultimo_mensaje, no_leidos, conectados
             in self.repository.list_contact_summaries(usuario_id)
         ]
 
@@ -59,23 +60,37 @@ class MensajeService:
             raise BadRequestError("No puede iniciar una conversación consigo mismo.")
         if self.usuario_repository.get_by_id(data.usuario_id) is None:
             raise NotFoundError("Usuario no encontrado.")
-        if not self.conexion_repository.has_accepted_connection(
-            usuario_id,
-            data.usuario_id,
-        ):
-            raise ForbiddenError(
-                "Solo puede iniciar conversaciones con conexiones aceptadas."
-            )
-
-        conversacion = self.repository.get_by_pair(usuario_id, data.usuario_id)
-        if conversacion is None:
-            try:
+        try:
+            self._require_accepted_connection(usuario_id, data.usuario_id)
+            conversacion = self.repository.get_by_pair(usuario_id, data.usuario_id)
+            if conversacion is None:
                 conversacion = self.repository.create(usuario_id, data.usuario_id)
-            except IntegrityError:
-                self.db.rollback()
+            else:
+                result = MensajeMapper.to_conversation_dto(
+                    conversacion,
+                    usuario_id,
+                )
+                self.db.commit()
+                return result
+        except IntegrityError:
+            self.db.rollback()
+            try:
+                self._require_accepted_connection(usuario_id, data.usuario_id)
                 conversacion = self.repository.get_by_pair(usuario_id, data.usuario_id)
                 if conversacion is None:
                     raise
+                result = MensajeMapper.to_conversation_dto(
+                    conversacion,
+                    usuario_id,
+                )
+                self.db.commit()
+                return result
+            except Exception:
+                self.db.rollback()
+                raise
+        except Exception:
+            self.db.rollback()
+            raise
         return MensajeMapper.to_conversation_dto(conversacion, usuario_id)
 
     def get_messages(
@@ -107,11 +122,19 @@ class MensajeService:
             raise BadRequestError("El mensaje no puede estar vacío.")
         if len(contenido) > 2000:
             raise BadRequestError("El mensaje no puede superar los 2000 caracteres.")
-        mensaje = self.repository.create_message(
-            conversacion,
-            autor_id=usuario_id,
-            contenido=contenido,
-        )
+        try:
+            self._require_accepted_connection(
+                conversacion.usuario_menor_id,
+                conversacion.usuario_mayor_id,
+            )
+            mensaje = self.repository.create_message(
+                conversacion,
+                autor_id=usuario_id,
+                contenido=contenido,
+            )
+        except Exception:
+            self.db.rollback()
+            raise
         return MensajeMapper.to_message_dto(mensaje)
 
     def share_post(
@@ -124,11 +147,19 @@ class MensajeService:
         publicacion = self.publicacion_repository.get_by_id(data.publicacion_id)
         if publicacion is None:
             raise NotFoundError("Publicación no encontrada.")
-        mensaje = self.repository.create_shared_post_message(
-            conversacion,
-            autor_id=usuario_id,
-            publicacion=publicacion,
-        )
+        try:
+            self._require_accepted_connection(
+                conversacion.usuario_menor_id,
+                conversacion.usuario_mayor_id,
+            )
+            mensaje = self.repository.create_shared_post_message(
+                conversacion,
+                autor_id=usuario_id,
+                publicacion=publicacion,
+            )
+        except Exception:
+            self.db.rollback()
+            raise
         return MensajeMapper.to_message_dto(mensaje)
 
     def mark_as_read(self, conversacion_id: int, usuario_id: int) -> None:
@@ -146,3 +177,15 @@ class MensajeService:
         if participacion is None:
             raise ForbiddenError("No puede acceder a una conversación ajena.")
         return conversacion, participacion
+
+    def _require_accepted_connection(
+        self,
+        usuario_a: int,
+        usuario_b: int,
+    ) -> None:
+        conexion = self.conexion_repository.get_by_id_for_update(
+            usuario_a,
+            usuario_b,
+        )
+        if conexion is None or conexion.estado != "aceptada":
+            raise ForbiddenError("Ya no están conectados.")
