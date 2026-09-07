@@ -23,6 +23,14 @@ IMAGES_DIRECTORY = Path(__file__).resolve().parents[1] / "imagenes"
 IMAGES_DIRECTORY.mkdir(parents=True, exist_ok=True)
 app.mount("/imagenes", StaticFiles(directory=IMAGES_DIRECTORY), name="imagenes")
 
+PUBLICATION_MEDIA_DIRECTORY = Path(__file__).resolve().parents[1] / "multimedia_publicaciones"
+PUBLICATION_MEDIA_DIRECTORY.mkdir(parents=True, exist_ok=True)
+app.mount(
+    "/multimedia_publicaciones",
+    StaticFiles(directory=PUBLICATION_MEDIA_DIRECTORY),
+    name="multimedia_publicaciones",
+)
+
 app.add_exception_handler(AppError, app_error_handler)
 
 app.include_router(usuario_router.router, prefix="/api")

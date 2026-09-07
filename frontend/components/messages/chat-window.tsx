@@ -93,7 +93,7 @@ export function ChatWindow({
           <div className={`message-bubble${message.tipo === "PUBLICACION" ? " shared-post-message" : ""}`}>
             {message.tipo === "PUBLICACION" ? message.publicacion ? <Link href={`/feed?publicacion=${message.publicacion.id}`} className="shared-post-message-card">
               <span className="shared-post-message-author"><Avatar name={message.publicacion.autor_nombre} src={message.publicacion.autor_foto_perfil_url} size={32}/><span><strong>Publicación de {message.publicacion.autor_nombre}</strong><small>{message.publicacion.autor_headline}</small></span></span>
-              <span className="shared-post-message-excerpt">{message.publicacion.texto}</span>
+              <span className="shared-post-message-excerpt">{message.publicacion.texto || "Publicación con multimedia"}</span>
               <span className="shared-post-message-link">Ver publicación</span>
             </Link> : <p className="shared-post-unavailable">Esta publicación ya no está disponible.</p> : <p>{message.contenido}</p>}
             <time>{messageTime(message.fecha)}</time>

@@ -30,6 +30,7 @@ El repositorio está dividido en dos aplicaciones independientes:
 ### Publicaciones
 
 - Creación, edición y eliminación por el autor.
+- Imágenes y videos múltiples, combinables y ordenados, con previews, grilla y visor propio.
 - Feed paginado con prioridad para publicaciones de usuarios seguidos.
 - Consulta de publicaciones por autor.
 - Reacciones `like`, `celebrar`, `apoyar` e `interesante`.
@@ -323,7 +324,7 @@ La referencia completa y los schemas interactivos se consultan en `/docs`; el RE
 Backend, desde `backend/`:
 
 ```bash
-python -m unittest discover -s tests -v
+python tests/run_isolated.py
 ```
 
 Frontend, desde `frontend/`:

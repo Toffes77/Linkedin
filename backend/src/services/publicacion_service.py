@@ -2,20 +2,31 @@ from sqlalchemy.orm import Session
 
 from src.dtos.publicacion_dto import (
     CreatePublicacionDTO,
+    CreatePublicacionMultimediaDTO,
+    MultimediaCreateDTO,
     PublicacionCardDTO,
     PublicacionResponseDTO,
     UpdatePublicacionDTO,
+    UpdatePublicacionMultimediaDTO,
 )
 from src.mappers.publicacion_mapper import PublicacionMapper
 from src.repositories.comentario_repository import ComentarioRepository
 from src.repositories.publicacion_repository import PublicacionRepository
 from src.repositories.reacciones_repository import ReaccionRepository
 from src.repositories.usuario_repository import UsuarioRepository
-from src.utils.errors import ForbiddenError, NotFoundError
+from src.utils.errors import BadRequestError, ForbiddenError, NotFoundError
+from src.utils.publication_media_storage import (
+    MAX_PUBLICATION_MEDIA_ITEMS,
+    UploadedPublicationFile,
+    delete_publication_file,
+    save_publication_file,
+    validate_publication_files,
+)
 
 
 class PublicacionService:
     def __init__(self, db: Session):
+        self.db = db
         self.repository = PublicacionRepository(db)
         self.usuario_repository = UsuarioRepository(db)
         self.comentario_repository = ComentarioRepository(db)
@@ -29,6 +40,42 @@ class PublicacionService:
 
         publicacion = self.repository.create(publicacion_data)
         return PublicacionMapper.to_response_dto(publicacion)
+
+    def create_with_multimedia(
+        self,
+        publicacion_data: CreatePublicacionMultimediaDTO,
+        files: list[UploadedPublicationFile],
+    ) -> PublicacionResponseDTO:
+        self._validar_usuario(publicacion_data.autor_id)
+        validated_files = validate_publication_files(files)
+        self._validate_content(publicacion_data.texto, len(validated_files))
+
+        saved_paths: list[str] = []
+        try:
+            publicacion = self.repository.create(publicacion_data, commit=False)
+            items: list[MultimediaCreateDTO] = []
+            for order, file in enumerate(validated_files):
+                path = save_publication_file(publicacion.id, file)
+                saved_paths.append(path)
+                items.append(
+                    MultimediaCreateDTO(
+                        ruta=path,
+                        tipo=file.media_type.value,
+                        orden=order,
+                    )
+                )
+            self.repository.add_multimedia(publicacion, items)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            for path in saved_paths:
+                delete_publication_file(path, publicacion.id if "publicacion" in locals() else -1)
+            raise
+
+        created = self.repository.get_by_id(publicacion.id)
+        if created is None:
+            raise RuntimeError("No se pudo recuperar la publicación creada.")
+        return PublicacionMapper.to_response_dto(created)
 
     def get_by_id(
         self,
@@ -103,9 +150,76 @@ class PublicacionService:
         )
         return PublicacionMapper.to_response_dto(publicacion_actualizada)
 
+    def update_with_multimedia(
+        self,
+        publicacion_id: int,
+        usuario_id: int,
+        publicacion_data: UpdatePublicacionMultimediaDTO,
+        kept_ids: list[int],
+        files: list[UploadedPublicationFile],
+    ) -> PublicacionResponseDTO:
+        publicacion = self._obtener_y_validar_autor(publicacion_id, usuario_id)
+        if len(kept_ids) != len(set(kept_ids)):
+            raise BadRequestError("La selección de multimedia contiene elementos repetidos.")
+        existing_by_id = {item.id: item for item in publicacion.multimedia}
+        if any(item_id not in existing_by_id for item_id in kept_ids):
+            raise ForbiddenError("No podés modificar multimedia de otra publicación.")
+        if len(kept_ids) + len(files) > MAX_PUBLICATION_MEDIA_ITEMS:
+            raise BadRequestError(
+                f"Una publicación puede incluir hasta {MAX_PUBLICATION_MEDIA_ITEMS} archivos."
+            )
+
+        validated_files = validate_publication_files(files)
+        self._validate_content(
+            publicacion_data.texto,
+            len(kept_ids) + len(validated_files),
+        )
+        removed = [item for item in publicacion.multimedia if item.id not in kept_ids]
+        removed_paths = [item.ruta for item in removed]
+        saved_paths: list[str] = []
+        try:
+            self.repository.update(
+                publicacion,
+                publicacion_data,
+                commit=False,
+            )
+            new_items: list[MultimediaCreateDTO] = []
+            for offset, file in enumerate(validated_files):
+                path = save_publication_file(publicacion.id, file)
+                saved_paths.append(path)
+                new_items.append(
+                    MultimediaCreateDTO(
+                        ruta=path,
+                        tipo=file.media_type.value,
+                        orden=len(kept_ids) + offset,
+                    )
+                )
+            self.repository.sync_multimedia(publicacion, kept_ids, new_items)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            for path in saved_paths:
+                delete_publication_file(path, publicacion.id)
+            raise
+
+        for path in removed_paths:
+            delete_publication_file(path, publicacion.id)
+        updated = self.repository.get_by_id(publicacion.id)
+        if updated is None:
+            raise RuntimeError("No se pudo recuperar la publicación actualizada.")
+        return PublicacionMapper.to_response_dto(updated)
+
     def delete(self, publicacion_id: int, usuario_id: int) -> None:
         publicacion = self._obtener_y_validar_autor(publicacion_id, usuario_id)
-        self.repository.delete(publicacion)
+        paths = [item.ruta for item in publicacion.multimedia]
+        try:
+            self.repository.delete(publicacion, commit=False)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+        for path in paths:
+            delete_publication_file(path, publicacion_id)
 
     def _validar_usuario(self, usuario_id: int) -> None:
         if self.usuario_repository.get_by_id(usuario_id) is None:
@@ -122,3 +236,8 @@ class PublicacionService:
             )
 
         return publicacion
+
+    @staticmethod
+    def _validate_content(text: str, media_count: int) -> None:
+        if not text and media_count == 0:
+            raise BadRequestError("La publicación debe incluir texto o multimedia.")

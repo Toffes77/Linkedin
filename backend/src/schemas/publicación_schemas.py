@@ -32,6 +32,15 @@ class DeletePublicacionSchema(BaseModel):
     id: int
 
 
+class GetPublicacionMultimediaSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ruta: str
+    tipo: str
+    orden: int
+
+
 class GetPublicacionSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -39,6 +48,7 @@ class GetPublicacionSchema(BaseModel):
     autor_id: int
     texto: str
     fecha: datetime
+    multimedia: list[GetPublicacionMultimediaSchema] = Field(default_factory=list)
 
 
 class GetAutorPublicacionSchema(BaseModel):

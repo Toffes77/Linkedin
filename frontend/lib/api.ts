@@ -22,7 +22,9 @@ export type Follow = { seguidor_id: number; seguido_id: number; fecha: string };
 export type ReactionType = "like" | "celebrar" | "apoyar" | "interesante";
 export type Reaction = { usuario_id: number; publicacion_id: number; tipo: ReactionType };
 export type ReactionCounts = Record<ReactionType, number>;
-export type Post = { id: number; autor_id: number; texto: string; fecha: string };
+export type PostMediaType = "IMAGEN" | "VIDEO";
+export type PostMedia = { id: number; ruta: string; tipo: PostMediaType; orden: number };
+export type Post = { id: number; autor_id: number; texto: string; fecha: string; multimedia: PostMedia[] };
 export type PostAuthor = { id: number; nombre: string; headline: string; foto_perfil_url: string | null };
 export type FeedPost = Post & { autor: PostAuthor; reacciones: ReactionCounts; mi_reaccion: ReactionType | null; cantidad_comentarios: number };
 export type FeedPage = { items: FeedPost[]; next_cursor: string | null; has_more: boolean };
@@ -175,8 +177,21 @@ export const postsApi = {
   },
   get: (id: number, signal?: AbortSignal) => apiFetch<FeedPost>(`/api/publicaciones/${id}`, { signal }),
   byAuthor: (userId: number, limit = 20, offset = 0) => apiFetch<FeedPost[]>(`/api/publicaciones/autor/${userId}?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`),
-  create: (texto: string) => apiFetch<Post>("/api/publicaciones", { method: "POST", json: { texto } }),
-  update: (id: number, texto: string) => apiFetch<Post>(`/api/publicaciones/${id}`, { method: "PUT", json: { texto } }),
+  create: (texto: string, files: File[] = []) => {
+    if (!files.length) return apiFetch<Post>("/api/publicaciones", { method: "POST", json: { texto } });
+    const body = new FormData();
+    body.append("texto", texto);
+    files.forEach((file) => body.append("archivos", file));
+    return apiFetch<Post>("/api/publicaciones/multimedia", { method: "POST", body });
+  },
+  update: (id: number, texto: string, keptMediaIds?: number[], files: File[] = []) => {
+    if (keptMediaIds === undefined) return apiFetch<Post>(`/api/publicaciones/${id}`, { method: "PUT", json: { texto } });
+    const body = new FormData();
+    body.append("texto", texto);
+    keptMediaIds.forEach((mediaId) => body.append("conservar_multimedia_id", String(mediaId)));
+    files.forEach((file) => body.append("archivos", file));
+    return apiFetch<Post>(`/api/publicaciones/${id}/multimedia`, { method: "PUT", body });
+  },
   delete: (id: number) => apiFetch<void>(`/api/publicaciones/${id}`, { method: "DELETE" }),
   reactionCounts: (id: number) => apiFetch<ReactionCounts>(`/api/publicaciones/${id}/reacciones`),
   myReaction: (postId: number) => apiFetch<Reaction | null>(`/api/publicaciones/${postId}/reacciones/me`),

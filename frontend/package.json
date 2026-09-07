@@ -14,7 +14,9 @@
     "test:board": "node --experimental-strip-types --test lib/board-api.test.ts",
     "test:jobs": "node --experimental-strip-types --test lib/job-application-state.test.ts",
     "test:cities": "node --experimental-strip-types --test lib/city-autocomplete.test.ts",
-    "test:member-users": "node --experimental-strip-types --test lib/member-user-autocomplete.test.ts"
+    "test:member-users": "node --experimental-strip-types --test lib/member-user-autocomplete.test.ts",
+    "test:media": "node --experimental-strip-types --test lib/post-media.test.ts",
+    "test": "node --experimental-strip-types --test lib/*.test.ts"
   },
   "dependencies": {
     "next": "16.2.4",

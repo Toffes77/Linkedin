@@ -2,9 +2,11 @@ from src.db.models.publicacion_model import Publicacion
 from src.dtos.publicacion_dto import (
     AutorPublicacionDTO,
     CreatePublicacionDTO,
+    CreatePublicacionMultimediaDTO,
     PublicacionCardDTO,
     PublicacionResponseDTO,
     UpdatePublicacionDTO,
+    UpdatePublicacionMultimediaDTO,
 )
 from src.schemas.publicación_schemas import (
     CreatePublicacionSchema,
@@ -27,11 +29,16 @@ class PublicacionMapper:
         return UpdatePublicacionDTO(**schema.model_dump(exclude_unset=True))
 
     @staticmethod
-    def to_model(data: CreatePublicacionDTO) -> Publicacion:
+    def to_model(
+        data: CreatePublicacionDTO | CreatePublicacionMultimediaDTO,
+    ) -> Publicacion:
         return Publicacion(**data.model_dump())
 
     @staticmethod
-    def apply_update(model: Publicacion, data: UpdatePublicacionDTO) -> Publicacion:
+    def apply_update(
+        model: Publicacion,
+        data: UpdatePublicacionDTO | UpdatePublicacionMultimediaDTO,
+    ) -> Publicacion:
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(model, field, value)
         return model

@@ -15,3 +15,5 @@ venv/
 .DS_Store
 imagenes/*
 !imagenes/.gitkeep
+multimedia_publicaciones/*
+!multimedia_publicaciones/.gitkeep

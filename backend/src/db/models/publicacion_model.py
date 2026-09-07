@@ -37,11 +37,18 @@ class Publicacion(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    multimedia = relationship(
+        "PublicacionMultimedia",
+        back_populates="publicacion",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="PublicacionMultimedia.orden",
+    )
 
     __table_args__ = (
         CheckConstraint(
-            "LENGTH(texto) BETWEEN 1 AND 3000 "
-            "AND texto ~ '[^[:space:]]'",
+            "LENGTH(texto) <= 3000 AND "
+            "(LENGTH(texto) = 0 OR texto ~ '[^[:space:]]')",
             name="check_longitud_texto"
         ).ddl_if(dialect="postgresql"),
         Index(

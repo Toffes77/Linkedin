@@ -16,6 +16,16 @@ class CreatePublicacionDTO(BaseModel):
         return strip_non_blank(value)
 
 
+class CreatePublicacionMultimediaDTO(BaseModel):
+    autor_id: int
+    texto: str = Field(default="", max_length=3000)
+
+    @field_validator("texto", mode="before")
+    @classmethod
+    def normalizar_texto(cls, value):
+        return "" if value is None else str(value).strip()
+
+
 class UpdatePublicacionDTO(BaseModel):
     texto: str | None = Field(default=None, min_length=1, max_length=3000)
 
@@ -25,8 +35,32 @@ class UpdatePublicacionDTO(BaseModel):
         return strip_non_blank(value)
 
 
+class UpdatePublicacionMultimediaDTO(BaseModel):
+    texto: str = Field(default="", max_length=3000)
+
+    @field_validator("texto", mode="before")
+    @classmethod
+    def normalizar_texto(cls, value):
+        return "" if value is None else str(value).strip()
+
+
 class DeletePublicacionDTO(BaseModel):
     id: int
+
+
+class PublicacionMultimediaDTO(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ruta: str
+    tipo: str
+    orden: int
+
+
+class MultimediaCreateDTO(BaseModel):
+    ruta: str
+    tipo: str
+    orden: int
 
 
 class PublicacionResponseDTO(BaseModel):
@@ -36,6 +70,7 @@ class PublicacionResponseDTO(BaseModel):
     autor_id: int
     texto: str
     fecha: datetime
+    multimedia: list[PublicacionMultimediaDTO] = Field(default_factory=list)
 
 
 class AutorPublicacionDTO(BaseModel):

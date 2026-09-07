@@ -32,5 +32,7 @@ Models SQLAlchemy, Schemas, DTOs y Mappers permanecen separados. Las queries deb
 ## Tests
 
 ```bash
-python -m unittest discover -s tests -v
+python tests/run_isolated.py
 ```
+
+El runner crea una base PostgreSQL local temporal, configura `DATABASE_URL` antes de importar la aplicación, ejecuta la suite y elimina únicamente esa base temporal. No usa la base principal configurada para desarrollo.

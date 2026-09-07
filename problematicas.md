@@ -99,17 +99,3 @@ Este documento contiene únicamente problemas actuales, verificables y accionabl
 **Consecuencia:** Una base nueva, parcial o creada desde metadata puede terminar con un esquema diferente; repetir o alterar el orden de scripts falla sin una forma fiable de conocer la versión aplicada.
 
 **Qué habría que modificar:** Establecer una fuente canónica versionada, registrar revisiones aplicadas y alinear Models, bootstrap y migraciones.
-
-## BAJAS
-
-### 19. El Composer presenta acciones que no hacen nada
-
-**Área:** Feed / UX funcional
-
-**Problema:** “Video”, “Foto” y “Escribir artículo” se presentan visualmente como acciones, pero son elementos `<span>` sin interacción.
-
-**Evidencia:** `frontend/components/feed/composer.tsx` renderiza las tres opciones dentro de `.composer-actions` sin botones, enlaces ni handlers.
-
-**Consecuencia:** La interfaz ofrece capacidades aparentes que no responden a ninguna acción.
-
-**Qué habría que modificar:** Ocultarlas hasta implementarlas o conectarlas a un flujo funcional y accesible.

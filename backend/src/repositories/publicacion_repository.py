@@ -4,7 +4,14 @@ from sqlalchemy import BigInteger, and_, case, cast, extract, func, literal, or_
 from sqlalchemy.orm import Session, joinedload
 
 from src.db.models.publicacion_model import Publicacion
-from src.dtos.publicacion_dto import CreatePublicacionDTO, UpdatePublicacionDTO
+from src.db.models.publicacion_multimedia_model import PublicacionMultimedia
+from src.dtos.publicacion_dto import (
+    CreatePublicacionDTO,
+    CreatePublicacionMultimediaDTO,
+    MultimediaCreateDTO,
+    UpdatePublicacionDTO,
+    UpdatePublicacionMultimediaDTO,
+)
 from src.mappers.publicacion_mapper import PublicacionMapper
 from src.utils.feed_cursor import FeedPosition
 
@@ -19,9 +26,17 @@ class PublicacionRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create(self, publicacion_data: CreatePublicacionDTO) -> Publicacion:
+    def create(
+        self,
+        publicacion_data: CreatePublicacionDTO | CreatePublicacionMultimediaDTO,
+        *,
+        commit: bool = True,
+    ) -> Publicacion:
         publicacion = PublicacionMapper.to_model(publicacion_data)
         self.db.add(publicacion)
+        if not commit:
+            self.db.flush()
+            return publicacion
         self.db.commit()
         created = self.get_by_id(publicacion.id)
         if created is None:
@@ -31,7 +46,7 @@ class PublicacionRepository:
     def get_by_id(self, publicacion_id: int) -> Publicacion | None:
         return (
             self.db.query(Publicacion)
-            .options(joinedload(Publicacion.autor))
+            .options(joinedload(Publicacion.autor), joinedload(Publicacion.multimedia))
             .filter(Publicacion.id == publicacion_id)
             .first()
         )
@@ -41,7 +56,7 @@ class PublicacionRepository:
     ) -> list[Publicacion]:
         query = (
             self.db.query(Publicacion)
-            .options(joinedload(Publicacion.autor))
+            .options(joinedload(Publicacion.autor), joinedload(Publicacion.multimedia))
             .filter(Publicacion.autor_id == autor_id)
             .order_by(Publicacion.fecha.desc(), Publicacion.id.desc())
             .offset(offset)
@@ -136,7 +151,7 @@ class PublicacionRepository:
                 stable_jitter.label("jitter"),
                 diversified.c.fecha.label("feed_fecha"),
             )
-            .options(joinedload(Publicacion.autor))
+            .options(joinedload(Publicacion.autor), joinedload(Publicacion.multimedia))
             .join(diversified, Publicacion.id == diversified.c.id)
         )
         if excluded_publicacion_id is not None:
@@ -207,16 +222,72 @@ class PublicacionRepository:
     def update(
         self,
         publicacion: Publicacion,
-        publicacion_data: UpdatePublicacionDTO,
+        publicacion_data: UpdatePublicacionDTO | UpdatePublicacionMultimediaDTO,
+        *,
+        commit: bool = True,
     ) -> Publicacion:
         PublicacionMapper.apply_update(publicacion, publicacion_data)
 
+        if not commit:
+            self.db.flush()
+            return publicacion
         self.db.commit()
         updated = self.get_by_id(publicacion.id)
         if updated is None:
             raise RuntimeError("No se pudo recuperar la publicación actualizada.")
         return updated
 
-    def delete(self, publicacion: Publicacion) -> None:
+    def add_multimedia(
+        self,
+        publicacion: Publicacion,
+        items: list[MultimediaCreateDTO],
+    ) -> None:
+        self.db.add_all(
+            [
+                PublicacionMultimedia(
+                    publicacion_id=publicacion.id,
+                    **item.model_dump(),
+                )
+                for item in items
+            ]
+        )
+        self.db.flush()
+
+    def sync_multimedia(
+        self,
+        publicacion: Publicacion,
+        kept_ids: list[int],
+        new_items: list[MultimediaCreateDTO],
+    ) -> list[PublicacionMultimedia]:
+        by_id = {item.id: item for item in publicacion.multimedia}
+        removed = [item for item in publicacion.multimedia if item.id not in kept_ids]
+        for item in removed:
+            self.db.delete(item)
+        self.db.flush()
+
+        kept = [by_id[item_id] for item_id in kept_ids]
+        for temporary_order, item in enumerate(kept, start=1000):
+            item.orden = temporary_order
+        self.db.flush()
+        for order, item in enumerate(kept):
+            item.orden = order
+
+        created = [
+            PublicacionMultimedia(
+                publicacion_id=publicacion.id,
+                ruta=item.ruta,
+                tipo=item.tipo,
+                orden=len(kept) + offset,
+            )
+            for offset, item in enumerate(new_items)
+        ]
+        self.db.add_all(created)
+        self.db.flush()
+        return removed
+
+    def delete(self, publicacion: Publicacion, *, commit: bool = True) -> None:
         self.db.delete(publicacion)
-        self.db.commit()
+        if commit:
+            self.db.commit()
+        else:
+            self.db.flush()
