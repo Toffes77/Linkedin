@@ -13,13 +13,17 @@ from src.dtos.empresa_usuario_dto import (
     MiembroEmpresaResponseDTO,
     UpdateEmpresaUsuarioDTO,
 )
+from src.dtos.pagination_dto import CursorPageDTO
+from src.dtos.usuario_dto import UsuarioResponseDTO
 from src.mappers.empresa_usuario_mapper import EmpresaUsuarioMapper
 from src.mappers.empresa_mapper import EmpresaMapper
+from src.mappers.usuario_mapper import UsuarioMapper
 from src.repositories.empresa_repository import EmpresaRepository
 from src.repositories.empresa_usuario_repository import EmpresaUsuarioRepository
 from src.repositories.usuario_repository import UsuarioRepository
-from src.utils.errors import ConflictError, ForbiddenError, NotFoundError
+from src.utils.errors import BadRequestError, ConflictError, ForbiddenError, NotFoundError
 from src.utils.integrity import violates_constraint
+from src.utils.pagination_cursor import decode_cursor, encode_cursor
 
 
 class EmpresaUsuarioService:
@@ -56,6 +60,61 @@ class EmpresaUsuarioService:
             EmpresaUsuarioMapper.to_member_response_dto(relacion)
             for relacion in relaciones
         ]
+
+    def search_candidates(
+        self,
+        empresa_id: int,
+        usuario_actual_id: int,
+        texto: str,
+        *,
+        cursor: str | None = None,
+        limit: int = 10,
+    ) -> CursorPageDTO[UsuarioResponseDTO]:
+        self._validar_empresa(empresa_id)
+        self._requerir_owner(empresa_id, usuario_actual_id)
+
+        normalized_text = texto.strip()
+        scope = {"empresa_id": empresa_id, "q": normalized_text}
+        after = None
+        if cursor is not None:
+            try:
+                values = decode_cursor(
+                    cursor,
+                    expected_kind="company_member_candidate_search",
+                    expected_scope=scope,
+                )
+                if len(values) != 2 or not isinstance(values[0], str):
+                    raise ValueError
+                after = (values[0], int(values[1]))
+            except (TypeError, ValueError) as exc:
+                raise BadRequestError("Cursor de búsqueda inválido.") from exc
+
+        rows = self.usuario_repository.search(
+            normalized_text,
+            limit=limit + 1,
+            after=after,
+            exclude_empresa_id=empresa_id,
+            name_only=True,
+        )
+        has_more = len(rows) > limit
+        page_rows = rows[:limit]
+        next_cursor = None
+        if has_more and page_rows:
+            last_user, last_name = page_rows[-1]
+            next_cursor = encode_cursor(
+                "company_member_candidate_search",
+                scope,
+                [last_name, last_user.id],
+            )
+
+        return CursorPageDTO[UsuarioResponseDTO](
+            items=[
+                UsuarioMapper.to_response_dto(user)
+                for user, _sort_name in page_rows
+            ],
+            next_cursor=next_cursor,
+            has_more=has_more,
+        )
 
     def create(
         self,

@@ -11,3 +11,5 @@ alembic==1.13.3
 psycopg2-binary==2.9.10
 Pillow==10.4.0
 python-multipart==0.0.12
+geonamescache==2.0.0
+Babel==2.16.0

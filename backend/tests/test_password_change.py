@@ -136,13 +136,13 @@ class PasswordChangeTests(unittest.TestCase):
             UpdateUsuarioDTO(
                 nombre="Nombre actualizado",
                 headline="Headline actualizado",
-                ciudad="Cordoba",
+                ciudad="Argentina, Córdoba",
             ),
         )
 
         self.assertEqual(response.nombre, "Nombre actualizado")
         self.assertEqual(response.headline, "Headline actualizado")
-        self.assertEqual(response.ciudad, "Cordoba")
+        self.assertEqual(response.ciudad, "Argentina, Córdoba")
         self.assertEqual(self.usuario.password_hash, previous_hash)
         self.assertEqual(self.usuario.email, previous_email)
         self.assertEqual(self.usuario.foto_perfil_url, previous_photo)

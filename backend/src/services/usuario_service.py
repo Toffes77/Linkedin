@@ -12,6 +12,7 @@ from src.dtos.usuario_dto import (
 from src.dtos.pagination_dto import CursorPageDTO
 from src.mappers.usuario_mapper import UsuarioMapper
 from src.repositories.usuario_repository import UsuarioRepository
+from src.services.ubicacion_service import UbicacionService
 from src.utils.email import normalize_email
 from src.utils.errors import BadRequestError, ConflictError, NotFoundError, UnauthorizedError
 from src.utils.hash import hash_password, verify_password
@@ -27,10 +28,16 @@ class UsuarioService:
     def __init__(self, db: Session):
         self.db = db
         self.repository = UsuarioRepository(db)
+        self.ubicacion_service = UbicacionService()
 
     def create(self, usuario_data: CreateUsuarioDTO) -> UsuarioResponseDTO:
         usuario_data = usuario_data.model_copy(
-            update={"email": normalize_email(str(usuario_data.email))}
+            update={
+                "email": normalize_email(str(usuario_data.email)),
+                "ciudad": self.ubicacion_service.canonicalize_city(
+                    usuario_data.ciudad
+                ),
+            }
         )
         if self.repository.get_by_email(str(usuario_data.email)) is not None:
             raise ConflictError("El email ya se encuentra registrado.")
@@ -111,6 +118,18 @@ class UsuarioService:
         usuario = self.repository.get_by_id(usuario_actual_id)
         if usuario is None:
             raise NotFoundError("Usuario no encontrado.")
+
+        if (
+            usuario_data.ciudad is not None
+            and usuario_data.ciudad != usuario.ciudad
+        ):
+            usuario_data = usuario_data.model_copy(
+                update={
+                    "ciudad": self.ubicacion_service.canonicalize_city(
+                        usuario_data.ciudad
+                    )
+                }
+            )
 
         usuario_actualizado = self.repository.update_profile(usuario, usuario_data)
         return UsuarioMapper.to_response_dto(usuario_actualizado)

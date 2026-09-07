@@ -121,7 +121,7 @@ class CaseInsensitiveEmailTests(unittest.TestCase):
             password="Password123",
             nombre="Email Integrity",
             headline="Case insensitive email",
-            ciudad="Buenos Aires",
+            ciudad="Argentina, Buenos Aires",
         )
 
     def test_registration_normalizes_email_and_case_variant_returns_409(self):

@@ -2,6 +2,7 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, selectinload
 
 from src.db.models.experiencia_model import Experiencia
+from src.db.models.empresa_usuario_model import EmpresaUsuario
 from src.db.models.usuario_model import Usuario
 from src.dtos.usuario_dto import UpdateUsuarioDTO
 from src.utils.email import normalize_email
@@ -35,6 +36,8 @@ class UsuarioRepository:
         *,
         limit: int = 21,
         after: tuple[str, int] | None = None,
+        exclude_empresa_id: int | None = None,
+        name_only: bool = False,
     ) -> list[tuple[Usuario, str]]:
         patron = f"%{texto}%"
         sort_name = func.lower(Usuario.nombre)
@@ -43,13 +46,23 @@ class UsuarioRepository:
             .options(selectinload(Usuario.experiencias))
         )
 
-        query = query.filter(
-            or_(
-                Usuario.nombre.ilike(patron),
-                Usuario.headline.ilike(patron),
-                Usuario.experiencias.any(Experiencia.puesto.ilike(patron)),
+        if name_only:
+            query = query.filter(Usuario.nombre.ilike(patron))
+        else:
+            query = query.filter(
+                or_(
+                    Usuario.nombre.ilike(patron),
+                    Usuario.headline.ilike(patron),
+                    Usuario.experiencias.any(Experiencia.puesto.ilike(patron)),
+                )
             )
-        )
+
+        if exclude_empresa_id is not None:
+            query = query.filter(
+                ~Usuario.empresas_usuario.any(
+                    EmpresaUsuario.empresa_id == exclude_empresa_id
+                )
+            )
 
         if ciudad is not None:
             query = query.filter(Usuario.ciudad.ilike(f"%{ciudad}%"))

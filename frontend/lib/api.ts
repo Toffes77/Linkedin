@@ -44,6 +44,7 @@ export type HiringRequest = { id: number; promocion_id: number; empresa_id: numb
 export type Promotion = { id: number; usuario_id: number; usuario_nombre: string; usuario_headline: string; usuario_foto_perfil_url: string | null; titulo: string; descripcion: string; fecha_creacion: string; estado: "PENDIENTE" | "PENDIENTE_CONTRATACION"; solicitudes_pendientes: HiringRequest[] };
 export type PromotionPage = { items: Promotion[]; page: number; page_size: number; total: number };
 export type HiringCompany = { empresa_id: number; nombre: string; foto_perfil_url: string | null; rol: "OWNER" | "RECRUITER" };
+export type CitySuggestion = { pais: string; ciudad: string; nombre: string };
 
 type ApiOptions = Omit<RequestInit, "credentials"> & { json?: unknown };
 type ValidationIssue = { loc?: Array<string | number>; msg?: string };
@@ -113,6 +114,10 @@ export const usersApi = {
   password: (password_actual: string, password_nueva: string) => apiFetch<{ message: string }>("/api/usuarios/me/password", { method: "PUT", json: { password_actual, password_nueva } }),
   photo: (foto: File) => { const body = new FormData(); body.append("foto", foto); return apiFetch<User>("/api/usuarios/me/foto-perfil", { method: "PUT", body }); },
   addExperience: (userId: number, data: { empresa_id: number; puesto: string; desde: string; hasta: string | null }) => apiFetch<Experience>(`/api/usuarios/${userId}/experiencias`, { method: "POST", json: data }),
+};
+
+export const locationsApi = {
+  searchCities: (q: string, limit = 10, signal?: AbortSignal) => apiFetch<CitySuggestion[]>(`/api/ubicaciones/ciudades?${new URLSearchParams({ q: q.trim(), limit: String(limit) })}`, { signal }),
 };
 
 export const connectionsApi = {
@@ -210,6 +215,11 @@ export const companiesApi = {
   update: (id: number, data: Partial<Pick<Company, "nombre" | "industria" | "sitio_web">>) => apiFetch<Company>(`/api/empresas/${id}`, { method: "PUT", json: data }),
   photo: (id: number, foto: File) => { const body = new FormData(); body.append("foto", foto); return apiFetch<Company>(`/api/empresas/${id}/foto-perfil`, { method: "PUT", body }); },
   getMembers: (id: number) => apiFetch<CompanyTeamMember[]>(`/api/empresas/${id}/miembros`),
+  searchMemberCandidates: (id: number, q: string, { cursor, limit = 10, signal }: { cursor?: string | null; limit?: number; signal?: AbortSignal } = {}) => {
+    const params = new URLSearchParams({ q: q.trim(), limit: String(limit) });
+    if (cursor) params.set("cursor", cursor);
+    return apiFetch<CursorPage<User>>(`/api/empresas/${id}/usuarios/candidatos?${params}`, { signal });
+  },
   members: (id: number) => apiFetch<CompanyMember[]>(`/api/empresas/${id}/usuarios`),
   addMember: (id: number, usuario_id: number, rol: CompanyRole) => apiFetch<CompanyMember>(`/api/empresas/${id}/usuarios`, { method: "POST", json: { usuario_id, rol } }),
   updateMember: (id: number, userId: number, rol: CompanyRole) => apiFetch<CompanyMember>(`/api/empresas/${id}/usuarios/${userId}`, { method: "PATCH", json: { rol } }),

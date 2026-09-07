@@ -26,6 +26,8 @@ from src.schemas.empresa_usuario_schema import (
     GetMiEmpresaSchema,
     UpdateEmpresaUsuarioSchema,
 )
+from src.schemas.pagination_schema import CursorPageSchema
+from src.schemas.usuario_schema import GetUsuarioSchema
 from src.services.empresa_service import EmpresaService
 from src.utils.image_storage import read_limited_upload
 from src.services.empresa_usuario_service import EmpresaUsuarioService
@@ -125,6 +127,28 @@ def get_usuarios_empresa(
         current_user.id,
     )
     return [EmpresaUsuarioMapper.to_response_schema(usuario) for usuario in usuarios]
+
+
+@router.get(
+    "/{empresa_id}/usuarios/candidatos",
+    response_model=CursorPageSchema[GetUsuarioSchema],
+)
+def search_candidatos_empresa(
+    empresa_id: int,
+    q: str = Query(min_length=2, max_length=100, pattern=r".*\S.*"),
+    limit: int = Query(default=10, ge=1, le=20),
+    cursor: str | None = Query(default=None, max_length=2048),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    page = EmpresaUsuarioService(db).search_candidates(
+        empresa_id,
+        current_user.id,
+        q,
+        cursor=cursor,
+        limit=limit,
+    )
+    return CursorPageSchema[GetUsuarioSchema].model_validate(page)
 
 
 @router.get("/{empresa_id}/miembros", response_model=list[GetMiembroEmpresaSchema])
