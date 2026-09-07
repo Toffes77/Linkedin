@@ -223,6 +223,10 @@ class PromocionService:
             if self.company_repository.get_by_id(request.empresa_id) is None:
                 raise NotFoundError("Empresa no encontrada.")
 
+            self.membership_repository.lock_membership_scope(
+                request.empresa_id,
+                current_user_id,
+            )
             membership = self.membership_repository.get_by_empresa_and_usuario(
                 request.empresa_id,
                 current_user_id,

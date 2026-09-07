@@ -57,6 +57,8 @@ class KnownIntegrityConflictServiceTests(unittest.TestCase):
         service.repository.create.side_effect = integrity_error(
             POSTULACION_UNIQUE_CONSTRAINT
         )
+        service.empresa_usuario_repository = Mock()
+        service.empresa_usuario_repository.has_membership.return_value = False
 
         with self.assertRaisesRegex(ConflictError, "ya se postuló"):
             service.create(CreatePostulacionDTO(oferta_id=3, usuario_id=2))
@@ -114,6 +116,7 @@ class KnownIntegrityConflictServiceTests(unittest.TestCase):
         service.usuario_repository.get_by_id.return_value = user(2)
         service.repository = Mock()
         service.repository.has_any_role.return_value = True
+        service.repository.has_membership.return_value = False
         service.repository.get_by_empresa_and_usuario.return_value = None
         service.repository.create.side_effect = integrity_error(
             EMPRESA_USUARIO_UNIQUE_CONSTRAINT
@@ -199,6 +202,10 @@ class KnownIntegrityConflictEndpointTests(unittest.TestCase):
             patch(
                 "src.repositories.postulacion_repository.PostulacionRepository.get_by_oferta_and_usuario",
                 return_value=None,
+            ),
+            patch(
+                "src.repositories.empresa_usuario_repository.EmpresaUsuarioRepository.has_membership",
+                return_value=False,
             ),
             patch(
                 "src.repositories.postulacion_repository.PostulacionRepository.create",

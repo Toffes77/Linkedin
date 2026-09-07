@@ -49,6 +49,7 @@ class CollaboratorMembershipTests(unittest.TestCase):
         service.usuario_repository.get_by_id.return_value = SimpleNamespace(id=9)
         service.repository = Mock()
         service.repository.has_any_role.side_effect = allows(RolEmpresa.OWNER)
+        service.repository.has_membership.return_value = False
         service.repository.get_by_empresa_and_usuario.return_value = None
         service.repository.create.side_effect = lambda relation: relation
 
@@ -81,6 +82,7 @@ class CollaboratorMembershipTests(unittest.TestCase):
         service.usuario_repository.get_by_id.return_value = SimpleNamespace(id=9)
         service.repository = Mock()
         service.repository.has_any_role.side_effect = allows(RolEmpresa.OWNER)
+        service.repository.has_membership.return_value = True
         service.repository.get_by_empresa_and_usuario.return_value = existing
 
         with self.assertRaises(ConflictError):

@@ -47,16 +47,28 @@ class PostulacionService:
         if not oferta.publicada:
             raise ConflictError("No se puede postular a una oferta no publicada.")
 
-        if (
-            self.repository.get_by_oferta_and_usuario(
-                postulacion_data.oferta_id,
+        try:
+            self.empresa_usuario_repository.lock_membership_scope(
+                oferta.empresa_id,
                 postulacion_data.usuario_id,
             )
-            is not None
-        ):
-            raise ConflictError("El usuario ya se postuló a esta oferta.")
+            if self.empresa_usuario_repository.has_membership(
+                oferta.empresa_id,
+                postulacion_data.usuario_id,
+            ):
+                raise ConflictError(
+                    "No podés postularte a una oferta de una empresa a la que pertenecés."
+                )
 
-        try:
+            if (
+                self.repository.get_by_oferta_and_usuario(
+                    postulacion_data.oferta_id,
+                    postulacion_data.usuario_id,
+                )
+                is not None
+            ):
+                raise ConflictError("El usuario ya se postuló a esta oferta.")
+
             postulacion = self.repository.create(postulacion_data, commit=False)
             receptores = self.empresa_usuario_repository.get_user_ids_by_empresa_and_roles(
                 oferta.empresa_id,
@@ -229,6 +241,10 @@ class PostulacionService:
         empresa_id: int,
         usuario_id: int,
     ) -> None:
+        self.empresa_usuario_repository.lock_membership_scope(
+            empresa_id,
+            usuario_id,
+        )
         relacion = self.empresa_usuario_repository.get_by_empresa_and_usuario(
             empresa_id,
             usuario_id,

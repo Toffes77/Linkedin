@@ -114,6 +114,7 @@ class NetworkNotificationsTests(unittest.TestCase):
         service.repository.get_by_oferta_and_usuario.return_value = None
         service.repository.create.return_value = SimpleNamespace(id=5, oferta_id=7, usuario_id=9, fecha=datetime.now(), estado="nueva", oferta=SimpleNamespace(titulo="Backend"))
         service.empresa_usuario_repository = Mock()
+        service.empresa_usuario_repository.has_membership.return_value = False
         service.empresa_usuario_repository.get_user_ids_by_empresa_and_roles.return_value = [1, 2]
         service.notificacion_service = Mock()
 

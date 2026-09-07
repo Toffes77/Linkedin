@@ -6,13 +6,18 @@ import { AppShell } from "@/components/layout/app-shell";
 import { useAuth } from "@/components/auth-provider";
 import { companiesApi, jobsApi, type Application, type Company, type CompanyRole, type Job, type JobStats } from "@/lib/api";
 import { formatDate } from "@/lib/format";
+import { getJobApplicationActionState, type MembershipCheckState } from "@/lib/job-application-state";
 
 export default function JobPage({ params }: { params: Promise<{ id: string }> }) {
   const id = Number(use(params).id);
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [job, setJob] = useState<Job | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
-  const [myRole, setMyRole] = useState<CompanyRole | undefined>();
+  const [membershipResult, setMembershipResult] = useState<{
+    offerId: number;
+    status: Exclude<MembershipCheckState, "loading">;
+    role: CompanyRole | undefined;
+  } | null>(null);
   const [applied, setApplied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -22,22 +27,45 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
   const [applicationsHasMore, setApplicationsHasMore] = useState(false);
 
   useEffect(() => {
+    if (authLoading) return;
+    let active = true;
     jobsApi.get(id).then(async (loaded) => {
+      const [loadedCompany, mine, myApplications] = await Promise.all([
+        companiesApi.get(loaded.empresa_id),
+        user ? companiesApi.mine() : Promise.resolve([]),
+        user
+          ? jobsApi.applicationsByUser(user.id, { offerId: id, limit: 1 }).catch(() => ({ items: [], next_cursor: null, has_more: false }))
+          : Promise.resolve({ items: [], next_cursor: null, has_more: false }),
+      ]);
+      if (!active) return;
       setJob(loaded);
-      setCompany(await companiesApi.get(loaded.empresa_id));
-      if (user) {
-        const [mine, myApplications] = await Promise.all([
-          companiesApi.mine().catch(() => []),
-          jobsApi.applicationsByUser(user.id, { offerId: id, limit: 1 }).catch(() => ({ items: [], next_cursor: null, has_more: false })),
-        ]);
-        setMyRole(mine.find((item) => item.empresa.id === loaded.empresa_id)?.rol);
-        setApplied(myApplications.items.length > 0);
-      } else setMyRole(undefined);
-    }).catch((cause) => setMessage(cause instanceof Error ? cause.message : "No se pudo cargar la oferta"));
-  }, [id, user]);
+      setCompany(loadedCompany);
+      setApplied(myApplications.items.length > 0);
+      setMembershipResult({
+        offerId: id,
+        status: "ready",
+        role: mine.find((item) => item.empresa.id === loaded.empresa_id)?.rol,
+      });
+    }).catch((cause) => {
+      if (active) {
+        setMembershipResult({ offerId: id, status: "error", role: undefined });
+        setMessage(cause instanceof Error ? cause.message : "No se pudo cargar la oferta");
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [id, user, authLoading]);
+
+  const membershipCheck: MembershipCheckState = membershipResult?.offerId === id
+    ? membershipResult.status
+    : "loading";
+  const myRole = membershipResult?.offerId === id && membershipResult.status === "ready"
+    ? membershipResult.role
+    : undefined;
 
   async function apply() {
-    if (!user) return;
+    if (!user || membershipCheck !== "ready" || myRole !== undefined) return;
     setBusy(true); setMessage("");
     try { await jobsApi.apply(id, user.id); setApplied(true); setMessage("Postulación enviada correctamente."); }
     catch (cause) { setMessage(cause instanceof Error ? cause.message : "No se pudo enviar la postulación"); }
@@ -65,8 +93,14 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
   }
 
   const canManageJob = myRole === "OWNER" || myRole === "RECRUITER";
+  const applicationAction = getJobApplicationActionState({
+    membershipCheck,
+    role: myRole,
+    applied,
+    busy,
+  });
   return <AppShell><main className="app-background"><div className="single-column">{job && <>
-    <section className="card job-detail"><span className="company-placeholder large">{company?.nombre[0] ?? "E"}</span><h1>{job.titulo}</h1>{company && <Link href={`/empresas/${company.id}`}>{company.nombre}</Link>}<p>{company?.industria} · Publicada {formatDate(job.fecha_publicacion)}</p><button onClick={apply} disabled={busy || applied} className="primary-button">{busy ? "Enviando..." : applied ? "Ya te postulaste" : "Postularme"}</button>{message && <p className="standalone-message">{message}</p>}</section>
+    <section className="card job-detail"><span className="company-placeholder large">{company?.nombre[0] ?? "E"}</span><h1>{job.titulo}</h1>{company && <Link href={`/empresas/${company.id}`}>{company.nombre}</Link>}<p>{company?.industria} · Publicada {formatDate(job.fecha_publicacion)}</p>{applicationAction.membershipMessage ? <p className="standalone-message">{applicationAction.membershipMessage}</p> : applicationAction.showButton && <button onClick={apply} disabled={applicationAction.disabled} className="primary-button">{applicationAction.label}</button>}{message && <p className="standalone-message" role="alert">{message}</p>}</section>
     <section className="card profile-section"><h2>Acerca del empleo</h2><p className="job-description">{job.descripcion}</p></section>
     {canManageJob && <section className="card profile-section management"><h2>Administración de la oferta</h2><p>Disponible para OWNER o RECRUITER. FastAPI valida el permiso.</p><button onClick={loadManagement} className="secondary-button">Ver estadísticas y postulantes</button>{stats && <div className="stats-row"><strong>{stats.total_postulaciones}</strong> postulaciones · {stats.dias_desde_publicacion ?? 0} días publicada</div>}{applications?.map((application) => <div className="application-row" key={application.id}><Link href={`/perfil/${application.usuario_id}`}>Usuario {application.usuario_id}</Link><span>{application.estado}</span><select value={application.estado} onChange={(event) => updateApplication(application, event.target.value as Application["estado"])}><option value={application.estado}>{application.estado}</option>{application.estado === "nueva" && <><option value="vista">vista</option><option value="rechazada">rechazada</option></>}{application.estado === "vista" && <><option value="entrevista">entrevista</option><option value="rechazada">rechazada</option></>}{application.estado === "entrevista" && <><option value="contratado">contratado</option><option value="rechazada">rechazada</option></>}</select></div>)}{applicationsHasMore && <button type="button" className="secondary-button" onClick={() => void loadMoreApplications()}>Cargar más postulantes</button>}</section>}
   </>}</div></main></AppShell>;

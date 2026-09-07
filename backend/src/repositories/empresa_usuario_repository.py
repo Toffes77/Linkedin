@@ -1,5 +1,4 @@
-from sqlalchemy import case, func
-from sqlalchemy import and_
+from sqlalchemy import and_, case, exists, func, select
 from sqlalchemy.orm import Session, aliased, contains_eager, joinedload
 
 from src.db.models.empresa_usuario_model import EmpresaUsuario, RolEmpresa
@@ -37,6 +36,25 @@ class EmpresaUsuarioRepository:
                 EmpresaUsuario.usuario_id == usuario_id,
             )
             .first()
+        )
+
+    def lock_membership_scope(self, empresa_id: int, usuario_id: int) -> None:
+        if self.db.get_bind().dialect.name != "postgresql":
+            return
+        self.db.execute(
+            select(func.pg_advisory_xact_lock(empresa_id, usuario_id))
+        )
+
+    def has_membership(self, empresa_id: int, usuario_id: int) -> bool:
+        return bool(
+            self.db.execute(
+                select(
+                    exists().where(
+                        EmpresaUsuario.empresa_id == empresa_id,
+                        EmpresaUsuario.usuario_id == usuario_id,
+                    )
+                )
+            ).scalar()
         )
 
     def get_by_empresa(self, empresa_id: int) -> list[EmpresaUsuario]:

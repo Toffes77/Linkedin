@@ -69,22 +69,26 @@ class EmpresaUsuarioService:
         if self.usuario_repository.get_by_id(empresa_usuario_data.usuario_id) is None:
             raise NotFoundError("Usuario no encontrado.")
 
-        if (
-            self.repository.get_by_empresa_and_usuario(
+        try:
+            self.repository.lock_membership_scope(
                 empresa_id,
                 empresa_usuario_data.usuario_id,
             )
-            is not None
-        ):
-            raise ConflictError("El usuario ya pertenece a la empresa.")
+            if self.repository.has_membership(
+                empresa_id,
+                empresa_usuario_data.usuario_id,
+            ):
+                raise ConflictError("El usuario ya pertenece a la empresa.")
 
-        relacion = EmpresaUsuarioMapper.to_model(empresa_id, empresa_usuario_data)
-        try:
+            relacion = EmpresaUsuarioMapper.to_model(empresa_id, empresa_usuario_data)
             relacion_creada = self.repository.create(relacion)
         except IntegrityError as exc:
             self.db.rollback()
             if violates_constraint(exc, EMPRESA_USUARIO_UNIQUE_CONSTRAINT):
                 raise ConflictError("El usuario ya pertenece a la empresa.") from exc
+            raise
+        except Exception:
+            self.db.rollback()
             raise
         return EmpresaUsuarioMapper.to_response_dto(relacion_creada)
 
