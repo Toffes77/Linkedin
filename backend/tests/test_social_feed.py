@@ -317,6 +317,10 @@ class GlobalFeedPostgresTests(unittest.TestCase):
             bind=self.connection,
             join_transaction_mode="create_savepoint",
         )
+        # Keep this ranking test independent from the development feed.  The
+        # surrounding transaction restores every pre-existing row in tearDown.
+        self.db.query(Publicacion).delete(synchronize_session=False)
+        self.db.flush()
         suffix = uuid4().hex
         authors = [
             Usuario(

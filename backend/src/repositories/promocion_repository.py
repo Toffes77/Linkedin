@@ -4,7 +4,10 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from src.db.models.promocion_model import Promocion
-from src.db.models.solicitud_contratacion_promocion_model import SolicitudContratacionPromocion
+from src.db.models.solicitud_contratacion_promocion_model import (
+    EstadoSolicitudContratacionPromocion,
+    SolicitudContratacionPromocion,
+)
 
 
 class PromocionRepository:
@@ -56,7 +59,13 @@ class PromocionRepository:
             self.db.query(Promocion)
             .join(ranked, ranked.c.promocion_id == Promocion.id)
             .options(joinedload(Promocion.usuario))
-            .filter(ranked.c.position == 1)
+            .filter(
+                ranked.c.position == 1,
+                ~Promocion.solicitudes_contratacion.any(
+                    SolicitudContratacionPromocion.estado
+                    == EstadoSolicitudContratacionPromocion.ACEPTADA
+                ),
+            )
         )
         if title:
             query = query.filter(Promocion.titulo.ilike(f"%{title}%"))

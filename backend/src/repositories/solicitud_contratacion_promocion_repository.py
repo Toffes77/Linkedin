@@ -41,6 +41,20 @@ class SolicitudContratacionPromocionRepository:
             .first()
         )
 
+    def get_accepted_for_promotion(
+        self,
+        promocion_id: int,
+    ) -> SolicitudContratacionPromocion | None:
+        return (
+            self.db.query(SolicitudContratacionPromocion)
+            .filter(
+                SolicitudContratacionPromocion.promocion_id == promocion_id,
+                SolicitudContratacionPromocion.estado
+                == EstadoSolicitudContratacionPromocion.ACEPTADA,
+            )
+            .first()
+        )
+
     def get_by_id_for_update(
         self,
         request_id: int,

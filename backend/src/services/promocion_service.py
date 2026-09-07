@@ -128,6 +128,7 @@ class PromocionService:
         current_user_id: int,
     ) -> list[EmpresaContratanteDTO]:
         promotion = self._get_promotion(promotion_id)
+        self._ensure_available(promotion.id)
         self._prevent_self_hiring(promotion.usuario_id, current_user_id)
         memberships = self.membership_repository.get_hiring_companies(
             current_user_id,
@@ -142,6 +143,7 @@ class PromocionService:
         current_user_id: int,
     ) -> SolicitudContratacionPromocionResponseDTO:
         promotion = self._get_promotion(promotion_id)
+        self._ensure_available(promotion.id)
         self._prevent_self_hiring(promotion.usuario_id, current_user_id)
         company = self.company_repository.get_by_id(data.empresa_id)
         if company is None:
@@ -240,7 +242,10 @@ class PromocionService:
         except IntegrityError as error:
             self.db.rollback()
             if violates_constraint(error, EMPRESA_USUARIO_UNIQUE_CONSTRAINT):
-                raise ConflictError("El usuario ya pertenece a la empresa.") from error
+                return self._complete_acceptance_after_membership_race(
+                    request_id,
+                    current_user_id,
+                )
             raise
         except Exception:
             self.db.rollback()
@@ -252,6 +257,41 @@ class PromocionService:
         if promotion is None:
             raise NotFoundError("Promoción no encontrada.")
         return promotion
+
+    def _ensure_available(self, promotion_id: int) -> None:
+        if self.hiring_request_repository.get_accepted_for_promotion(
+            promotion_id
+        ) is not None:
+            raise ConflictError("La promoción ya no está disponible.")
+
+    def _complete_acceptance_after_membership_race(
+        self,
+        request_id: int,
+        current_user_id: int,
+    ) -> SolicitudContratacionPromocionResponseDTO:
+        try:
+            request = self.hiring_request_repository.get_by_id_for_update(request_id)
+            if request is None:
+                raise NotFoundError("Propuesta de contratación no encontrada.")
+            if request.promocion.usuario_id != current_user_id:
+                raise ForbiddenError(
+                    "No puede aceptar una propuesta dirigida a otro usuario."
+                )
+            if request.estado != EstadoSolicitudContratacionPromocion.PENDIENTE:
+                raise ConflictError("La propuesta ya fue respondida.")
+            membership = self.membership_repository.get_by_empresa_and_usuario(
+                request.empresa_id,
+                current_user_id,
+            )
+            if membership is None:
+                raise ConflictError("No se pudo confirmar la membresía concurrente.")
+            accepted = self.hiring_request_repository.accept(request, commit=False)
+            self.db.commit()
+            self.db.refresh(accepted)
+        except Exception:
+            self.db.rollback()
+            raise
+        return PromocionMapper.hiring_request_to_response_dto(accepted)
 
     @staticmethod
     def _prevent_self_hiring(candidate_user_id: int, current_user_id: int) -> None:

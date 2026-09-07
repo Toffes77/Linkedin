@@ -19,6 +19,7 @@ export function BoardPage({ initialView, highlightedPromotion }: { initialView: 
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [mineCursor, setMineCursor] = useState<string | null>(null);
   const [mineHasMore, setMineHasMore] = useState(false);
+  const [loadingMoreMine, setLoadingMoreMine] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -76,10 +77,25 @@ export function BoardPage({ initialView, highlightedPromotion }: { initialView: 
   }
 
   async function loadMoreMine() {
-    const result = await boardApi.getMyPromotions({ cursor: mineCursor });
-    setPromotions((current) => [...current, ...result.items]);
-    setMineCursor(result.next_cursor);
-    setMineHasMore(result.has_more);
+    if (!mineCursor || loadingMoreMine) return;
+    setLoadingMoreMine(true);
+    setError("");
+    try {
+      const result = await boardApi.getMyPromotions({ cursor: mineCursor });
+      setPromotions((current) => {
+        const knownIds = new Set(current.map((promotion) => promotion.id));
+        return [
+          ...current,
+          ...result.items.filter((promotion) => !knownIds.has(promotion.id)),
+        ];
+      });
+      setMineCursor(result.next_cursor);
+      setMineHasMore(result.has_more);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "No se pudieron cargar más promociones.");
+    } finally {
+      setLoadingMoreMine(false);
+    }
   }
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -98,7 +114,7 @@ export function BoardPage({ initialView, highlightedPromotion }: { initialView: 
       {loading ? Array.from({ length: 3 }, (_, index) => <div className="promotion-skeleton card skeleton" key={index}/>) : promotions.length ? promotions.map((promotion) => <PromotionCard key={promotion.id} promotion={promotion} own={view === "mine"} highlighted={highlightedPromotion === promotion.id} acceptingId={acceptingId} onHire={setHiring} onAccept={acceptRequest}/>) : <div className="board-empty card">{view === "mine" ? "Todavía no creaste ninguna promoción." : "No se encontraron promociones."}</div>}
     </section>
     {view === "public" && !loading && totalPages > 1 && <nav className="board-pagination" aria-label="Paginación del Tablón"><button type="button" className="secondary-button" disabled={page === 1} onClick={() => { setLoading(true); setPage((value) => value - 1); }}>Anterior</button><span>Página {page} de {totalPages}</span><button type="button" className="secondary-button" disabled={page === totalPages} onClick={() => { setLoading(true); setPage((value) => value + 1); }}>Siguiente</button></nav>}
-    {view === "mine" && !loading && mineHasMore && <button type="button" className="secondary-button" onClick={() => void loadMoreMine()}>Cargar más promociones</button>}
+    {view === "mine" && !loading && mineHasMore && <button type="button" className="secondary-button" disabled={loadingMoreMine} onClick={() => void loadMoreMine()}>{loadingMoreMine ? "Cargando..." : "Cargar más promociones"}</button>}
   </div></main>
   {creating && <PromotionForm onClose={closeCreate} onCreated={() => { setCreating(false); changeView("mine"); setNotice("Tu promoción fue publicada."); setRevision((value) => value + 1); }}/>} 
   {hiring && <HiringModal promotion={hiring} onClose={closeHiring} onSent={(message) => { setHiring(null); setNotice(message); setLoading(true); setRevision((value) => value + 1); }}/>} 

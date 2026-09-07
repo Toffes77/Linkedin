@@ -1,0 +1,107 @@
+Nombre: Agustin Pelachini
+Email: agustin.pelachini@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Alexandre Bompard
+Email: alexandre.bompard@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Andrew Wilson
+Email: andrew.wilson@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Andy Jassy
+Email: andy.jassy@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Benjamin Jerez
+Email: benjamin.jerez@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Binyamin Al-Ghomiz
+Email: binyamin.al.ghomiz@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Chris Kempczinski
+Email: chris.kempczinski@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Fernando Mayer
+Email: fernando.mayer@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Franco Bosseti
+Email: franco.bosseti@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Franco Ghirardi
+Email: franco.ghirardi@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Gael Ponce
+Email: gael.ponce@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Henrique Braun
+Email: henrique.braun@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Ighnas Al-Mutto
+Email: ighnas.al.mutto@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Ignacio Labonia
+Email: ignacio.labonia@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Ignacio Libermann
+Email: ignacio.libermann@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Jacques-Antoine Lacroix
+Email: jacques.antoine.lacroix@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Joaquin Gambeta
+Email: joaquin.gambeta@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Juan Cruz Maletti
+Email: juan.cruz.maletti@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Juan Cruz Moyano
+Email: juan.cruz.moyano@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Lorenzo Diaz
+Email: lorenzo.diaz@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Luca Di Lauro
+Email: luca.di.lauro@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Lucas Estevo
+Email: lucas.estevo@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Manfred Paulmann
+Email: manfred.paulmann@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Manuel Valle
+Email: manuel.valle@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Romain Lacroix
+Email: romain.lacroix@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Sam Altman
+Email: sam.altman@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Santín Ben-Konka
+Email: santin.ben.konka@atanes.example.com
+Contraseña: AtanesTest2026!

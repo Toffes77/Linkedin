@@ -14,7 +14,7 @@ from src.dtos.conexiones_dto import (
 )
 from src.middlewares.auth_middleware import get_current_user
 from src.services.conexion_service import ConexionService
-from src.utils.errors import ConflictError, ForbiddenError
+from src.utils.errors import ConflictError
 
 
 def user(user_id: int, nombre: str = "Usuario"):
@@ -265,34 +265,6 @@ class ConnectionFlowTests(unittest.TestCase):
 
         service.repository.update.assert_not_called()
         service.notificacion_service.create_many.assert_not_called()
-
-    def test_connected_user_can_disconnect(self):
-        db = Mock()
-        service = ConexionService(db)
-        existing = connection(1, 2, "aceptada")
-        service.repository = Mock()
-        service.repository.get_by_id_for_update.return_value = existing
-
-        service.delete(1, 2, usuario_autenticado_id=2)
-
-        service.repository.delete.assert_called_once_with(existing, commit=False)
-        db.commit.assert_called_once_with()
-        db.rollback.assert_not_called()
-
-    def test_user_outside_connection_cannot_disconnect(self):
-        db = Mock()
-        service = ConexionService(db)
-        service.repository = Mock()
-        service.repository.get_by_id_for_update.return_value = connection(
-            1, 2, "aceptada"
-        )
-
-        with self.assertRaises(ForbiddenError):
-            service.delete(1, 2, usuario_autenticado_id=3)
-
-        service.repository.delete.assert_not_called()
-        db.commit.assert_not_called()
-        db.rollback.assert_called_once_with()
 
     def test_notification_failure_rolls_back_acceptance(self):
         db = Mock()

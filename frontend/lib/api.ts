@@ -118,7 +118,6 @@ export const usersApi = {
 export const connectionsApi = {
   create: (from: number, to: number) => apiFetch<Connection>("/api/conexiones", { method: "POST", json: { usuario_a: from, usuario_b: to } }),
   respond: (from: number, to: number, estado: "aceptada" | "rechazada") => apiFetch<Connection>(`/api/conexiones/${from}/${to}`, { method: "PATCH", json: { estado } }),
-  remove: (from: number, to: number) => apiFetch<void>(`/api/conexiones/${from}/${to}`, { method: "DELETE" }),
   status: (userId: number) => apiFetch<ConnectionStatus>(`/api/conexiones/estado/${userId}`),
   summary: () => apiFetch<NetworkSummary>("/api/conexiones/resumen"),
   receivedInvitations: () => apiFetch<ReceivedInvitation[]>("/api/conexiones/invitaciones-recibidas"),

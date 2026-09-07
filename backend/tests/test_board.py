@@ -1,15 +1,19 @@
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
-from unittest.mock import patch
+from threading import Barrier
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, or_, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from src.app import app
-from src.db.connection import Base, engine as postgres_engine, get_db
+from src.db.connection import Base, SessionLocal, engine as postgres_engine, get_db
 from src.db.models.empresa_model import Empresa
 from src.db.models.empresa_usuario_model import EmpresaUsuario, RolEmpresa
 from src.db.models.notificacion_model import Notificacion
@@ -21,6 +25,19 @@ from src.db.models.solicitud_contratacion_promocion_model import (
 from src.db.models.usuario_model import Usuario
 from src.middlewares.auth_middleware import get_current_user
 from src.repositories.promocion_repository import PromocionRepository
+from src.repositories.solicitud_contratacion_promocion_repository import (
+    SolicitudContratacionPromocionRepository,
+)
+from src.services.promocion_service import PromocionService
+from src.dtos.promocion_dto import CreateSolicitudContratacionPromocionDTO
+from src.utils.errors import ConflictError
+from src.utils.jwt import create_access_token
+
+
+def integrity_error(constraint_name: str) -> IntegrityError:
+    original = RuntimeError("internal database detail")
+    original.diag = SimpleNamespace(constraint_name=constraint_name)
+    return IntegrityError("INSERT INTO internal_table", {}, original)
 
 
 class BoardIntegrationTests(unittest.TestCase):
@@ -154,13 +171,30 @@ class BoardIntegrationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 401, response.text)
 
     def test_blank_title_and_description_are_rejected(self):
+        for blank in ("", " ", "\t", "\n"):
+            for field in ("titulo", "descripcion"):
+                payload = {"titulo": "Válido", "descripcion": "Válida"}
+                payload[field] = blank
+                with self.subTest(field=field, blank=repr(blank)):
+                    before = self.db.query(Promocion).count()
+                    response = self.client.post("/api/promociones", json=payload)
+                    self.assertEqual(response.status_code, 422, response.text)
+                    self.assertEqual(self.db.query(Promocion).count(), before)
+
+    def test_promotion_text_limits_are_enforced(self):
         for payload in (
-            {"titulo": "   ", "descripcion": "Válida"},
-            {"titulo": "Válido", "descripcion": "   "},
+            {"titulo": "x" * 161, "descripcion": "Válida"},
+            {"titulo": "Válido", "descripcion": "x" * 3001},
         ):
-            with self.subTest(payload=payload):
+            with self.subTest(payload_lengths={key: len(value) for key, value in payload.items()}):
                 response = self.client.post("/api/promociones", json=payload)
                 self.assertEqual(response.status_code, 422, response.text)
+
+        accepted = self.client.post(
+            "/api/promociones",
+            json={"titulo": "x" * 160, "descripcion": "x" * 3000},
+        )
+        self.assertEqual(accepted.status_code, 201, accepted.text)
 
     def test_public_board_excludes_current_users_promotions(self):
         self._promotion(self.users["candidate"], "Propia")
@@ -222,6 +256,51 @@ class BoardIntegrationTests(unittest.TestCase):
         self.assertEqual(len(first["items"]), 2)
         self.assertEqual(len(second["items"]), 1)
         self.assertTrue(set(item["id"] for item in first["items"]).isdisjoint(item["id"] for item in second["items"]))
+
+    def test_my_promotions_cursor_pages_are_scoped_stable_and_disjoint(self):
+        base = datetime(2026, 8, 26, 12, 0, 0)
+        own = [
+            self._promotion(
+                self.users["candidate"],
+                f"Propia {index}",
+                date=base + timedelta(minutes=index),
+            )
+            for index in range(3)
+        ]
+        self._promotion(self.users["outsider"], "Ajena", date=base + timedelta(hours=1))
+        self.db.commit()
+
+        first = self.client.get("/api/promociones/mias", params={"limit": 2})
+        self.assertEqual(first.status_code, 200, first.text)
+        first_body = first.json()
+        self.assertTrue(first_body["has_more"])
+        self.assertIsNotNone(first_body["next_cursor"])
+        second = self.client.get(
+            "/api/promociones/mias",
+            params={"limit": 2, "cursor": first_body["next_cursor"]},
+        )
+        self.assertEqual(second.status_code, 200, second.text)
+        rows = first_body["items"] + second.json()["items"]
+        ids = [item["id"] for item in rows]
+        self.assertEqual(ids, [own[2].id, own[1].id, own[0].id])
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertTrue(all(
+            item["usuario_id"] == self.users["candidate"].id
+            for item in rows
+        ))
+
+    def test_invalid_pagination_inputs_are_controlled(self):
+        for path, params, expected in (
+            ("/api/promociones", {"page": 0}, 422),
+            ("/api/promociones", {"page_size": 0}, 422),
+            ("/api/promociones", {"page_size": 51}, 422),
+            ("/api/promociones/mias", {"limit": 0}, 422),
+            ("/api/promociones/mias", {"limit": 51}, 422),
+            ("/api/promociones/mias", {"cursor": "cursor-inválido"}, 400),
+        ):
+            with self.subTest(path=path, params=params):
+                response = self.client.get(path, params=params)
+                self.assertEqual(response.status_code, expected, response.text)
 
     def test_hiring_company_selector_only_returns_manager_roles(self):
         promotion = self._promotion(self.users["candidate"], "Backend")
@@ -322,6 +401,26 @@ class BoardIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 409, response.text)
         self.assertEqual(self.db.query(SolicitudContratacionPromocion).count(), 1)
+        self.assertEqual(self.db.query(Notificacion).count(), 0)
+        self.assertNotIn("uq_solicitud", response.text)
+        self.assertNotIn("INSERT INTO", response.text)
+        self.assertEqual(self.db.execute(text("SELECT 1")).scalar_one(), 1)
+
+    def test_missing_company_and_promotion_are_controlled(self):
+        promotion = self._promotion(self.users["candidate"], "Backend")
+        self.db.commit()
+        self.current_user = self.users["owner"]
+        missing_company = self.client.post(
+            f"/api/promociones/{promotion.id}/solicitudes-contratacion",
+            json={"empresa_id": 1_000_000},
+        )
+        missing_promotion = self.client.post(
+            "/api/promociones/1000000/solicitudes-contratacion",
+            json={"empresa_id": self.companies["owner"].id},
+        )
+        self.assertEqual(missing_company.status_code, 404, missing_company.text)
+        self.assertEqual(missing_promotion.status_code, 404, missing_promotion.text)
+        self.assertEqual(self.db.query(SolicitudContratacionPromocion).count(), 0)
 
     def test_my_promotion_exposes_pending_company_and_status(self):
         promotion = self._promotion(self.users["candidate"], "Backend")
@@ -344,6 +443,48 @@ class BoardIntegrationTests(unittest.TestCase):
             (self.companies["owner"].id, self.users["candidate"].id),
         )
         self.assertEqual(membership.rol, RolEmpresa.COLLABORATOR)
+
+    def test_acceptance_hides_promotion_but_preserves_internal_record(self):
+        promotion = self._promotion(self.users["candidate"], "Backend ocultable")
+        request = self._request(promotion)
+
+        accepted = self.client.post(
+            f"/api/solicitudes-contratacion-promocion/{request.id}/aceptar"
+        )
+        self.assertEqual(accepted.status_code, 200, accepted.text)
+
+        self.current_user = self.users["outsider"]
+        public = self.client.get("/api/promociones")
+        searched = self.client.get("/api/promociones", params={"q": "ocultable"})
+        self.assertNotIn(promotion.id, [item["id"] for item in public.json()["items"]])
+        self.assertEqual(searched.json()["items"], [])
+
+        self.current_user = self.users["candidate"]
+        mine = self.client.get("/api/promociones/mias")
+        self.assertIn(promotion.id, [item["id"] for item in mine.json()["items"]])
+        self.assertIsNotNone(self.db.get(Promocion, promotion.id))
+
+    def test_accepted_promotion_cannot_receive_more_requests(self):
+        promotion = self._promotion(self.users["candidate"], "Backend contratado")
+        request = self._request(promotion)
+        accepted = self.client.post(
+            f"/api/solicitudes-contratacion-promocion/{request.id}/aceptar"
+        )
+        self.assertEqual(accepted.status_code, 200, accepted.text)
+
+        self.current_user = self.users["owner"]
+        before = self.db.query(SolicitudContratacionPromocion).count()
+        blocked = self.client.post(
+            f"/api/promociones/{promotion.id}/solicitudes-contratacion",
+            json={"empresa_id": self.companies["owner"].id},
+        )
+        selector = self.client.get(
+            f"/api/promociones/{promotion.id}/empresas-contratantes"
+        )
+        self.assertEqual(blocked.status_code, 409, blocked.text)
+        self.assertEqual(selector.status_code, 409, selector.text)
+        self.assertIn("no está disponible", blocked.json()["message"])
+        self.assertEqual(self.db.query(SolicitudContratacionPromocion).count(), before)
 
     def test_another_user_cannot_accept_request(self):
         promotion = self._promotion(self.users["candidate"], "Backend")
@@ -415,6 +556,9 @@ class BoardIntegrationTests(unittest.TestCase):
         ))
         self.db.refresh(request)
         self.assertEqual(request.estado, EstadoSolicitudContratacionPromocion.PENDIENTE)
+        self.current_user = self.users["outsider"]
+        public = self.client.get("/api/promociones", params={"q": "Backend"})
+        self.assertIn(promotion.id, [item["id"] for item in public.json()["items"]])
 
     def test_existing_notification_endpoints_include_board_notification(self):
         promotion = self._promotion(self.users["candidate"], "Backend")
@@ -432,6 +576,41 @@ class BoardIntegrationTests(unittest.TestCase):
         self.assertEqual(listed.status_code, 200, listed.text)
         self.assertEqual(listed.json()[0]["tipo"], "CONTRATACION_PROMOCION")
         self.assertEqual(counted.json(), {"cantidad": 1})
+
+
+class BoardIntegrityMappingTests(unittest.TestCase):
+    def test_unknown_hiring_request_integrity_error_is_rolled_back_and_reraised(self):
+        db = Mock()
+        service = PromocionService(db)
+        service.repository = Mock()
+        service.repository.get_by_id.return_value = SimpleNamespace(
+            id=10,
+            usuario_id=20,
+        )
+        service.hiring_request_repository = Mock()
+        service.hiring_request_repository.get_accepted_for_promotion.return_value = None
+        service.hiring_request_repository.get_pending.return_value = None
+        unknown = integrity_error("unexpected_foreign_key")
+        service.hiring_request_repository.create.side_effect = unknown
+        service.company_repository = Mock()
+        service.company_repository.get_by_id.return_value = SimpleNamespace(
+            id=30,
+            nombre="Empresa",
+        )
+        service.membership_repository = Mock()
+        service.membership_repository.has_any_role.return_value = True
+        service.membership_repository.get_by_empresa_and_usuario.return_value = None
+
+        with self.assertRaises(IntegrityError) as raised:
+            service.create_hiring_request(
+                10,
+                CreateSolicitudContratacionPromocionDTO(empresa_id=30),
+                current_user_id=40,
+            )
+
+        self.assertIs(raised.exception, unknown)
+        db.rollback.assert_called_once_with()
+        db.commit.assert_not_called()
 
 
 @unittest.skipUnless(
@@ -480,6 +659,268 @@ class BoardPostgresTests(unittest.TestCase):
 
         self.assertEqual(total, 1)
         self.assertEqual([item.titulo for item in items], ["Desarrollador Backend"])
+
+    def test_postgresql_hides_accepted_latest_without_reviving_older_promotion(self):
+        company = Empresa(nombre=f"Board accepted {uuid4().hex}")
+        self.db.add(company)
+        self.db.flush()
+        latest = (
+            self.db.query(Promocion)
+            .filter(Promocion.usuario_id == self.users[0].id)
+            .order_by(Promocion.fecha_creacion.desc())
+            .first()
+        )
+        self.db.add(
+            SolicitudContratacionPromocion(
+                promocion_id=latest.id,
+                empresa_id=company.id,
+                solicitante_id=self.users[1].id,
+                estado=EstadoSolicitudContratacionPromocion.ACEPTADA,
+            )
+        )
+        self.db.flush()
+
+        items, total = PromocionRepository(self.db).get_public_page(
+            self.users[2].id,
+            title=None,
+            page=1,
+            page_size=20,
+        )
+
+        self.assertNotIn(latest.id, [item.id for item in items])
+        self.assertFalse(any(item.usuario_id == self.users[0].id for item in items))
+        self.assertEqual(total, 1)
+
+
+@unittest.skipUnless(
+    postgres_engine.dialect.name == "postgresql",
+    "Las carreras del Tablón requieren la PostgreSQL configurada.",
+)
+class BoardConcurrencyPostgresTests(unittest.TestCase):
+    def setUp(self):
+        suffix = uuid4().hex
+        with SessionLocal() as db:
+            owner = Usuario(
+                email=f"board-owner-{suffix}@example.com",
+                nombre=f"Board Owner {suffix}",
+                password_hash="not-used",
+                headline="Owner temporal del Tablón",
+                ciudad="Argentina, Buenos Aires",
+            )
+            candidate = Usuario(
+                email=f"board-candidate-{suffix}@example.com",
+                nombre=f"Board Candidate {suffix}",
+                password_hash="not-used",
+                headline="Candidate temporal del Tablón",
+                ciudad="Argentina, Córdoba",
+            )
+            outsider = Usuario(
+                email=f"board-outsider-{suffix}@example.com",
+                nombre=f"Board Outsider {suffix}",
+                password_hash="not-used",
+                headline="Outsider temporal del Tablón",
+                ciudad="Argentina, Rosario",
+            )
+            company = Empresa(
+                nombre=f"Board Company {suffix}",
+                industria="Pruebas de integración",
+            )
+            db.add_all([owner, candidate, outsider, company])
+            db.flush()
+            db.add(
+                EmpresaUsuario(
+                    empresa_id=company.id,
+                    usuario_id=owner.id,
+                    rol=RolEmpresa.OWNER,
+                )
+            )
+            promotion = Promocion(
+                usuario_id=candidate.id,
+                titulo=f"[ATANES-BOARD-TEST] {suffix}",
+                descripcion="Registro temporal para comprobar concurrencia.",
+            )
+            db.add(promotion)
+            db.commit()
+            self.owner_id = owner.id
+            self.owner_email = owner.email
+            self.candidate_id = candidate.id
+            self.outsider_id = outsider.id
+            self.company_id = company.id
+            self.promotion_id = promotion.id
+        self.user_ids = [self.owner_id, self.candidate_id, self.outsider_id]
+
+    def tearDown(self):
+        with SessionLocal() as db:
+            db.query(Notificacion).filter(
+                or_(
+                    Notificacion.usuario_id.in_(self.user_ids),
+                    Notificacion.usuario_origen_id.in_(self.user_ids),
+                    Notificacion.promocion_id == self.promotion_id,
+                )
+            ).delete(synchronize_session=False)
+            db.query(SolicitudContratacionPromocion).filter(
+                SolicitudContratacionPromocion.promocion_id == self.promotion_id
+            ).delete(synchronize_session=False)
+            db.query(EmpresaUsuario).filter(
+                EmpresaUsuario.empresa_id == self.company_id
+            ).delete(synchronize_session=False)
+            db.query(Promocion).filter(Promocion.id == self.promotion_id).delete(
+                synchronize_session=False
+            )
+            db.query(Empresa).filter(Empresa.id == self.company_id).delete(
+                synchronize_session=False
+            )
+            db.query(Usuario).filter(Usuario.id.in_(self.user_ids)).delete(
+                synchronize_session=False
+            )
+            db.commit()
+
+    def _pending_request(self) -> int:
+        with SessionLocal() as db:
+            request = SolicitudContratacionPromocion(
+                promocion_id=self.promotion_id,
+                empresa_id=self.company_id,
+                solicitante_id=self.owner_id,
+                estado=EstadoSolicitudContratacionPromocion.PENDIENTE,
+            )
+            db.add(request)
+            db.commit()
+            return request.id
+
+    def test_concurrent_duplicate_requests_return_one_created_and_one_safe_conflict(self):
+        barrier = Barrier(2)
+        token = create_access_token(
+            {"sub": str(self.owner_id), "email": self.owner_email}
+        )
+
+        def synchronized_missing(_repository, _promotion_id, _company_id):
+            barrier.wait(timeout=10)
+            return None
+
+        def send_request():
+            with TestClient(app) as client:
+                return client.post(
+                    f"/api/promociones/{self.promotion_id}/solicitudes-contratacion",
+                    headers={"Authorization": f"Bearer {token}"},
+                    json={"empresa_id": self.company_id},
+                )
+
+        with patch.object(
+            SolicitudContratacionPromocionRepository,
+            "get_pending",
+            autospec=True,
+            side_effect=synchronized_missing,
+        ):
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                responses = list(executor.map(lambda _index: send_request(), range(2)))
+
+        self.assertEqual(sorted(response.status_code for response in responses), [201, 409])
+        conflict = next(response for response in responses if response.status_code == 409)
+        self.assertIn("propuesta pendiente", conflict.json()["message"])
+        self.assertNotIn("uq_solicitud", conflict.text)
+        self.assertNotIn("INSERT INTO", conflict.text)
+        with SessionLocal() as db:
+            self.assertEqual(
+                db.query(SolicitudContratacionPromocion)
+                .filter_by(promocion_id=self.promotion_id, empresa_id=self.company_id)
+                .count(),
+                1,
+            )
+            self.assertEqual(
+                db.query(Notificacion)
+                .filter_by(
+                    usuario_id=self.candidate_id,
+                    promocion_id=self.promotion_id,
+                    tipo="CONTRATACION_PROMOCION",
+                )
+                .count(),
+                1,
+            )
+            self.assertEqual(db.execute(text("SELECT 1")).scalar_one(), 1)
+
+    def test_concurrent_double_acceptance_has_one_effect(self):
+        request_id = self._pending_request()
+        barrier = Barrier(2)
+
+        def accept_request(_index):
+            with SessionLocal() as db:
+                barrier.wait(timeout=10)
+                try:
+                    PromocionService(db).accept_hiring_request(
+                        request_id,
+                        self.candidate_id,
+                    )
+                    return "accepted"
+                except ConflictError:
+                    return "conflict"
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            outcomes = list(executor.map(accept_request, range(2)))
+
+        self.assertCountEqual(outcomes, ["accepted", "conflict"])
+        with SessionLocal() as db:
+            request = db.get(SolicitudContratacionPromocion, request_id)
+            membership = db.get(
+                EmpresaUsuario,
+                (self.company_id, self.candidate_id),
+            )
+            self.assertEqual(request.estado, EstadoSolicitudContratacionPromocion.ACEPTADA)
+            self.assertEqual(membership.rol, RolEmpresa.COLLABORATOR)
+            self.assertEqual(
+                db.query(EmpresaUsuario)
+                .filter_by(empresa_id=self.company_id, usuario_id=self.candidate_id)
+                .count(),
+                1,
+            )
+
+    def test_concurrent_membership_insert_is_recovered_and_preserves_role(self):
+        request_id = self._pending_request()
+        with SessionLocal() as db:
+            service = PromocionService(db)
+            original_get = service.membership_repository.get_by_empresa_and_usuario
+            first_lookup = True
+
+            def get_with_concurrent_insert(empresa_id, usuario_id):
+                nonlocal first_lookup
+                if first_lookup:
+                    first_lookup = False
+                    with SessionLocal() as concurrent_db:
+                        concurrent_db.add(
+                            EmpresaUsuario(
+                                empresa_id=empresa_id,
+                                usuario_id=usuario_id,
+                                rol=RolEmpresa.RECRUITER,
+                            )
+                        )
+                        concurrent_db.commit()
+                    return None
+                return original_get(empresa_id, usuario_id)
+
+            service.membership_repository.get_by_empresa_and_usuario = (
+                get_with_concurrent_insert
+            )
+            result = service.accept_hiring_request(request_id, self.candidate_id)
+            self.assertEqual(result.estado, EstadoSolicitudContratacionPromocion.ACEPTADA)
+
+        with SessionLocal() as db:
+            membership = db.get(
+                EmpresaUsuario,
+                (self.company_id, self.candidate_id),
+            )
+            self.assertEqual(membership.rol, RolEmpresa.RECRUITER)
+            self.assertEqual(
+                db.query(EmpresaUsuario)
+                .filter_by(empresa_id=self.company_id, usuario_id=self.candidate_id)
+                .count(),
+                1,
+            )
+            visible, _total = PromocionRepository(db).get_public_page(
+                self.outsider_id,
+                title=None,
+                page=1,
+                page_size=50,
+            )
+            self.assertNotIn(self.promotion_id, [promotion.id for promotion in visible])
 
 
 if __name__ == "__main__":

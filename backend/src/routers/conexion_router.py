@@ -89,13 +89,3 @@ def update_conexion(
         current_user.id,
     )
     return ConexionMapper.to_response_schema(conexion)
-
-
-@router.delete("/{usuario_a}/{usuario_b}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_conexion(
-    usuario_a: int,
-    usuario_b: int,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
-):
-    ConexionService(db).delete(usuario_a, usuario_b, current_user.id)
