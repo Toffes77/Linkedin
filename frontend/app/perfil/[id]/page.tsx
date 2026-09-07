@@ -23,7 +23,7 @@ const connectionLabels = {
   SIN_CONEXION: "Conectar",
   PENDIENTE_ENVIADA: "Pendiente",
   PENDIENTE_RECIBIDA: "Aceptar conexión",
-  CONECTADO: "Conectado",
+  CONECTADO: "Desconectar",
   RECHAZADA: "Solicitud rechazada",
 } as const;
 
@@ -82,7 +82,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
   async function handleConnection() {
     if (!current || !profile || !connectionStatus) return;
-    if (connectionStatus.estado !== "SIN_CONEXION" && connectionStatus.estado !== "PENDIENTE_RECIBIDA") return;
+    if (!["SIN_CONEXION", "PENDIENTE_RECIBIDA", "CONECTADO"].includes(connectionStatus.estado)) return;
 
     setConnectionBusy(true);
     setError("");
@@ -90,6 +90,10 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       if (connectionStatus.estado === "SIN_CONEXION") {
         await connectionsApi.create(current.id, profile.id);
         setConnectionStatus({ estado: "PENDIENTE_ENVIADA", usuario_a: current.id, usuario_b: profile.id });
+      } else if (connectionStatus.estado === "CONECTADO" && connectionStatus.usuario_a !== null && connectionStatus.usuario_b !== null) {
+        if (!window.confirm("¿Querés desconectarte de esta persona?")) return;
+        await connectionsApi.remove(connectionStatus.usuario_a, connectionStatus.usuario_b);
+        setConnectionStatus({ estado: "SIN_CONEXION", usuario_a: null, usuario_b: null });
       } else if (connectionStatus.usuario_a !== null && connectionStatus.usuario_b !== null) {
         await connectionsApi.respond(connectionStatus.usuario_a, connectionStatus.usuario_b, "aceptada");
         setConnectionStatus({ ...connectionStatus, estado: "CONECTADO" });
@@ -116,7 +120,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
     }
   }
 
-  const canActOnConnection = connectionStatus?.estado === "SIN_CONEXION" || connectionStatus?.estado === "PENDIENTE_RECIBIDA";
+  const canActOnConnection = connectionStatus?.estado === "SIN_CONEXION" || connectionStatus?.estado === "PENDIENTE_RECIBIDA" || connectionStatus?.estado === "CONECTADO";
   const connectionLabel = connectionBusy ? "Actualizando..." : connectionStatus ? connectionLabels[connectionStatus.estado] : "Cargando...";
 
   return (

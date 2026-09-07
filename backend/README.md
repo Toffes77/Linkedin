@@ -9,7 +9,7 @@ La documentación principal de instalación, variables de entorno, base de datos
 Desde `backend/`:
 
 ```bash
-python -m venv .venv
+python -m venv venv
 pip install -r requirements.txt
 ```
 

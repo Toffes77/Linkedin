@@ -208,6 +208,31 @@ class ConexionService:
             raise
         return ConexionMapper.to_response_dto(conexion_actualizada)
 
+    def delete(
+        self,
+        usuario_a: int,
+        usuario_b: int,
+        usuario_autenticado_id: int,
+    ) -> None:
+        try:
+            conexion = self.repository.get_by_id_for_update(usuario_a, usuario_b)
+            if conexion is None:
+                raise NotFoundError("Conexión no encontrada.")
+
+            if usuario_autenticado_id not in (conexion.usuario_a, conexion.usuario_b):
+                raise ForbiddenError(
+                    "Solo los usuarios de la conexión pueden eliminarla."
+                )
+
+            if conexion.estado != "aceptada":
+                raise ConflictError("Solo se pueden eliminar conexiones aceptadas.")
+
+            self.repository.delete(conexion, commit=False)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+
     def _validar_usuario(self, usuario_id: int) -> None:
         self._obtener_usuario(usuario_id)
 

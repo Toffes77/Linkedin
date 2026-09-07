@@ -207,3 +207,8 @@ class ConexionRepository:
         else:
             self.db.flush()
         return conexion
+
+    def delete(self, conexion: Conexion, *, commit: bool = True) -> None:
+        self.db.delete(conexion)
+        if commit:
+            self.db.commit()
