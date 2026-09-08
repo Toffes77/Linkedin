@@ -13,7 +13,7 @@ import {
   type Company,
   type Job,
 } from "@/lib/api";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDateArgentina } from "@/lib/format";
 
 export default function JobsPage() {
   const { user } = useAuth();
@@ -186,7 +186,7 @@ export default function JobsPage() {
                           `Empresa ${job.empresa_id}`}
                       </strong>
                       <p>{job.descripcion}</p>
-                      <small>{formatDate(job.fecha_publicacion)}</small>
+                      <small>{formatDateArgentina(job.fecha_publicacion)}</small>
                     </div>
                   </Link>
                 ))

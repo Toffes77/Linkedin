@@ -18,7 +18,7 @@ import {
   type User,
 } from "@/lib/api";
 import { emitConnectionChanged } from "@/lib/connection-events";
-import { formatMonth } from "@/lib/format";
+import { formatDateArgentina } from "@/lib/format";
 
 const connectionLabels = {
   SIN_CONEXION: "Conectar",
@@ -205,7 +205,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
             <section className="card profile-section"><h2>Acerca de</h2><p>{profile.headline}</p></section>
             <section className="card profile-section">
               <h2>Experiencia</h2>
-              {profile.experiencias.length ? profile.experiencias.map((experience) => <article className="experience-row" key={experience.id}><span className="company-placeholder">{companies[experience.empresa_id]?.nombre.slice(0, 1) ?? "E"}</span><div><h3>{experience.puesto}</h3>{companies[experience.empresa_id] ? <Link href={`/empresas/${experience.empresa_id}`}>{companies[experience.empresa_id].nombre}</Link> : <span>Empresa #{experience.empresa_id}</span>}<p>{formatMonth(experience.desde)} – {formatMonth(experience.hasta)}</p></div></article>) : <p className="muted">Todavía no agregó experiencias.</p>}
+              {profile.experiencias.length ? profile.experiencias.map((experience) => <article className="experience-row" key={experience.id}><span className="company-placeholder">{companies[experience.empresa_id]?.nombre.slice(0, 1) ?? "E"}</span><div><h3>{experience.puesto}</h3>{companies[experience.empresa_id] ? <Link href={`/empresas/${experience.empresa_id}`}>{companies[experience.empresa_id].nombre}</Link> : <span>Empresa #{experience.empresa_id}</span>}<p>{formatDateArgentina(experience.desde)} – {formatDateArgentina(experience.hasta)}</p></div></article>) : <p className="muted">Todavía no agregó experiencias.</p>}
             </section>
             <section className="profile-posts">
               <h2>Publicaciones</h2>
