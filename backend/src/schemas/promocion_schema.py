@@ -73,7 +73,7 @@ class GetPromocionSchema(BaseModel):
 
 
 class GetPromocionesPaginadasSchema(BaseModel):
-    """Página tradicional de promociones públicas con total."""
+    """Página del tablón visible para usuarios autenticados, con total."""
 
     items: list[GetPromocionSchema]
     page: int

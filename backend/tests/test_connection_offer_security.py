@@ -517,7 +517,6 @@ class PrivateOfferVisibilityTests(unittest.TestCase):
             "/api/postulaciones",
             json={
                 "oferta_id": self.draft_offer.id,
-                "usuario_id": self.other_candidate.id,
             },
         )
         self.assertEqual(response.status_code, 409, response.text)
@@ -545,7 +544,6 @@ class PrivateOfferVisibilityTests(unittest.TestCase):
             "/api/postulaciones",
             json={
                 "oferta_id": self.hiring_offer.id,
-                "usuario_id": self.other_candidate.id,
             },
         )
         self.assertEqual(rejected.status_code, 409, rejected.text)

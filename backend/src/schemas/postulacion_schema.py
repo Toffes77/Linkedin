@@ -16,8 +16,11 @@ EstadoPostulacion = Literal[
 class CreatePostulacionSchema(BaseModel):
     """Postulación del usuario autenticado a una oferta publicada."""
 
-    oferta_id: int = Field(description="Oferta publicada a la que se postula.")
-    usuario_id: int = Field(description="Usuario postulante; debe coincidir con la identidad autenticada.")
+    model_config = ConfigDict(extra="forbid")
+
+    oferta_id: int = Field(
+        description="Oferta publicada a la que se postula."
+    )
 
 
 class UpdatePostulacionSchema(BaseModel):

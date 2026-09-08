@@ -170,6 +170,28 @@ class BoardIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 401, response.text)
 
+    def test_board_promotions_remain_authenticated_even_when_visible_to_users(self):
+        del app.dependency_overrides[get_current_user]
+        response = self.client.get("/api/promociones")
+        self.assertEqual(response.status_code, 401, response.text)
+
+    def test_openapi_keeps_board_auth_and_removes_application_user_id(self):
+        schema = app.openapi()
+        application_body = schema["components"]["schemas"]["CreatePostulacionSchema"]
+        board_operation = schema["paths"]["/api/promociones"]["get"]
+
+        self.assertNotIn("usuario_id", application_body["properties"])
+        self.assertFalse(application_body["additionalProperties"])
+        self.assertIn("usuarios autenticados", board_operation["description"])
+        self.assertIn("No es un acceso anónimo desde Internet", board_operation["description"])
+        self.assertEqual(
+            board_operation["security"],
+            [{"HTTPBearer": []}, {"cookieAuth": []}],
+        )
+        self.assertIn("/api/experiencias/{experiencia_id}", schema["paths"])
+        self.assertIn("put", schema["paths"]["/api/experiencias/{experiencia_id}"])
+        self.assertIn("delete", schema["paths"]["/api/experiencias/{experiencia_id}"])
+
     def test_blank_title_and_description_are_rejected(self):
         for blank in ("", " ", "\t", "\n"):
             for field in ("titulo", "descripcion"):
@@ -650,7 +672,7 @@ class BoardPostgresTests(unittest.TestCase):
         self.connection.close()
 
     def test_postgresql_ranks_before_search_excludes_own_and_paginates(self):
-        items, total = PromocionRepository(self.db).get_public_page(
+        items, total = PromocionRepository(self.db).get_board_page(
             self.users[2].id,
             title="desarrollador",
             page=1,
@@ -680,7 +702,7 @@ class BoardPostgresTests(unittest.TestCase):
         )
         self.db.flush()
 
-        items, total = PromocionRepository(self.db).get_public_page(
+        items, total = PromocionRepository(self.db).get_board_page(
             self.users[2].id,
             title=None,
             page=1,
@@ -914,7 +936,7 @@ class BoardConcurrencyPostgresTests(unittest.TestCase):
                 .count(),
                 1,
             )
-            visible, _total = PromocionRepository(db).get_public_page(
+            visible, _total = PromocionRepository(db).get_board_page(
                 self.outsider_id,
                 title=None,
                 page=1,

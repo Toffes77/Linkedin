@@ -46,21 +46,22 @@ def create_promotion(
 @router.get(
     "/promociones",
     response_model=GetPromocionesPaginadasSchema,
-    summary="Listar promociones públicas",
+    summary="Listar promociones del tablón",
     description=(
-        "Lista promociones disponibles para contratación con paginación tradicional. "
-        "Requiere autenticación para excluir la propia promoción y calcular disponibilidad."
+        "Lista promociones visibles en el tablón para usuarios autenticados, con "
+        "paginación tradicional. No es un acceso anónimo desde Internet: requiere "
+        "autenticación para excluir la propia promoción y calcular disponibilidad."
     ),
     responses=error_responses(401),
 )
-def get_public_promotions(
+def get_board_promotions(
     q: str | None = Query(default=None, description="Filtro opcional por título."),
     page: int = Query(default=1, ge=1, description="Número de página, comenzando en 1."),
     page_size: int = Query(default=10, ge=1, le=50, description="Cantidad por página (1 a 50)."),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
-    result = PromocionService(db).get_public_page(
+    result = PromocionService(db).get_board_page(
         current_user.id,
         q=q,
         page=page,

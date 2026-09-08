@@ -28,8 +28,10 @@ router = APIRouter(tags=["postulaciones"])
     status_code=status.HTTP_201_CREATED,
     summary="Crear postulación",
     description=(
-        "Postula al usuario autenticado a una oferta publicada. No puede postularse "
-        "a ofertas de una empresa a la que ya pertenece ni más de una vez a la misma oferta."
+        "Postula al usuario autenticado a una oferta publicada. El body solo recibe "
+        "oferta_id: la identidad postulante se obtiene del JWT o cookie de sesión. "
+        "No puede postularse a ofertas de una empresa a la que ya pertenece ni más "
+        "de una vez a la misma oferta."
     ),
     responses=error_responses(401, 404, 409),
 )

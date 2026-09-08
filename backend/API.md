@@ -57,7 +57,7 @@ next_cursor: string | null
 has_more: boolean
 ```
 
-Cuando `has_more` es `true`, enviar `next_cursor` sin modificarlo y conservar los mismos filtros. Los cursores están ligados al recurso, usuario y filtros de la consulta; un cursor inválido o usado con otro filtro devuelve `400`. Los endpoints de comentarios, ofertas y postulaciones usan cursor; mensajes, notificaciones y publicaciones por autor usan `limit`/`offset`; promociones públicas usa `page`/`page_size`.
+Cuando `has_more` es `true`, enviar `next_cursor` sin modificarlo y conservar los mismos filtros. Los cursores están ligados al recurso, usuario y filtros de la consulta; un cursor inválido o usado con otro filtro devuelve `400`. Los endpoints de comentarios, ofertas y postulaciones usan cursor; mensajes, notificaciones y publicaciones por autor usan `limit`/`offset`; el tablón de promociones usa `page`/`page_size`.
 
 ### Roles de empresa
 
@@ -221,7 +221,21 @@ Respuestas:
 - `409`: período solapado con otra experiencia del usuario en la misma empresa.
 - `422`: fechas o body inválidos.
 
-El código actual no publica endpoints de actualización o eliminación de experiencias, aunque existen schemas/services internos para esas operaciones.
+### `PUT /api/experiencias/{experiencia_id}` — Editar experiencia
+
+Autenticación: **requerida**; solo el propietario de la experiencia.
+
+Path `experiencia_id`: experiencia propia a modificar.
+
+Body `UpdateExperienciaSchema`: `empresa_id`, `puesto`, `desde` y `hasta`, todos opcionales. Los campos enviados reemplazan el valor existente; `hasta: null` deja la experiencia vigente. La empresa debe existir y el período final no puede ser anterior al inicial ni solaparse con otra experiencia del usuario en la misma empresa.
+
+Respuestas: `200` `GetExperienciaSchema`; `401` autenticación ausente o inválida; `403` la experiencia pertenece a otro usuario; `404` experiencia o empresa inexistente; `409` período solapado; `422` body/path inválidos.
+
+### `DELETE /api/experiencias/{experiencia_id}` — Eliminar experiencia
+
+Autenticación: **requerida**; solo el propietario de la experiencia.
+
+Respuesta `204` sin body; `401` autenticación ausente o inválida; `403` la experiencia pertenece a otro usuario; `404` experiencia inexistente.
 
 ## Empresas, miembros y roles
 
@@ -408,7 +422,7 @@ Campos:
 - `texto` opcional, default vacío, máximo 3000 caracteres.
 - `archivos` opcional y repetible: JPG/JPEG/PNG/WEBP, MP4 o WEBM.
 
-Límites actuales: máximo 10 archivos, 150 MiB totales, 5 MiB por imagen y 50 MiB por video. Debe existir texto no vacío o al menos un archivo. Respuestas: `201` `GetPublicacionSchema`; `400` archivo o contenido inválido; `401` sin autenticación; `422` formulario inválido.
+Límites actuales: máximo 10 archivos, 150 MiB totales, 5 MiB por imagen y 50 MiB por video. Debe existir texto válido o al menos un archivo; el texto formado únicamente por whitespace se rechaza. Para una publicación solo multimedia se envía el campo `texto` vacío o se omite, y se persiste `texto` como cadena vacía, nunca `null`. Respuestas: `201` `GetPublicacionSchema`; `400` archivo o contenido inválido; `401` sin autenticación; `422` formulario inválido.
 
 ### `GET /api/publicaciones/{publicacion_id}` — Detalle de publicación
 
@@ -420,9 +434,9 @@ Respuesta `200`: `GetPublicacionCardSchema`; `401` autenticación ausente o inv�
 
 Autenticación: **requerida**, solo el autor.
 
-Body `UpdatePublicacionSchema`: `texto` opcional (1 a 3000). Si se omite, no se modifica.
+Body `UpdatePublicacionSchema`: `texto` opcional (1 a 3000) o `null`. Si se omite, no se modifica. Si se envía `null`, se transforma en texto vacío y solo es válido si la publicación conserva al menos un elemento multimedia; sin multimedia se devuelve `400`. El texto solo whitespace no es válido.
 
-Respuestas: `200` `GetPublicacionSchema`; `401` sin autenticación; `403` no es el autor; `404` publicación inexistente; `422` body/path inválidos.
+Respuestas: `200` `GetPublicacionSchema`; `400` la publicación quedaría sin texto ni multimedia; `401` sin autenticación; `403` no es el autor; `404` publicación inexistente; `422` body/path inválidos.
 
 ### `PUT /api/publicaciones/{publicacion_id}/multimedia` — Editar texto y multimedia
 
@@ -584,9 +598,9 @@ Estados válidos: `nueva`, `vista`, `entrevista`, `contratado`, `rechazada`. Tra
 
 ### `POST /api/postulaciones` — Crear postulación
 
-Autenticación: **requerida**. El usuario postulante se toma de la identidad autenticada; el body solo aporta `oferta_id` aunque el schema conserva `usuario_id` por compatibilidad.
+Autenticación: **requerida**. El usuario postulante se toma exclusivamente de la identidad autenticada mediante JWT Bearer o cookie HttpOnly.
 
-Body `CreatePostulacionSchema`: `oferta_id` y `usuario_id` (el segundo se ignora y se reemplaza por el usuario autenticado).
+Body `CreatePostulacionSchema`: únicamente `oferta_id`. `usuario_id` no forma parte del contrato público; si un cliente lo envía como campo extra, se rechaza con `422` y nunca puede elegir al postulante.
 
 Respuestas: `201` `GetPostulacionSchema`; `401` sin autenticación; `404` usuario/oferta inexistente; `409` oferta no publicada, usuario ya miembro o postulación duplicada; `422` body inválido.
 
@@ -626,9 +640,9 @@ Body `CreatePromocionSchema`: `titulo` (1–160) y `descripcion` (1–3000); no 
 
 Respuestas: `201` `GetPromocionSchema`; `401` sin autenticación; `422` body inválido.
 
-### `GET /api/promociones` — Listar promociones públicas
+### `GET /api/promociones` — Listar promociones del tablón
 
-Autenticación: **requerida**. La ruta se llama pública por el alcance de las promociones, pero el código exige un usuario autenticado para excluir su propia promoción y resolver disponibilidad.
+Autenticación: **requerida**. Son promociones visibles para usuarios autenticados dentro de Atanes; “públicas” no significa acceso anónimo desde Internet. El usuario autenticado se utiliza para excluir su propia promoción y resolver disponibilidad.
 
 Query `q` opcional por título, `page` default `1`, `page_size` default `10` máximo `50`.
 
@@ -751,8 +765,9 @@ No requieren un JWT adicional. Un archivo inexistente devuelve el error estánda
 
 ## Observaciones del contrato actual
 
-- `UpdatePublicacionSchema` tipa `texto` como nullable, pero la columna persistida `publicacion.texto` es `NOT NULL`. Omitir `texto` funciona como actualización parcial; enviar explícitamente `"texto": null` puede terminar en un error de persistencia no controlado. No se modificó esa lógica porque esta tarea es documental.
-- Aunque existen métodos y schemas internos para actualizar o eliminar experiencias, no hay rutas HTTP actuales para esas operaciones.
+- Las publicaciones solo multimedia persisten `texto=""` porque la columna `publicacion.texto` sigue siendo `NOT NULL`; el Service valida que siempre haya texto no whitespace o al menos un archivo multimedia antes de crear o actualizar.
+- La identidad de una postulación siempre se toma del usuario autenticado. El response sí incluye `usuario_id` para identificar al postulante, pero el request de creación no lo recibe como campo de negocio.
+- El `GET /api/promociones` requiere autenticación: “públicas” describe visibilidad dentro del tablón para usuarios de Atanes, no anonimato.
 
 ## Health check
 

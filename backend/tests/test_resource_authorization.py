@@ -290,6 +290,54 @@ class ResourceAuthorizationTests(unittest.TestCase):
 
         self.assertIsNotNone(self.db.get(Experiencia, foreign_id))
 
+    def test_experience_routes_allow_owner_update_and_delete(self):
+        created = self.client.post(
+            f"/api/usuarios/{self.applicant_a.id}/experiencias",
+            json=self._experience_payload(self.company.id),
+        )
+        self.assertEqual(created.status_code, 201, created.text)
+        experience_id = created.json()["id"]
+
+        updated = self.client.put(
+            f"/api/experiencias/{experience_id}",
+            json={"puesto": "Senior Developer"},
+        )
+        self.assertEqual(updated.status_code, 200, updated.text)
+        self.assertEqual(updated.json()["puesto"], "Senior Developer")
+
+        deleted = self.client.delete(f"/api/experiencias/{experience_id}")
+        self.assertEqual(deleted.status_code, 204, deleted.text)
+        self.assertIsNone(self.db.get(Experiencia, experience_id))
+
+    def test_experience_routes_reject_foreign_and_missing_experiences(self):
+        foreign = Experiencia(
+            usuario_id=self.applicant_b.id,
+            empresa_id=self.company.id,
+            puesto="Original",
+            desde=date(2022, 1, 1),
+            hasta=date(2022, 12, 31),
+        )
+        self.db.add(foreign)
+        self.db.commit()
+
+        update_foreign = self.client.put(
+            f"/api/experiencias/{foreign.id}",
+            json={"puesto": "Alterada"},
+        )
+        delete_foreign = self.client.delete(f"/api/experiencias/{foreign.id}")
+        missing_id = foreign.id + 1_000_000
+        update_missing = self.client.put(
+            f"/api/experiencias/{missing_id}",
+            json={"puesto": "Inexistente"},
+        )
+        delete_missing = self.client.delete(f"/api/experiencias/{missing_id}")
+
+        self.assertEqual(update_foreign.status_code, 403, update_foreign.text)
+        self.assertEqual(delete_foreign.status_code, 403, delete_foreign.text)
+        self.assertEqual(update_missing.status_code, 404, update_missing.text)
+        self.assertEqual(delete_missing.status_code, 404, delete_missing.text)
+        self.assertEqual(self.db.get(Experiencia, foreign.id).puesto, "Original")
+
     def test_experience_date_company_and_overlap_validations_remain_active(self):
         invalid_dates = self.client.post(
             f"/api/usuarios/{self.applicant_a.id}/experiencias",

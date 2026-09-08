@@ -214,7 +214,7 @@ class KnownIntegrityConflictEndpointTests(unittest.TestCase):
         ):
             response = self.client.post(
                 "/api/postulaciones",
-                json={"oferta_id": 3, "usuario_id": 999},
+                json={"oferta_id": 3},
             )
 
         self.assert_safe_conflict(response, "ya se postuló")

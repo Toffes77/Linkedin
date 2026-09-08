@@ -67,7 +67,7 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
   async function apply() {
     if (!user || membershipCheck !== "ready" || myRole !== undefined) return;
     setBusy(true); setMessage("");
-    try { await jobsApi.apply(id, user.id); setApplied(true); setMessage("Postulación enviada correctamente."); }
+    try { await jobsApi.apply(id); setApplied(true); setMessage("Postulación enviada correctamente."); }
     catch (cause) { setMessage(cause instanceof Error ? cause.message : "No se pudo enviar la postulación"); }
     finally { setBusy(false); }
   }

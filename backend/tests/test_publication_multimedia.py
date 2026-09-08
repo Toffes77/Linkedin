@@ -159,6 +159,62 @@ class PublicationMultimediaApiTests(unittest.TestCase):
         self.assertEqual([item["tipo"] for item in body["multimedia"]], ["IMAGEN", "VIDEO", "IMAGEN"])
         self.assertEqual([item["orden"] for item in body["multimedia"]], [0, 1, 2])
 
+    def test_update_null_text_is_safe_for_a_media_only_publication(self):
+        created = self._create_media_post(
+            [("media-only.png", png_bytes(), "image/png")]
+        ).json()
+
+        response = self.client.put(
+            f"/api/publicaciones/{created['id']}",
+            json={"texto": None},
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["texto"], "")
+        self.assertEqual(self.db.get(Publicacion, created["id"]).texto, "")
+
+    def test_update_null_text_without_media_is_rejected_without_a_500(self):
+        created = self.client.post(
+            "/api/publicaciones",
+            json={"texto": "Publicación con texto"},
+        ).json()
+
+        response = self.client.put(
+            f"/api/publicaciones/{created['id']}",
+            json={"texto": None},
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(self.db.get(Publicacion, created["id"]).texto, "Publicación con texto")
+
+    def test_update_whitespace_only_text_is_rejected(self):
+        created = self.client.post(
+            "/api/publicaciones",
+            json={"texto": "Texto válido"},
+        ).json()
+
+        response = self.client.put(
+            f"/api/publicaciones/{created['id']}",
+            json={"texto": " \t\n "},
+        )
+
+        self.assertEqual(response.status_code, 422, response.text)
+
+    def test_multimedia_update_rejects_whitespace_text_even_with_media(self):
+        created = self._create_media_post(
+            [("media.png", png_bytes(), "image/png")]
+        ).json()
+
+        response = self.client.put(
+            f"/api/publicaciones/{created['id']}/multimedia",
+            data={
+                "texto": " \t ",
+                "conservar_multimedia_id": str(created["multimedia"][0]["id"]),
+            },
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+
     def test_invalid_files_and_empty_publications_are_rejected(self):
         invalid = self._create_media_post(
             [("not-video.mp4", b"plain text", "video/mp4")]

@@ -36,7 +36,7 @@ class PromocionRepository:
             .first()
         )
 
-    def get_public_page(
+    def get_board_page(
         self,
         current_user_id: int,
         *,

@@ -127,10 +127,7 @@ class ApplicationMembershipIntegrationTests(unittest.TestCase):
         target = offer or self.offer
         return self.client.post(
             "/api/postulaciones",
-            json={
-                "oferta_id": target.id,
-                "usuario_id": self.owner.id,
-            },
+            json={"oferta_id": target.id},
         )
 
     def _assert_member_is_blocked(self, user: Usuario) -> None:
@@ -161,16 +158,32 @@ class ApplicationMembershipIntegrationTests(unittest.TestCase):
     def test_collaborator_cannot_apply_to_own_company_offer(self):
         self._assert_member_is_blocked(self.collaborator)
 
-    def test_external_user_can_apply_and_body_user_id_is_ignored(self):
+    def test_external_user_can_apply_without_a_user_id_in_the_body(self):
         response = self._apply_as(self.external)
 
         self.assertEqual(response.status_code, 201, response.text)
-        self.assertEqual(response.json()["usuario_id"], self.external.id)
         self.assertIsNotNone(
             self.db.query(Postulacion)
             .filter(
                 Postulacion.oferta_id == self.offer.id,
                 Postulacion.usuario_id == self.external.id,
+            )
+            .first()
+        )
+
+    def test_application_cannot_be_created_for_another_user_by_manipulating_body(self):
+        self.current_user = self.external
+        response = self.client.post(
+            "/api/postulaciones",
+            json={"oferta_id": self.offer.id, "usuario_id": self.owner.id},
+        )
+
+        self.assertEqual(response.status_code, 422, response.text)
+        self.assertIsNone(
+            self.db.query(Postulacion)
+            .filter(
+                Postulacion.oferta_id == self.offer.id,
+                Postulacion.usuario_id == self.owner.id,
             )
             .first()
         )
@@ -185,7 +198,7 @@ class ApplicationMembershipIntegrationTests(unittest.TestCase):
         self.current_user = self.external
         response = self.client.post(
             "/api/postulaciones",
-            json={"oferta_id": 2_147_483_647, "usuario_id": self.owner.id},
+            json={"oferta_id": 2_147_483_647},
         )
 
         self.assertEqual(response.status_code, 404, response.text)

@@ -28,12 +28,26 @@ class CreateExperienciaSchema(BaseModel):
 
 
 class UpdateExperienciaSchema(BaseModel):
-    """Schema interno para actualización; actualmente no está expuesto por un router."""
+    """Campos opcionales para editar una experiencia propia."""
 
-    empresa_id: int | None = None
-    puesto: str | None = Field(default=None, min_length=1, max_length=100)
-    desde: date | None = None
-    hasta: date | None = None
+    empresa_id: int | None = Field(
+        default=None,
+        description="Nueva empresa asociada; si se envía, debe existir.",
+    )
+    puesto: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+        description="Nuevo puesto o rol desempeñado.",
+    )
+    desde: date | None = Field(
+        default=None,
+        description="Nueva fecha de inicio, inclusive.",
+    )
+    hasta: date | None = Field(
+        default=None,
+        description="Nueva fecha de finalización; null deja la experiencia vigente.",
+    )
 
     @field_validator("puesto", mode="before")
     @classmethod
@@ -51,7 +65,7 @@ class UpdateExperienciaSchema(BaseModel):
 
 
 class DeleteExperienciaSchema(BaseModel):
-    """Schema interno para eliminación; actualmente no está expuesto por un router."""
+    """Identificador histórico de una experiencia a eliminar."""
 
     id: int
 

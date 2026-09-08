@@ -54,7 +54,7 @@ class PromocionService:
         )
         return PromocionMapper.to_response_dto(promotion)
 
-    def get_public_page(
+    def get_board_page(
         self,
         current_user_id: int,
         *,
@@ -63,7 +63,7 @@ class PromocionService:
         page_size: int,
     ) -> PromocionesPaginadasDTO:
         title = q.strip() if q and q.strip() else None
-        promotions, total = self.repository.get_public_page(
+        promotions, total = self.repository.get_board_page(
             current_user_id,
             title=title,
             page=page,

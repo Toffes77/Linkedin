@@ -334,9 +334,14 @@ a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,
 .experience-row { display:flex; gap:18px; padding:16px 0; border-bottom:1px solid #eee; }
 .company-placeholder { width:52px; height:52px; flex:none; display:flex; align-items:center; justify-content:center; background:var(--atanes-light); color:var(--atanes-dark); font-size:25px; font-weight:700; }
 .company-placeholder.large { width:86px; height:86px; font-size:38px; }
+.experience-row-content { flex:1; min-width:0; }
 .experience-row h3 { margin:0 0 4px; }
 .experience-row a { color:var(--atanes-dark); }
 .experience-row p { color:var(--muted); margin:5px 0; }
+.experience-actions,.experience-form-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.experience-delete-confirm { display:flex; align-items:center; gap:8px; flex-wrap:wrap; color:#404040; font-size:14px; }
+.profile-edit-experiences { margin-top:28px; }
+.profile-edit-experiences h2 { margin-bottom:4px; }
 .profile-skeleton { height:500px; }
 .settings-layout { width:100%; max-width:1050px; min-width:0; margin:auto; display:grid; grid-template-columns:300px minmax(0,1fr); gap:20px; }
 .settings-layout>* { min-width:0; }

@@ -23,7 +23,7 @@ class CreatePublicacionMultimediaDTO(BaseModel):
     @field_validator("texto", mode="before")
     @classmethod
     def normalizar_texto(cls, value):
-        return "" if value is None else str(value).strip()
+        return "" if value is None else str(value)
 
 
 class UpdatePublicacionDTO(BaseModel):
@@ -41,7 +41,7 @@ class UpdatePublicacionMultimediaDTO(BaseModel):
     @field_validator("texto", mode="before")
     @classmethod
     def normalizar_texto(cls, value):
-        return "" if value is None else str(value).strip()
+        return "" if value is None else str(value)
 
 
 class DeletePublicacionDTO(BaseModel):

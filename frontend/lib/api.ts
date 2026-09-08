@@ -116,6 +116,8 @@ export const usersApi = {
   password: (password_actual: string, password_nueva: string) => apiFetch<{ message: string }>("/api/usuarios/me/password", { method: "PUT", json: { password_actual, password_nueva } }),
   photo: (foto: File) => { const body = new FormData(); body.append("foto", foto); return apiFetch<User>("/api/usuarios/me/foto-perfil", { method: "PUT", body }); },
   addExperience: (userId: number, data: { empresa_id: number; puesto: string; desde: string; hasta: string | null }) => apiFetch<Experience>(`/api/usuarios/${userId}/experiencias`, { method: "POST", json: data }),
+  updateExperience: (experienceId: number, data: { empresa_id?: number; puesto?: string; desde?: string; hasta?: string | null }) => apiFetch<Experience>(`/api/experiencias/${experienceId}`, { method: "PUT", json: data }),
+  deleteExperience: (experienceId: number) => apiFetch<void>(`/api/experiencias/${experienceId}`, { method: "DELETE" }),
 };
 
 export const locationsApi = {
@@ -258,7 +260,7 @@ export const jobsApi = {
   create: (data: { empresa_id: number; titulo: string; descripcion: string; publicada: boolean }) => apiFetch<Job>("/api/ofertas", { method: "POST", json: data }),
   update: (id: number, data: Partial<Pick<Job, "titulo" | "descripcion" | "publicada">>) => apiFetch<Job>(`/api/ofertas/${id}`, { method: "PUT", json: data }),
   stats: (id: number) => apiFetch<JobStats>(`/api/ofertas/${id}/estadisticas`),
-  apply: (jobId: number, userId: number) => apiFetch<Application>("/api/postulaciones", { method: "POST", json: { oferta_id: jobId, usuario_id: userId } }),
+  apply: (jobId: number) => apiFetch<Application>("/api/postulaciones", { method: "POST", json: { oferta_id: jobId } }),
   applicationsByUser: (userId: number, { offerId, cursor, limit = 20 }: { offerId?: number; cursor?: string | null; limit?: number } = {}) => {
     const params = new URLSearchParams({ limit: String(limit) });
     if (offerId) params.set("oferta_id", String(offerId));

@@ -48,7 +48,13 @@ class PublicacionService:
     ) -> PublicacionResponseDTO:
         self._validar_usuario(publicacion_data.autor_id)
         validated_files = validate_publication_files(files)
-        self._validate_content(publicacion_data.texto, len(validated_files))
+        normalized_text = self._validate_content(
+            publicacion_data.texto,
+            len(validated_files),
+        )
+        publicacion_data = publicacion_data.model_copy(
+            update={"texto": normalized_text}
+        )
 
         saved_paths: list[str] = []
         try:
@@ -144,6 +150,14 @@ class PublicacionService:
         publicacion_data: UpdatePublicacionDTO,
     ) -> PublicacionResponseDTO:
         publicacion = self._obtener_y_validar_autor(publicacion_id, usuario_id)
+        if "texto" in publicacion_data.model_fields_set:
+            normalized_text = self._validate_content(
+                publicacion_data.texto,
+                len(publicacion.multimedia),
+            )
+            publicacion_data = publicacion_data.model_copy(
+                update={"texto": normalized_text}
+            )
         publicacion_actualizada = self.repository.update(
             publicacion,
             publicacion_data,
@@ -170,9 +184,12 @@ class PublicacionService:
             )
 
         validated_files = validate_publication_files(files)
-        self._validate_content(
+        normalized_text = self._validate_content(
             publicacion_data.texto,
             len(kept_ids) + len(validated_files),
+        )
+        publicacion_data = publicacion_data.model_copy(
+            update={"texto": normalized_text}
         )
         removed = [item for item in publicacion.multimedia if item.id not in kept_ids]
         removed_paths = [item.ruta for item in removed]
@@ -238,6 +255,12 @@ class PublicacionService:
         return publicacion
 
     @staticmethod
-    def _validate_content(text: str, media_count: int) -> None:
-        if not text and media_count == 0:
+    def _validate_content(text: str | None, media_count: int) -> str:
+        normalized_text = "" if text is None else text.strip()
+        if text and not normalized_text:
+            raise BadRequestError(
+                "El texto no puede contener solamente espacios en blanco."
+            )
+        if not normalized_text and media_count == 0:
             raise BadRequestError("La publicación debe incluir texto o multimedia.")
+        return normalized_text

@@ -125,8 +125,12 @@ def get_publicacion(
     "/{publicacion_id}",
     response_model=GetPublicacionSchema,
     summary="Editar publicación de texto",
-    description="Actualiza el texto de una publicación. Solo el autor puede editarla.",
-    responses=error_responses(401, 403, 404),
+    description=(
+        "Actualiza el texto de una publicación propia. Si se envía texto=null, "
+        "se representa como texto vacío y solo se acepta cuando la publicación "
+        "tiene multimedia; la publicación nunca puede quedar sin texto ni archivos."
+    ),
+    responses=error_responses(400, 401, 403, 404),
 )
 def update_publicacion(
     publicacion_id: Annotated[int, Path(..., description="Publicación propia que se actualiza.")],

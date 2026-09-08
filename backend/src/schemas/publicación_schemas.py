@@ -23,7 +23,11 @@ class UpdatePublicacionSchema(BaseModel):
     texto: str | None = Field(
         default=None,
         min_length=1,
-        max_length=3000
+        max_length=3000,
+        description=(
+            "Texto nuevo. Si se envía null, se representa como texto vacío y "
+            "solo es válido cuando la publicación conserva multimedia."
+        ),
     )
 
     @field_validator("texto", mode="before")

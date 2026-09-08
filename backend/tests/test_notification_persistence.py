@@ -98,7 +98,7 @@ class NotificationPersistenceTests(unittest.TestCase):
     def test_real_events_persist_and_notification_api_reads_and_updates_them(self):
         created = self.client.post(
             "/api/postulaciones",
-            json={"oferta_id": self.offer.id, "usuario_id": self.applicant.id},
+            json={"oferta_id": self.offer.id},
         )
         self.assertEqual(created.status_code, 201, created.text)
         application_id = created.json()["id"]
@@ -180,7 +180,6 @@ class NotificationPersistenceTests(unittest.TestCase):
                     "/api/postulaciones",
                     json={
                         "oferta_id": self.offer.id,
-                        "usuario_id": self.applicant.id,
                     },
                 )
 
@@ -198,14 +197,12 @@ class NotificationPersistenceTests(unittest.TestCase):
             "/api/postulaciones",
             json={
                 "oferta_id": self.offer.id,
-                "usuario_id": self.applicant.id,
             },
         )
         duplicate = self.client.post(
             "/api/postulaciones",
             json={
                 "oferta_id": self.offer.id,
-                "usuario_id": self.applicant.id,
             },
         )
 
@@ -238,7 +235,6 @@ class NotificationPersistenceTests(unittest.TestCase):
             "/api/postulaciones",
             json={
                 "oferta_id": self.offer.id,
-                "usuario_id": self.applicant.id,
             },
         )
         self.assertEqual(first_created.status_code, 201, first_created.text)
@@ -249,7 +245,6 @@ class NotificationPersistenceTests(unittest.TestCase):
             "/api/postulaciones",
             json={
                 "oferta_id": self.offer.id,
-                "usuario_id": second_applicant.id,
             },
         )
         self.assertEqual(second_created.status_code, 201, second_created.text)
@@ -336,7 +331,6 @@ class NotificationPersistenceTests(unittest.TestCase):
             "/api/postulaciones",
             json={
                 "oferta_id": self.offer.id,
-                "usuario_id": self.outsider.id,
             },
         )
         self.assertEqual(rejected_application.status_code, 409)
@@ -352,7 +346,6 @@ class NotificationPersistenceTests(unittest.TestCase):
             "/api/postulaciones",
             json={
                 "oferta_id": self.offer.id,
-                "usuario_id": self.applicant.id,
             },
         )
         self.assertEqual(created.status_code, 201, created.text)
