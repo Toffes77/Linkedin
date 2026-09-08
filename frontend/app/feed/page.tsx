@@ -183,7 +183,7 @@ export default function FeedPage({
     return () => observer.disconnect();
   }, [hasMore, loadMoreError, loadNextPage, loading, loadingMore, posts.length]);
 
-  if (!user) return null;
+  if (!user) return <AppShell>{null}</AppShell>;
   return <AppShell><main className="app-background"><div className="feed-grid"><ProfileCard user={user}/><div className="feed-center">
     <ProfileCompletionCard user={user}/>
     <Composer user={user} onCreated={(post) => setPosts((current) => [enrichCreatedPost(post, user), ...current.filter((item) => item.id !== post.id && item.id !== sharedPost?.id)])}/>
