@@ -31,3 +31,8 @@ class ForbiddenError(AppError):
 class ConflictError(AppError):
     status_code = 409
     message = "Conflict"
+
+
+class UnprocessableEntityError(AppError):
+    status_code = 422
+    message = "Unprocessable entity"

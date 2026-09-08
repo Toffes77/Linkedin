@@ -12,7 +12,13 @@ from src.mappers.experiencia_mapper import ExperienciaMapper
 from src.repositories.empresa_repository import EmpresaRepository
 from src.repositories.experiencia_repository import ExperienciaRepository
 from src.repositories.usuario_repository import UsuarioRepository
-from src.utils.errors import ConflictError, ForbiddenError, NotFoundError
+from src.utils.errors import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    UnprocessableEntityError,
+)
+from src.utils.experience_dates import validar_fechas_experiencia
 
 
 class ExperienciaService:
@@ -83,11 +89,11 @@ class ExperienciaService:
         fields_set = experiencia_data.model_fields_set
         if "empresa_id" in fields_set:
             if experiencia_data.empresa_id is None:
-                raise ValueError("La empresa es obligatoria.")
+                raise UnprocessableEntityError("La empresa es obligatoria.")
             self._validar_empresa(experiencia_data.empresa_id)
 
         if "desde" in fields_set and experiencia_data.desde is None:
-            raise ValueError("La fecha de inicio es obligatoria.")
+            raise UnprocessableEntityError("La fecha de inicio es obligatoria.")
 
         desde = (
             experiencia_data.desde
@@ -152,10 +158,10 @@ class ExperienciaService:
             raise NotFoundError("Empresa no encontrada.")
 
     def _validar_fechas(self, desde: date, hasta: date | None) -> None:
-        if hasta is not None and desde > hasta:
-            raise ValueError(
-                "La fecha de inicio no puede ser posterior a la fecha de finalización."
-            )
+        try:
+            validar_fechas_experiencia(desde, hasta)
+        except ValueError as error:
+            raise UnprocessableEntityError(str(error)) from error
 
     def _validar_sin_solapamientos(
         self,

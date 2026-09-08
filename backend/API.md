@@ -43,7 +43,7 @@ Los códigos de dominio son:
 - `403 Forbidden`: el usuario está autenticado, pero no tiene permiso.
 - `404 Not Found`: recurso inexistente o no visible para ese usuario.
 - `409 Conflict`: duplicado, transición inválida o conflicto con el estado actual.
-- `422 Unprocessable Entity`: FastAPI/Pydantic rechazó parámetros, body o formulario; conserva el formato estándar `{"detail": [...]}`.
+- `422 Unprocessable Entity`: FastAPI/Pydantic o una regla de validación de negocio rechazó parámetros, body o formulario.
 
 Un `204 No Content` no devuelve body. Los errores inesperados no forman parte de un contrato estable y pueden resultar en `500`.
 
@@ -209,8 +209,8 @@ Body `CreateExperienciaSchema`:
 
 - `empresa_id` (int): empresa existente.
 - `puesto` (string): 1 a 100 caracteres.
-- `desde` (date): fecha de inicio.
-- `hasta` (date | null, opcional): fecha de finalización; `null` significa vigente.
+- `desde` (date): fecha de inicio, no posterior a la fecha actual.
+- `hasta` (date | null, opcional): fecha de finalización; `null` significa vigente. Si existe, no puede ser posterior a la fecha actual ni anterior a `desde`.
 
 Respuestas:
 
@@ -227,7 +227,7 @@ Autenticación: **requerida**; solo el propietario de la experiencia.
 
 Path `experiencia_id`: experiencia propia a modificar.
 
-Body `UpdateExperienciaSchema`: `empresa_id`, `puesto`, `desde` y `hasta`, todos opcionales. Los campos enviados reemplazan el valor existente; `hasta: null` deja la experiencia vigente. La empresa debe existir y el período final no puede ser anterior al inicial ni solaparse con otra experiencia del usuario en la misma empresa.
+Body `UpdateExperienciaSchema`: `empresa_id`, `puesto`, `desde` y `hasta`, todos opcionales. Los campos enviados reemplazan el valor existente; `hasta: null` deja la experiencia vigente. Las fechas no pueden ser posteriores a la fecha actual y, si existe `hasta`, no puede ser anterior a `desde`. La empresa debe existir y el período no puede solaparse con otra experiencia del usuario en la misma empresa.
 
 Respuestas: `200` `GetExperienciaSchema`; `401` autenticación ausente o inválida; `403` la experiencia pertenece a otro usuario; `404` experiencia o empresa inexistente; `409` período solapado; `422` body/path inválidos.
 

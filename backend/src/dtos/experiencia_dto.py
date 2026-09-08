@@ -2,6 +2,7 @@ from datetime import date
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from src.utils.experience_dates import validar_fechas_experiencia
 from src.utils.text_validation import strip_non_blank
 
 
@@ -19,10 +20,7 @@ class CreateExperienciaDTO(BaseModel):
 
     @model_validator(mode="after")
     def validar_fechas(self):
-        if self.hasta is not None and self.desde > self.hasta:
-            raise ValueError(
-                "La fecha de inicio no puede ser posterior a la fecha de finalización"
-            )
+        validar_fechas_experiencia(self.desde, self.hasta)
         return self
 
 
@@ -39,11 +37,7 @@ class UpdateExperienciaDTO(BaseModel):
 
     @model_validator(mode="after")
     def validar_fechas(self):
-        if self.desde is not None and self.hasta is not None:
-            if self.desde > self.hasta:
-                raise ValueError(
-                    "La fecha de inicio no puede ser posterior a la fecha de finalización"
-                )
+        validar_fechas_experiencia(self.desde, self.hasta)
         return self
 
 

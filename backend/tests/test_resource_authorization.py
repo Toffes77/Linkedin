@@ -1,5 +1,5 @@
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
@@ -386,6 +386,87 @@ class ResourceAuthorizationTests(unittest.TestCase):
             .count(),
             count_after_first,
         )
+
+    def test_experience_routes_reject_manual_future_dates_and_invalid_partial_updates(self):
+        today = date.today()
+        yesterday = today - timedelta(days=1)
+        past = today - timedelta(days=2)
+        future = today + timedelta(days=1)
+
+        valid_past = self.client.post(
+            f"/api/usuarios/{self.applicant_a.id}/experiencias",
+            json=self._experience_payload(
+                self.company.id,
+                start=past.isoformat(),
+                end=yesterday.isoformat(),
+            ),
+        )
+        self.assertEqual(valid_past.status_code, 201, valid_past.text)
+
+        valid_today = self.client.post(
+            f"/api/usuarios/{self.applicant_a.id}/experiencias",
+            json=self._experience_payload(
+                self.company.id,
+                start=today.isoformat(),
+                end=today.isoformat(),
+            ),
+        )
+        self.assertEqual(valid_today.status_code, 201, valid_today.text)
+
+        current_experience = self.client.post(
+            f"/api/usuarios/{self.applicant_a.id}/experiencias",
+            json=self._experience_payload(
+                self.other_company.id,
+                start=past.isoformat(),
+                end=None,
+            ),
+        )
+        self.assertEqual(current_experience.status_code, 201, current_experience.text)
+        self.assertIsNone(current_experience.json()["hasta"])
+
+        count_before_invalid_requests = self.db.query(Experiencia).count()
+        for payload in (
+            self._experience_payload(
+                self.company.id,
+                start=future.isoformat(),
+                end=None,
+            ),
+            self._experience_payload(
+                self.company.id,
+                start=past.isoformat(),
+                end=future.isoformat(),
+            ),
+            self._experience_payload(
+                self.company.id,
+                start=today.isoformat(),
+                end=yesterday.isoformat(),
+            ),
+        ):
+            with self.subTest(payload=payload):
+                response = self.client.post(
+                    f"/api/usuarios/{self.applicant_a.id}/experiencias",
+                    json=payload,
+                )
+                self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(self.db.query(Experiencia).count(), count_before_invalid_requests)
+
+        experience_id = valid_today.json()["id"]
+        for payload in (
+            {"desde": future.isoformat()},
+            {"hasta": future.isoformat()},
+            {"hasta": yesterday.isoformat()},
+        ):
+            with self.subTest(update=payload):
+                response = self.client.put(
+                    f"/api/experiencias/{experience_id}",
+                    json=payload,
+                )
+                self.assertEqual(response.status_code, 422, response.text)
+
+        self.db.expire_all()
+        stored = self.db.get(Experiencia, experience_id)
+        self.assertEqual(stored.desde, today)
+        self.assertEqual(stored.hasta, today)
 
     def test_applicant_can_read_own_application_but_not_another_by_id(self):
         own = self.client.get(f"/api/postulaciones/{self.application_a.id}")
