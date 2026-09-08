@@ -2,7 +2,7 @@
 
 API del clon simplificado de LinkedIn construida con FastAPI, SQLAlchemy, Pydantic y PostgreSQL.
 
-La documentación principal de instalación, variables de entorno, base de datos y funcionalidades está en [`../README.md`](../README.md). Las reglas operativas para agentes que modifiquen esta aplicación están en [`AGENTS.md`](AGENTS.md).
+La documentación principal de instalación, variables de entorno, base de datos y funcionalidades está en [`../README.md`](../README.md). La referencia completa de endpoints está en [`API.md`](API.md). Las reglas operativas para agentes que modifiquen esta aplicación están en [`AGENTS.md`](AGENTS.md).
 
 ## Inicio rápido
 
@@ -19,7 +19,7 @@ Crear `.env` desde `.env.example`, inicializar PostgreSQL con `src/db/tables.sql
 python -m src.main
 ```
 
-Swagger queda disponible en <http://localhost:8000/docs>.
+Swagger queda disponible en [`http://localhost:8000/docs`](http://localhost:8000/docs); el esquema OpenAPI está en [`http://localhost:8000/openapi.json`](http://localhost:8000/openapi.json). Para la guía legible por dominio, consultar [`API.md`](API.md).
 
 ## Arquitectura
 

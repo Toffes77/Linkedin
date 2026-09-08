@@ -9,7 +9,13 @@ from src.utils.errors import UnauthorizedError
 from src.utils.jwt import decode_token
 
 
-bearer_scheme = HTTPBearer(auto_error=False)
+bearer_scheme = HTTPBearer(
+    auto_error=False,
+    description=(
+        "JWT en formato Bearer. La API también acepta el JWT en la cookie "
+        "HttpOnly access_token creada por /api/auth/login."
+    ),
+)
 
 
 def _get_request_token(

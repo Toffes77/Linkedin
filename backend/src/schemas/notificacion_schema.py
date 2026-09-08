@@ -14,6 +14,8 @@ TipoNotificacion = Literal[
 
 
 class NotificacionResponseSchema(BaseModel):
+    """Notificación privada dirigida al usuario autenticado."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -30,4 +32,6 @@ class NotificacionResponseSchema(BaseModel):
 
 
 class NotificacionesNoLeidasSchema(BaseModel):
+    """Cantidad de notificaciones pendientes de lectura."""
+
     cantidad: int

@@ -4,9 +4,11 @@ from src.utils.text_validation import strip_non_blank
 
 
 class CreateEmpresaSchema(BaseModel):
-    nombre: str = Field(min_length=1, max_length=100)
-    industria: str | None = Field(default=None, max_length=100)
-    sitio_web: HttpUrl | None = Field(default=None, max_length=255)
+    """Datos de una empresa nueva; el creador queda como OWNER."""
+
+    nombre: str = Field(min_length=1, max_length=100, description="Nombre público de la empresa.")
+    industria: str | None = Field(default=None, max_length=100, description="Industria o sector.")
+    sitio_web: HttpUrl | None = Field(default=None, max_length=255, description="Sitio web público válido.")
 
     @field_validator("nombre", "industria", mode="before")
     @classmethod
@@ -15,9 +17,11 @@ class CreateEmpresaSchema(BaseModel):
 
 
 class UpdateEmpresaSchema(BaseModel):
-    nombre: str | None = Field(default=None, min_length=1, max_length=100)
-    industria: str | None = Field(default=None, max_length=100)
-    sitio_web: HttpUrl | None = Field(default=None, max_length=255)
+    """Campos editables por un OWNER; los campos omitidos conservan su valor."""
+
+    nombre: str | None = Field(default=None, min_length=1, max_length=100, description="Nuevo nombre público.")
+    industria: str | None = Field(default=None, max_length=100, description="Nueva industria o null.")
+    sitio_web: HttpUrl | None = Field(default=None, max_length=255, description="Nuevo sitio web o null.")
 
     @field_validator("nombre", "industria", mode="before")
     @classmethod
@@ -26,6 +30,8 @@ class UpdateEmpresaSchema(BaseModel):
 
 
 class GetEmpresaSchema(BaseModel):
+    """Datos públicos de una empresa."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int

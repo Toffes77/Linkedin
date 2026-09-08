@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy.orm import Session
 
 from src.db.connection import get_db
@@ -18,11 +20,18 @@ from src.schemas.conexiones_schema import (
 )
 from src.middlewares.auth_middleware import get_current_user
 from src.services.conexion_service import ConexionService
+from src.utils.openapi import error_responses
 
 router = APIRouter(prefix="/conexiones", tags=["conexiones"])
 
 
-@router.get("/resumen", response_model=ResumenRedResponseSchema)
+@router.get(
+    "/resumen",
+    response_model=ResumenRedResponseSchema,
+    summary="Obtener resumen de red",
+    description="Devuelve contadores de invitaciones enviadas, contactos aceptados y usuarios seguidos.",
+    responses=error_responses(401),
+)
 def get_resumen_red(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
@@ -34,6 +43,9 @@ def get_resumen_red(
 @router.get(
     "/invitaciones-recibidas",
     response_model=list[InvitacionRecibidaResponseSchema],
+    summary="Listar invitaciones recibidas",
+    description="Lista las solicitudes de conexión pendientes recibidas por el usuario autenticado.",
+    responses=error_responses(401),
 )
 def get_invitaciones_recibidas(
     db: Session = Depends(get_db),
@@ -49,9 +61,15 @@ def get_invitaciones_recibidas(
 @router.get(
     "/estado/{usuario_id}",
     response_model=EstadoConexionResponseSchema,
+    summary="Consultar estado de conexión",
+    description=(
+        "Indica si la relación está sin conexión, pendiente enviada/recibida, "
+        "aceptada o rechazada."
+    ),
+    responses=error_responses(401, 404),
 )
 def get_estado_conexion(
-    usuario_id: int,
+    usuario_id: Annotated[int, Path(..., description="Otro usuario cuya relación se consulta.")],
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
@@ -62,7 +80,18 @@ def get_estado_conexion(
     return ConexionMapper.to_estado_response_schema(estado)
 
 
-@router.post("", response_model=GetConexionSchema, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=GetConexionSchema,
+    status_code=status.HTTP_201_CREATED,
+    summary="Enviar invitación de conexión",
+    description=(
+        "Crea una invitación desde usuario_a hacia usuario_b. usuario_a debe "
+        "coincidir con la identidad autenticada; no se permiten auto-invitaciones "
+        "ni relaciones duplicadas."
+    ),
+    responses=error_responses(401, 403, 404, 409),
+)
 def create_conexion(
     payload: CreateConexionSchema,
     db: Session = Depends(get_db),
@@ -73,10 +102,19 @@ def create_conexion(
     return ConexionMapper.to_response_schema(conexion)
 
 
-@router.patch("/{usuario_a}/{usuario_b}", response_model=GetConexionSchema)
+@router.patch(
+    "/{usuario_a}/{usuario_b}",
+    response_model=GetConexionSchema,
+    summary="Responder invitación de conexión",
+    description=(
+        "Acepta o rechaza una solicitud pendiente. Solo el destinatario puede "
+        "responderla; aceptar genera la notificación correspondiente."
+    ),
+    responses=error_responses(401, 403, 404, 409),
+)
 def update_conexion(
-    usuario_a: int,
-    usuario_b: int,
+    usuario_a: Annotated[int, Path(..., description="Primer usuario de la relación.")],
+    usuario_b: Annotated[int, Path(..., description="Segundo usuario de la relación.")],
     payload: UpdateConexionSchema,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
@@ -91,9 +129,15 @@ def update_conexion(
     return ConexionMapper.to_response_schema(conexion)
 
 
-@router.delete("/{usuario_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{usuario_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Desconectar usuario",
+    description="Elimina una conexión aceptada entre el usuario autenticado y el usuario indicado.",
+    responses=error_responses(401, 404, 409),
+)
 def delete_conexion(
-    usuario_id: int,
+    usuario_id: Annotated[int, Path(..., description="Usuario con el que se termina la conexión.")],
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):

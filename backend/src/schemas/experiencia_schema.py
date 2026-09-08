@@ -6,10 +6,12 @@ from src.utils.text_validation import strip_non_blank
 
 
 class CreateExperienciaSchema(BaseModel):
-    empresa_id: int
-    puesto: str = Field(min_length=1, max_length=100)
-    desde: date
-    hasta: date | None = None
+    """Experiencia laboral que se agregará al usuario autenticado."""
+
+    empresa_id: int = Field(description="Empresa asociada.")
+    puesto: str = Field(min_length=1, max_length=100, description="Puesto o rol desempeñado.")
+    desde: date = Field(description="Fecha de inicio, inclusive.")
+    hasta: date | None = Field(default=None, description="Fecha de finalización; null significa experiencia vigente.")
 
     @field_validator("puesto", mode="before")
     @classmethod
@@ -26,6 +28,8 @@ class CreateExperienciaSchema(BaseModel):
 
 
 class UpdateExperienciaSchema(BaseModel):
+    """Schema interno para actualización; actualmente no está expuesto por un router."""
+
     empresa_id: int | None = None
     puesto: str | None = Field(default=None, min_length=1, max_length=100)
     desde: date | None = None
@@ -47,10 +51,14 @@ class UpdateExperienciaSchema(BaseModel):
 
 
 class DeleteExperienciaSchema(BaseModel):
+    """Schema interno para eliminación; actualmente no está expuesto por un router."""
+
     id: int
 
 
 class GetExperienciaSchema(BaseModel):
+    """Experiencia laboral devuelta dentro de un perfil o al crearla."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int

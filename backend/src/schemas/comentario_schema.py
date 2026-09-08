@@ -4,9 +4,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class CrearComentarioSchema(BaseModel):
+    """Comentario o respuesta; no admite texto vacío ni campos extra."""
+
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    contenido: str = Field(max_length=1000)
+    contenido: str = Field(max_length=1000, description="Texto del comentario; máximo 1000 caracteres.")
 
     @field_validator("contenido")
     @classmethod
@@ -18,6 +20,8 @@ class CrearComentarioSchema(BaseModel):
 
 
 class AutorComentarioSchema(BaseModel):
+    """Datos públicos del autor del comentario."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -27,6 +31,8 @@ class AutorComentarioSchema(BaseModel):
 
 
 class GetComentarioSchema(BaseModel):
+    """Comentario raíz o respuesta con cantidad de respuestas directas."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -40,6 +46,8 @@ class GetComentarioSchema(BaseModel):
 
 
 class CantidadComentariosSchema(BaseModel):
+    """Conteo total de comentarios de una publicación."""
+
     model_config = ConfigDict(from_attributes=True)
 
     cantidad: int

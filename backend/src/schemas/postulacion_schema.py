@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 EstadoPostulacion = Literal[
@@ -14,15 +14,21 @@ EstadoPostulacion = Literal[
 
 
 class CreatePostulacionSchema(BaseModel):
-    oferta_id: int
-    usuario_id: int
+    """Postulación del usuario autenticado a una oferta publicada."""
+
+    oferta_id: int = Field(description="Oferta publicada a la que se postula.")
+    usuario_id: int = Field(description="Usuario postulante; debe coincidir con la identidad autenticada.")
 
 
 class UpdatePostulacionSchema(BaseModel):
-    estado: EstadoPostulacion
+    """Nuevo estado administrado por OWNER o RECRUITER."""
+
+    estado: EstadoPostulacion = Field(description="Estado destino de la postulación.")
 
 
 class GetPostulacionSchema(BaseModel):
+    """Postulación con oferta, usuario, fecha y estado actual."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int

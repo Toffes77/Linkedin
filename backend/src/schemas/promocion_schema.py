@@ -8,8 +8,10 @@ from src.db.models.solicitud_contratacion_promocion_model import EstadoSolicitud
 
 
 class CreatePromocionSchema(BaseModel):
-    titulo: str = Field(min_length=1, max_length=160)
-    descripcion: str = Field(min_length=1, max_length=3000)
+    """Promoción publicada por el usuario para ofrecer sus servicios."""
+
+    titulo: str = Field(min_length=1, max_length=160, description="Título de la promoción; máximo 160 caracteres.")
+    descripcion: str = Field(min_length=1, max_length=3000, description="Descripción; máximo 3000 caracteres.")
 
     @field_validator("titulo", "descripcion")
     @classmethod
@@ -21,10 +23,14 @@ class CreatePromocionSchema(BaseModel):
 
 
 class CreateSolicitudContratacionPromocionSchema(BaseModel):
-    empresa_id: int = Field(gt=0)
+    """Empresa en cuyo nombre se propone contratar al autor."""
+
+    empresa_id: int = Field(gt=0, description="Empresa donde el solicitante tiene OWNER o RECRUITER.")
 
 
 class GetEmpresaContratanteSchema(BaseModel):
+    """Empresa disponible para contratar la promoción."""
+
     model_config = ConfigDict(from_attributes=True)
 
     empresa_id: int
@@ -34,6 +40,8 @@ class GetEmpresaContratanteSchema(BaseModel):
 
 
 class GetSolicitudContratacionPromocionSchema(BaseModel):
+    """Propuesta de contratación y su estado."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -48,6 +56,8 @@ class GetSolicitudContratacionPromocionSchema(BaseModel):
 
 
 class GetPromocionSchema(BaseModel):
+    """Promoción con autor y propuestas pendientes visibles para su dueño."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -63,6 +73,8 @@ class GetPromocionSchema(BaseModel):
 
 
 class GetPromocionesPaginadasSchema(BaseModel):
+    """Página tradicional de promociones públicas con total."""
+
     items: list[GetPromocionSchema]
     page: int
     page_size: int

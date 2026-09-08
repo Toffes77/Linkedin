@@ -317,7 +317,7 @@ Los endpoints están bajo `/api` y se agrupan por dominios:
 - `/api/conversaciones`
 - `/api/notificaciones`
 
-La referencia completa y los schemas interactivos se consultan en `/docs`; el README no intenta duplicar Swagger.
+La referencia completa, organizada por dominio, está en [`backend/API.md`](backend/API.md). Con el backend iniciado, la referencia interactiva y los schemas se consultan en [`http://localhost:8000/docs`](http://localhost:8000/docs); el esquema se puede descargar desde [`http://localhost:8000/openapi.json`](http://localhost:8000/openapi.json).
 
 ## Validación
 

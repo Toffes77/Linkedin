@@ -4,6 +4,8 @@ from pydantic import BaseModel, ConfigDict
 
 
 class SeguimientoResponseSchema(BaseModel):
+    """Relación de seguimiento creada entre dos usuarios."""
+
     model_config = ConfigDict(from_attributes=True)
 
     seguidor_id: int
@@ -12,4 +14,6 @@ class SeguimientoResponseSchema(BaseModel):
 
 
 class EstadoSeguimientoResponseSchema(BaseModel):
+    """Indica si el usuario autenticado sigue al usuario consultado."""
+
     siguiendo: bool

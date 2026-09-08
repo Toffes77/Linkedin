@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Query
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.orm import Session
 
 from src.db.connection import get_db
@@ -7,15 +9,38 @@ from src.schemas.feed_schema import FeedPageSchema
 from src.services.feed_service import FeedService
 from src.db.models.usuario_model import Usuario
 from src.middlewares.auth_middleware import get_current_user, get_optional_current_user
+from src.utils.openapi import error_responses
 
 router = APIRouter(tags=["feed"])
 
 
-@router.get("/feed", response_model=FeedPageSchema)
+@router.get(
+    "/feed",
+    response_model=FeedPageSchema,
+    summary="Obtener mi feed",
+    description=(
+        "Devuelve el feed personalizado del usuario autenticado. Combina publicaciones "
+        "de usuarios seguidos y conexiones aceptadas; usa cursor estable durante la sesión."
+    ),
+    responses=error_responses(400, 401, 404),
+)
 def get_my_feed(
-    cursor: str | None = Query(default=None, max_length=65_536),
-    page_size: int = Query(default=20, ge=1, le=50),
-    exclude_publicacion_id: int | None = Query(default=None, ge=1),
+    cursor: str | None = Query(
+        default=None,
+        max_length=65_536,
+        description="Cursor opaco devuelto por la página anterior.",
+    ),
+    page_size: int = Query(
+        default=20,
+        ge=1,
+        le=50,
+        description="Cantidad de publicaciones (1 a 50).",
+    ),
+    exclude_publicacion_id: int | None = Query(
+        default=None,
+        ge=1,
+        description="ID opcional de una publicación a excluir de toda la sesión de paginación.",
+    ),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
@@ -32,12 +57,31 @@ def get_my_feed(
 @router.get(
     "/usuarios/{usuario_id}/feed",
     response_model=FeedPageSchema,
+    summary="Obtener feed de usuario",
+    description=(
+        "Devuelve el feed asociado a un usuario. Puede consultarse sin autenticación; "
+        "si se envía un JWT, se enriquecen las tarjetas con la reacción propia."
+    ),
+    responses=error_responses(400, 401, 404),
 )
 def get_feed(
-    usuario_id: int,
-    cursor: str | None = Query(default=None, max_length=65_536),
-    page_size: int = Query(default=20, ge=1, le=50),
-    exclude_publicacion_id: int | None = Query(default=None, ge=1),
+    usuario_id: Annotated[int, Path(..., description="Usuario cuyo feed se consulta.")],
+    cursor: str | None = Query(
+        default=None,
+        max_length=65_536,
+        description="Cursor opaco devuelto por la página anterior.",
+    ),
+    page_size: int = Query(
+        default=20,
+        ge=1,
+        le=50,
+        description="Cantidad de publicaciones (1 a 50).",
+    ),
+    exclude_publicacion_id: int | None = Query(
+        default=None,
+        ge=1,
+        description="ID opcional de una publicación a excluir.",
+    ),
     db: Session = Depends(get_db),
     current_user: Usuario | None = Depends(get_optional_current_user),
 ):

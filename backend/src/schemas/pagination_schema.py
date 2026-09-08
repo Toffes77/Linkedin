@@ -7,6 +7,8 @@ ItemSchema = TypeVar("ItemSchema")
 
 
 class CursorPageSchema(BaseModel, Generic[ItemSchema]):
+    """Página basada en cursor; el cursor se devuelve opaco para la siguiente llamada."""
+
     model_config = ConfigDict(from_attributes=True)
 
     items: list[ItemSchema]
