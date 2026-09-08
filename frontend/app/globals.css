@@ -73,6 +73,24 @@ a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,
 .register-content h1 { font-size:30px; font-weight:400; margin:10px -100px 25px; }
 .register-form { background:white; padding:25px; border-radius:8px; box-shadow:0 1px 3px #0002; display:grid; gap:13px; text-align:left; }
 .register-form p { color:var(--muted); text-align:center; font-size:12px; }
+.register-terms { display:flex!important; grid-template-columns:none!important; align-items:flex-start; gap:9px; color:#404040!important; font-size:13px!important; font-weight:400!important; line-height:1.4; }
+.register-terms input { width:18px; min-height:18px; flex:none; margin:1px 0 0; padding:0; accent-color:var(--atanes-primary); }
+.register-terms span { min-width:0; }
+.register-terms a { text-decoration:underline; text-underline-offset:2px; }
+
+/* Términos y condiciones */
+.legal-page { min-height:100vh; background:#f3f2f0; color:var(--ink); overflow:hidden; }
+.legal-header { align-items:center; }
+.legal-document { width:min(820px,calc(100% - 32px)); margin:24px auto 60px; padding:clamp(24px,4vw,48px); line-height:1.6; }
+.legal-document h1,.legal-document h2,.legal-document h3 { color:var(--atanes-dark); line-height:1.25; }
+.legal-document h1 { margin:0 0 8px; font-size:clamp(30px,4vw,42px); font-weight:500; }
+.legal-document h2 { margin:34px 0 10px; font-size:24px; }
+.legal-document h3 { margin:24px 0 8px; font-size:19px; }
+.legal-document p { margin:0 0 14px; }
+.legal-document ul,.legal-document ol { margin:0 0 16px; padding-left:24px; }
+.legal-document li { margin:5px 0; }
+.legal-document code { padding:2px 5px; border-radius:4px; background:#f0f2eb; color:var(--atanes-dark); font-size:.92em; }
+.legal-document-footer { display:flex; justify-content:flex-end; margin-top:30px; padding-top:22px; border-top:1px solid #e2e2e2; }
 
 /* Header */
 .site-header { position:sticky; top:0; z-index:50; height:65px; background:#fff; border-bottom:1px solid #ddd; }
@@ -788,6 +806,12 @@ a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,
   .auth-copy h1 { font-size:31px; }
   .register-content { margin:0 15px 40px; }
   .register-content h1 { margin:15px 0; font-size:26px; }
+  .legal-header { align-items:flex-start; }
+  .legal-document { width:100%; margin:0 0 55px; padding:24px 20px 32px; border-left:0; border-right:0; border-radius:0; }
+  .legal-document h1 { font-size:29px; }
+  .legal-document h2 { margin-top:28px; font-size:21px; }
+  .legal-document-footer { justify-content:stretch; }
+  .legal-document-footer .primary-button { width:100%; }
   .messages-dock-layer { right:0; left:0; width:100%; max-width:100%; gap:0; }
   .messages-panel { width:100%; max-width:100%; border-left:0; border-right:0; }
   .message-chat-window,.message-chat-window.minimized { right:0; left:0; width:auto; max-width:100%; border-left:0; border-right:0; }

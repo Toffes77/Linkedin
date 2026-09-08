@@ -71,7 +71,7 @@ test("registration requires a selected city and sends only that canonical value"
   assert.match(registerPage, /<CityAutocomplete/);
   assert.match(registerPage, /if \(!selectedCity\)/);
   assert.match(registerPage, /Seleccioná una ciudad de la lista\./);
-  assert.match(registerPage, /usersApi\.create\(\{ \.\.\.data, ciudad: selectedCity \}\)/);
+  assert.match(registerPage, /usersApi\.create\(\{ \.\.\.data, ciudad: selectedCity, acepta_terminos: acceptsTerms \}\)/);
 });
 
 test("profile editing starts from the existing city and invalid selection blocks saving", () => {

@@ -129,8 +129,14 @@ class CaseInsensitiveEmailTests(unittest.TestCase):
         variant = original.lower()
 
         with TestClient(app) as client:
-            first = client.post("/api/usuarios", json=self._dto(original).model_dump(mode="json"))
-            second = client.post("/api/usuarios", json=self._dto(variant).model_dump(mode="json"))
+            first = client.post(
+                "/api/usuarios",
+                json={**self._dto(original).model_dump(mode="json"), "acepta_terminos": True},
+            )
+            second = client.post(
+                "/api/usuarios",
+                json={**self._dto(variant).model_dump(mode="json"), "acepta_terminos": True},
+            )
 
         self.assertEqual(first.status_code, 201, first.text)
         self.assertEqual(second.status_code, 409, second.text)

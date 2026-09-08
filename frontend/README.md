@@ -15,6 +15,8 @@ npm run dev
 
 Crear `.env.local` desde `.env.example` y configurar `NEXT_PUBLIC_API_URL`. La aplicación queda disponible normalmente en <http://localhost:3000>.
 
+La página pública `/terminos` renderiza `content/terminos.md`. El registro exige enviar `acepta_terminos: true` después de marcar ese enlace; la aceptación se valida y se descarta, sin guardarse en la base.
+
 Las llamadas REST se centralizan en `lib/api.ts`; los componentes no deben hardcodear la URL del backend.
 
 ## Validación

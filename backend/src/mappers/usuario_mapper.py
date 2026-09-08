@@ -18,7 +18,14 @@ from src.schemas.usuario_schema import (
 class UsuarioMapper:
     @staticmethod
     def to_create_dto(schema: CreateUsuarioSchema) -> CreateUsuarioDTO:
-        return CreateUsuarioDTO(**schema.model_dump())
+        # acepta_terminos solo valida el contrato HTTP; nunca entra al DTO de dominio.
+        return CreateUsuarioDTO(
+            email=schema.email,
+            password=schema.password,
+            nombre=schema.nombre,
+            headline=schema.headline,
+            ciudad=schema.ciudad,
+        )
 
     @staticmethod
     def to_update_dto(schema: UpdateUsuarioSchema) -> UpdateUsuarioDTO:

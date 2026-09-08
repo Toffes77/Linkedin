@@ -136,6 +136,7 @@ def create_dto(city: str) -> CreateUsuarioDTO:
         nombre="City User",
         headline="Ingeniería",
         ciudad=city,
+        acepta_terminos=True,
     )
 
 
@@ -236,7 +237,10 @@ class UserCityApiTests(unittest.TestCase):
 
     def test_registration_contract_accepts_valid_and_rejects_invented_city(self):
         repository = FakeUsuarioRepository()
-        payload = create_dto("Argentina, Buenos Aires").model_dump(mode="json")
+        payload = {
+            **create_dto("Argentina, Buenos Aires").model_dump(mode="json"),
+            "acepta_terminos": True,
+        }
 
         with patch(
             "src.services.usuario_service.UsuarioRepository",
@@ -310,7 +314,10 @@ class UserCityPostgreSQLIntegrationTests(unittest.TestCase):
         suffix = uuid4().hex
         selected_email = f"city-selected-{suffix}@example.com"
         invented_email = f"city-invented-{suffix}@example.com"
-        payload = create_dto("Argentina, Buenos Aires").model_dump(mode="json")
+        payload = {
+            **create_dto("Argentina, Buenos Aires").model_dump(mode="json"),
+            "acepta_terminos": True,
+        }
 
         selected = self.client.post(
             "/api/usuarios",

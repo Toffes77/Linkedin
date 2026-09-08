@@ -12,6 +12,7 @@ El repositorio está dividido en dos aplicaciones independientes:
 ### Usuarios y perfiles
 
 - Registro, login y logout.
+- El registro exige aceptar los Términos y Condiciones; esa aceptación solo valida la solicitud y no se persiste.
 - JWT mediante cookie HttpOnly, con soporte alternativo para Bearer tokens.
 - Consulta y edición del perfil propio.
 - Foto de perfil y fallback visual cuando no existe una imagen.

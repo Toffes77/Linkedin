@@ -31,7 +31,9 @@ router = APIRouter(tags=["usuarios"])
     summary="Registrar usuario",
     description=(
         "Crea una cuenta y normaliza el email y la ciudad. La contraseña se "
-        "almacena hasheada y nunca se devuelve en la respuesta."
+        "almacena hasheada y nunca se devuelve en la respuesta. "
+        "acepta_terminos debe ser true para validar el registro; ese valor "
+        "no se persiste."
     ),
     responses=error_responses(400, 409),
 )

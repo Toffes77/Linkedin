@@ -76,6 +76,7 @@ class WhitespaceValidationTests(unittest.TestCase):
                 nombre=value,
                 headline="Backend",
                 ciudad="Córdoba",
+                acepta_terminos=True,
             ),
             "usuario create headline": lambda value: CreateUsuarioSchema(
                 email="user@example.com",
@@ -83,6 +84,7 @@ class WhitespaceValidationTests(unittest.TestCase):
                 nombre="Usuario",
                 headline=value,
                 ciudad="Córdoba",
+                acepta_terminos=True,
             ),
             "usuario create ciudad": lambda value: CreateUsuarioSchema(
                 email="user@example.com",
@@ -90,6 +92,7 @@ class WhitespaceValidationTests(unittest.TestCase):
                 nombre="Usuario",
                 headline="Backend",
                 ciudad=value,
+                acepta_terminos=True,
             ),
             "usuario update": lambda value: UpdateUsuarioSchema(nombre=value),
             "empresa create": lambda value: CreateEmpresaSchema(nombre=value),
@@ -178,6 +181,7 @@ class WhitespaceValidationTests(unittest.TestCase):
             nombre="  Juan  ",
             headline="  Backend Developer  ",
             ciudad="  Mendoza  ",
+            acepta_terminos=True,
         )
         company = CreateEmpresaSchema(
             nombre="  Atanes  ",
@@ -237,6 +241,7 @@ class TextAndDatetimeApiTests(unittest.TestCase):
                     "nombre": " \t\n ",
                     "headline": "Backend",
                     "ciudad": "Rosario",
+                    "acepta_terminos": True,
                 },
             ),
             ("/api/empresas", {"nombre": " \t\n "}),

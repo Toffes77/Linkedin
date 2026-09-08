@@ -102,14 +102,14 @@ Respuestas:
 
 Autenticación: **no requerida**.
 
-Body `CreateUsuarioSchema`: `email`, `password` (mínimo 8 caracteres), `nombre`, `headline` y `ciudad`. La ciudad debe pertenecer al catálogo; los textos se recortan y normalizan.
+Body `CreateUsuarioSchema`: `email`, `password` (mínimo 8 caracteres), `nombre`, `headline`, `ciudad` y `acepta_terminos` (booleano obligatorio, debe ser `true`). La ciudad debe pertenecer al catálogo; los textos se recortan y normalizan. `acepta_terminos` se valida únicamente durante este registro y no se persiste en PostgreSQL ni se devuelve en la respuesta.
 
 Respuestas:
 
 - `201`: `GetUsuarioSchema` (`id`, `nombre`, `headline`, `ciudad`, `foto_perfil_url`, `experiencias`). Nunca contiene password ni password hash.
 - `400`: ciudad no válida.
 - `409`: el email ya está registrado.
-- `422`: body inválido.
+- `422`: body inválido, falta `acepta_terminos` o su valor es distinto de `true`.
 
 ### `GET /api/usuarios/me` — Obtener mi perfil
 

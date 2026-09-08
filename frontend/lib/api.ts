@@ -105,7 +105,7 @@ export const authApi = {
 };
 
 export const usersApi = {
-  create: (data: { email: string; password: string; nombre: string; headline: string; ciudad: string }) => apiFetch<User>("/api/usuarios", { method: "POST", json: data }),
+  create: (data: { email: string; password: string; nombre: string; headline: string; ciudad: string; acepta_terminos: boolean }) => apiFetch<User>("/api/usuarios", { method: "POST", json: data }),
   get: (id: number) => apiFetch<User>(`/api/usuarios/${id}`),
   search: (q: string, ciudad?: string, { cursor, limit = 20, signal }: { cursor?: string | null; limit?: number; signal?: AbortSignal } = {}) => {
     const params = new URLSearchParams({ q, limit: String(limit), ...(ciudad ? { ciudad } : {}) });

@@ -1,6 +1,6 @@
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, StrictBool, field_validator
 
 from src.utils.text_validation import strip_non_blank
 
@@ -13,6 +13,12 @@ class CreateUsuarioSchema(BaseModel):
     nombre: str = Field(min_length=1, max_length=100, description="Nombre visible del usuario.")
     headline: str = Field(min_length=1, max_length=200, description="Titular profesional visible en el perfil.")
     ciudad: str = Field(min_length=1, max_length=100, description="Ciudad válida del catálogo de ubicaciones.")
+    acepta_terminos: StrictBool = Field(
+        description=(
+            "Debe ser true para validar el registro. Se utiliza solo durante "
+            "la creación de la cuenta y no se persiste."
+        )
+    )
 
     @field_validator("nombre", "headline", "ciudad", mode="before")
     @classmethod
@@ -24,6 +30,15 @@ class CreateUsuarioSchema(BaseModel):
     def validar_password(cls, value: str):
         if len(value) < 8:
             raise ValueError("La contraseña debe tener al menos 8 caracteres")
+        return value
+
+    @field_validator("acepta_terminos")
+    @classmethod
+    def validar_aceptacion_terminos(cls, value: bool):
+        if value is not True:
+            raise ValueError(
+                "Debés aceptar los Términos y Condiciones para crear la cuenta."
+            )
         return value
 
 
