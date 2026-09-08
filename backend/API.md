@@ -610,6 +610,8 @@ Autenticación: **requerida**, rol **OWNER** o **RECRUITER** de la empresa.
 
 Query `limit` default `20` máximo `50`, `cursor` opcional. Respuesta `200`: `CursorPageSchema[GetPostulacionSchema]`; `400` cursor inválido; `401`/`403`/`404` según acceso y existencia.
 
+Cada elemento de `GetPostulacionSchema` incluye `postulante` con `id`, `nombre` y `foto_perfil_url`.
+
 ### `GET /api/usuarios/{usuario_id}/postulaciones` — Postulaciones propias
 
 Autenticación: **requerida**; `usuario_id` debe ser el usuario autenticado.

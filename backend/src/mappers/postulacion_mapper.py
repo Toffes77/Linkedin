@@ -1,6 +1,7 @@
 from src.db.models.postulacion_model import Postulacion
 from src.dtos.postulacion_dto import (
     CreatePostulacionDTO,
+    PostulantePostulacionDTO,
     PostulacionResponseDTO,
     UpdatePostulacionDTO,
 )
@@ -40,6 +41,11 @@ class PostulacionMapper:
             oferta_id=postulacion.oferta_id,
             oferta_titulo=postulacion.oferta.titulo,
             usuario_id=postulacion.usuario_id,
+            postulante=PostulantePostulacionDTO(
+                id=postulacion.usuario.id,
+                nombre=postulacion.usuario.nombre,
+                foto_perfil_url=postulacion.usuario.foto_perfil_url,
+            ),
             fecha=postulacion.fecha,
             estado=postulacion.estado,
         )

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { useAuth } from "@/components/auth-provider";
+import { CompanyLogo } from "@/components/companies/company-logo";
 import { Icon } from "@/components/common/icons";
 import {
   companiesApi,
@@ -173,9 +174,11 @@ export default function JobsPage() {
                     className="job-list-item"
                     key={job.id}
                   >
-                    <span className="company-placeholder">
-                      {companies[job.empresa_id]?.nombre[0] ?? "E"}
-                    </span>
+                    <CompanyLogo
+                      name={companies[job.empresa_id]?.nombre ?? `Empresa ${job.empresa_id}`}
+                      src={companies[job.empresa_id]?.foto_perfil_url}
+                      className="company-placeholder"
+                    />
                     <div>
                       <h2>{job.titulo}</h2>
                       <strong>

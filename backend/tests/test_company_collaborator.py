@@ -344,6 +344,7 @@ class AutomaticCollaboratorTests(unittest.TestCase):
             estado=current_status,
             fecha=datetime.now(),
             oferta=offer,
+            usuario=SimpleNamespace(id=9, nombre="Postulante", foto_perfil_url=None),
         )
         service.repository = Mock()
         service.repository.get_by_id.return_value = application

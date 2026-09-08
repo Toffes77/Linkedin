@@ -135,6 +135,21 @@ test("dock reacts immediately and polling refreshes remote disconnects", () => {
   assert.match(dock, /if \(!selected\?\.conversacion_id \|\| !selected\.conectados\) return/);
 });
 
+test("a minimized chat reuses the Messages bar arrow icon and class", () => {
+  const chat = readFileSync(
+    new URL("../components/messages/chat-window.tsx", import.meta.url),
+    "utf8",
+  );
+  const dock = readFileSync(
+    new URL("../components/messages/messages-dock.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(chat, /MdKeyboardArrowUp/);
+  assert.match(chat, /minimized \? <MdKeyboardArrowUp className="messages-panel-arrow"/);
+  assert.match(dock, /<MdKeyboardArrowUp className=\{`messages-panel-arrow/);
+});
+
 test("API contracts expose connection state and authenticated disconnect", () => {
   const api = readFileSync(new URL("./api.ts", import.meta.url), "utf8");
 

@@ -30,7 +30,7 @@ class PostulacionRepository:
     def get_by_id(self, postulacion_id: int) -> Postulacion | None:
         return (
             self.db.query(Postulacion)
-            .options(joinedload(Postulacion.oferta))
+            .options(joinedload(Postulacion.oferta), joinedload(Postulacion.usuario))
             .filter(Postulacion.id == postulacion_id)
             .first()
         )
@@ -53,7 +53,7 @@ class PostulacionRepository:
     ) -> list[Postulacion]:
         query = (
             self.db.query(Postulacion)
-            .options(joinedload(Postulacion.oferta))
+            .options(joinedload(Postulacion.oferta), joinedload(Postulacion.usuario))
             .filter(Postulacion.oferta_id == oferta_id)
         )
         return self._ordered_page(query, limit=limit, after=after)
@@ -68,7 +68,7 @@ class PostulacionRepository:
     ) -> list[Postulacion]:
         query = (
             self.db.query(Postulacion)
-            .options(joinedload(Postulacion.oferta))
+            .options(joinedload(Postulacion.oferta), joinedload(Postulacion.usuario))
             .filter(Postulacion.usuario_id == usuario_id)
         )
         if oferta_id is not None:

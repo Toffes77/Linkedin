@@ -11,12 +11,16 @@ from src.app import app
 from src.db.connection import engine, get_db
 from src.db.models.comentario_model import Comentario
 from src.db.models.empresa_model import Empresa
+from src.db.models.empresa_usuario_model import EmpresaUsuario, RolEmpresa
+from src.db.models.oferta_model import Oferta
+from src.db.models.postulacion_model import Postulacion
 from src.db.models.publicacion_model import Publicacion
 from src.db.models.reaciones_model import Reacciones
 from src.db.models.usuario_model import Usuario
 from src.middlewares.auth_middleware import get_current_user
 from src.repositories.publicacion_repository import PublicacionRepository
 from src.services.publicacion_service import PublicacionService
+from src.services.postulacion_service import PostulacionService
 
 
 class FeedEnrichmentIntegrationTests(unittest.TestCase):
@@ -138,6 +142,57 @@ class FeedEnrichmentIntegrationTests(unittest.TestCase):
         self.assertIn("GROUP BY", reaction_queries[0].upper())
         self.assertEqual(len(comment_queries), 1)
         self.assertIn("GROUP BY", comment_queries[0].upper())
+
+    def test_offer_applications_include_applicant_identity_without_n_plus_one(self):
+        company = Empresa(nombre=f"Empresa postulaciones {uuid4().hex}")
+        self.db.add(company)
+        self.db.flush()
+        self.db.add(EmpresaUsuario(
+            empresa_id=company.id,
+            usuario_id=self.viewer.id,
+            rol=RolEmpresa.OWNER,
+        ))
+        offer = Oferta(
+            empresa_id=company.id,
+            titulo="Oferta con postulantes",
+            descripcion="Descripción de prueba.",
+            publicada=True,
+        )
+        self.db.add(offer)
+        self.db.flush()
+        self.db.add_all([
+            Postulacion(oferta_id=offer.id, usuario_id=self.author.id),
+            Postulacion(oferta_id=offer.id, usuario_id=self.other.id),
+        ])
+        self.db.commit()
+
+        service = PostulacionService(self.db)
+        self.db.expire_all()
+        first_page, first_statements = self._capture_selects(
+            lambda: service.get_by_oferta(offer.id, self.viewer.id, limit=20)
+        )
+
+        self.assertEqual(
+            {item.postulante.nombre for item in first_page.items},
+            {self.author.nombre, self.other.nombre},
+        )
+        self.assertTrue(any(
+            "FROM postulacion" in statement and "JOIN usuario" in statement
+            for statement in first_statements
+        ))
+
+        extra = self._user(f"extra-{uuid4().hex}@example.com", "Extra")
+        self.db.add(extra)
+        self.db.flush()
+        self.db.add(Postulacion(oferta_id=offer.id, usuario_id=extra.id))
+        self.db.commit()
+        self.db.expire_all()
+        second_page, second_statements = self._capture_selects(
+            lambda: service.get_by_oferta(offer.id, self.viewer.id, limit=20)
+        )
+
+        self.assertEqual(len(second_page.items), 3)
+        self.assertEqual(len(first_statements), len(second_statements))
 
     def test_query_count_does_not_grow_with_publication_count(self):
         service = PublicacionService(self.db)

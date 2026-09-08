@@ -97,6 +97,7 @@ class NetworkNotificationsTests(unittest.TestCase):
         model = SimpleNamespace(
             id=4, oferta_id=7, usuario_id=9, fecha=datetime.now(), estado="nueva",
             oferta=SimpleNamespace(titulo="Desarrollador Backend"),
+            usuario=user(9, "Ana"),
         )
         result = PostulacionMapper.to_response_dto(model)
 
@@ -112,7 +113,7 @@ class NetworkNotificationsTests(unittest.TestCase):
         service.oferta_repository.get_by_id.return_value = SimpleNamespace(id=7, empresa_id=3, titulo="Backend", publicada=True)
         service.repository = Mock()
         service.repository.get_by_oferta_and_usuario.return_value = None
-        service.repository.create.return_value = SimpleNamespace(id=5, oferta_id=7, usuario_id=9, fecha=datetime.now(), estado="nueva", oferta=SimpleNamespace(titulo="Backend"))
+        service.repository.create.return_value = SimpleNamespace(id=5, oferta_id=7, usuario_id=9, fecha=datetime.now(), estado="nueva", oferta=SimpleNamespace(titulo="Backend"), usuario=user(9, "Ana"))
         service.empresa_usuario_repository = Mock()
         service.empresa_usuario_repository.has_membership.return_value = False
         service.empresa_usuario_repository.get_user_ids_by_empresa_and_roles.return_value = [1, 2]
@@ -131,7 +132,7 @@ class NetworkNotificationsTests(unittest.TestCase):
         service.repository = Mock()
         service.repository.get_by_id.return_value = existing
         service.repository.get_by_id_for_update.return_value = existing
-        service.repository.update.return_value = SimpleNamespace(id=5, oferta_id=7, usuario_id=9, fecha=datetime.now(), estado="vista", oferta=SimpleNamespace(titulo="Backend"))
+        service.repository.update.return_value = SimpleNamespace(id=5, oferta_id=7, usuario_id=9, fecha=datetime.now(), estado="vista", oferta=SimpleNamespace(titulo="Backend"), usuario=user(9, "Ana"))
         service.oferta_repository = Mock()
         service.oferta_repository.get_by_id.return_value = SimpleNamespace(id=7, empresa_id=3, titulo="Backend")
         service.empresa_usuario_repository = Mock()

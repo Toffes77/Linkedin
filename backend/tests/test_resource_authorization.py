@@ -463,6 +463,19 @@ class ResourceAuthorizationTests(unittest.TestCase):
                 )
                 self.assertEqual(response.status_code, 200, response.text)
                 self.assertEqual(len(response.json()["items"]), 2)
+                postulantes = {
+                    item["postulante"]["nombre"]
+                    for item in response.json()["items"]
+                }
+                self.assertEqual(
+                    postulantes,
+                    {self.applicant_a.nombre, self.applicant_b.nombre},
+                )
+                self.assertTrue(all(
+                    {"id", "nombre", "foto_perfil_url"}
+                    <= item["postulante"].keys()
+                    for item in response.json()["items"]
+                ))
 
     def test_unauthorized_roles_cannot_list_offer_applications(self):
         unauthorized = (

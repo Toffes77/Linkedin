@@ -29,6 +29,16 @@ class UpdatePostulacionSchema(BaseModel):
     estado: EstadoPostulacion = Field(description="Estado destino de la postulación.")
 
 
+class PostulantePostulacionSchema(BaseModel):
+    """Identidad pública resumida del postulante."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nombre: str
+    foto_perfil_url: str | None = None
+
+
 class GetPostulacionSchema(BaseModel):
     """Postulación con oferta, usuario, fecha y estado actual."""
 
@@ -38,5 +48,6 @@ class GetPostulacionSchema(BaseModel):
     oferta_id: int
     oferta_titulo: str
     usuario_id: int
+    postulante: PostulantePostulacionSchema
     fecha: datetime
     estado: EstadoPostulacion

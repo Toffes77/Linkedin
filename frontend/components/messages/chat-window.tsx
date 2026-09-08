@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { MdKeyboardArrowUp } from "react-icons/md";
 import { CSSProperties, FormEvent, KeyboardEvent, useEffect, useRef } from "react";
 import { Avatar } from "@/components/common/avatar";
 import { Icon } from "@/components/common/icons";
@@ -80,7 +81,7 @@ export function ChatWindow({
         <span><strong>{contact.nombre}</strong><small>{contact.headline}</small></span>
       </button>
       <div className="message-header-actions">
-        <button type="button" onClick={onMinimize} aria-label={minimized ? "Restaurar chat" : "Minimizar chat"}>{minimized ? "⌃" : "—"}</button>
+        <button type="button" onClick={onMinimize} aria-label={minimized ? "Restaurar chat" : "Minimizar chat"}>{minimized ? <MdKeyboardArrowUp className="messages-panel-arrow" aria-hidden="true"/> : "—"}</button>
         <button type="button" onClick={onClose} aria-label="Cerrar chat">×</button>
       </div>
     </header>

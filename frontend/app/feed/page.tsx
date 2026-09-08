@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/layout/app-shell";
 import { useAuth } from "@/components/auth-provider";
 import { ProfileCard } from "@/components/feed/profile-card";
+import { ProfileCompletionCard } from "@/components/feed/profile-completion-card";
 import { Composer } from "@/components/feed/composer";
 import { PostCard } from "@/components/feed/post-card";
 import {
@@ -184,7 +185,7 @@ export default function FeedPage({
 
   if (!user) return null;
   return <AppShell><main className="app-background"><div className="feed-grid"><ProfileCard user={user}/><div className="feed-center">
-    <section className="card onboarding"><div><h1>Ponte en marcha en Atanes</h1><span>1/3 completado</span></div><div className="progress"><i/></div><div className="onboarding-visual"><strong>Mostrá tu experiencia profesional</strong><p>Completá tu perfil para que tu red conozca tu recorrido.</p><Link href="/perfil/editar?tab=experience#experiencias" className="primary-button">Agregar experiencia</Link></div></section>
+    <ProfileCompletionCard user={user}/>
     <Composer user={user} onCreated={(post) => setPosts((current) => [enrichCreatedPost(post, user), ...current.filter((item) => item.id !== post.id && item.id !== sharedPost?.id)])}/>
     {!loading && sharedPost ? <PostCard key={`shared-${sharedPost.id}`} post={sharedPost} highlighted currentUser={user} onDelete={() => setSharedPost(null)} onUpdate={setSharedPost}/> : null}
     {loading ? <><div className="card skeleton post-skeleton"/><div className="card skeleton post-skeleton"/></> : posts.length ? posts.map((post) => <PostCard key={post.id} post={post} currentUser={user} onDelete={(id) => setPosts((current) => current.filter((post) => post.id !== id))} onUpdate={(updated) => setPosts((current) => current.map((post) => post.id === updated.id ? updated : post))}/>) : !sharedPost && !error && <section className="card empty-state"><strong>Tu feed está tranquilo</strong><p>Todavía no hay publicaciones para mostrar.</p></section>}
