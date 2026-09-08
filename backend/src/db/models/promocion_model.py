@@ -27,7 +27,7 @@ class Promocion(Base):
         back_populates="promocion",
         cascade="all, delete-orphan",
         passive_deletes=True,
-        order_by="SolicitudContratacionPromocion.fecha_creacion.desc()",
+        order_by="(SolicitudContratacionPromocion.fecha_creacion.desc(), SolicitudContratacionPromocion.id.desc())",
     )
 
     __table_args__ = (

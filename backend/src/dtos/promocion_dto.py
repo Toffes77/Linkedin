@@ -54,12 +54,6 @@ class PromocionResponseDTO(BaseModel):
     titulo: str
     descripcion: str
     fecha_creacion: datetime
-    estado: Literal["PENDIENTE", "PENDIENTE_CONTRATACION"] = "PENDIENTE"
+    estado: Literal["PENDIENTE", "PENDIENTE_CONTRATACION", "CONTRATADO"] = "PENDIENTE"
     solicitudes_pendientes: list[SolicitudContratacionPromocionResponseDTO] = Field(default_factory=list)
-
-
-class PromocionesPaginadasDTO(BaseModel):
-    items: list[PromocionResponseDTO]
-    page: int
-    page_size: int
-    total: int
+    solicitud_aceptada: SolicitudContratacionPromocionResponseDTO | None = None

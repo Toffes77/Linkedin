@@ -44,8 +44,7 @@ export type PrivateMessage = { id: number; conversacion_id: number; autor_id: nu
 export type JobStats = { oferta_id: number; total_postulaciones: number; postulaciones_por_estado: Record<ApplicationStatus, number>; dias_desde_publicacion: number | null };
 export type HiringRequestStatus = "PENDIENTE" | "ACEPTADA" | "RECHAZADA";
 export type HiringRequest = { id: number; promocion_id: number; empresa_id: number; empresa_nombre: string; empresa_foto_perfil_url: string | null; solicitante_id: number; estado: HiringRequestStatus; fecha_creacion: string; fecha_respuesta: string | null };
-export type Promotion = { id: number; usuario_id: number; usuario_nombre: string; usuario_headline: string; usuario_foto_perfil_url: string | null; titulo: string; descripcion: string; fecha_creacion: string; estado: "PENDIENTE" | "PENDIENTE_CONTRATACION"; solicitudes_pendientes: HiringRequest[] };
-export type PromotionPage = { items: Promotion[]; page: number; page_size: number; total: number };
+export type Promotion = { id: number; usuario_id: number; usuario_nombre: string; usuario_headline: string; usuario_foto_perfil_url: string | null; titulo: string; descripcion: string; fecha_creacion: string; estado: "PENDIENTE" | "PENDIENTE_CONTRATACION" | "CONTRATADO"; solicitudes_pendientes: HiringRequest[]; solicitud_aceptada: HiringRequest | null };
 export type HiringCompany = { empresa_id: number; nombre: string; foto_perfil_url: string | null; rol: "OWNER" | "RECRUITER" };
 export type CitySuggestion = { pais: string; ciudad: string; nombre: string };
 
@@ -141,10 +140,11 @@ export const notificationsApi = {
 };
 
 export const boardApi = {
-  listPromotions: (q = "", page = 1, pageSize = 10, signal?: AbortSignal) => {
-    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  listPromotions: (q = "", { cursor, limit = 10, signal }: { cursor?: string | null; limit?: number; signal?: AbortSignal } = {}) => {
+    const params = new URLSearchParams({ limit: String(limit) });
     if (q.trim()) params.set("q", q.trim());
-    return apiFetch<PromotionPage>(`/api/promociones?${params}`, { signal });
+    if (cursor) params.set("cursor", cursor);
+    return apiFetch<CursorPage<Promotion>>(`/api/promociones?${params}`, { signal });
   },
   getMyPromotions: ({ cursor, limit = 10, signal }: { cursor?: string | null; limit?: number; signal?: AbortSignal } = {}) => {
     const params = new URLSearchParams({ limit: String(limit) });
@@ -155,6 +155,7 @@ export const boardApi = {
   getHiringCompanies: (promotionId: number, signal?: AbortSignal) => apiFetch<HiringCompany[]>(`/api/promociones/${promotionId}/empresas-contratantes`, { signal }),
   createHiringRequest: (promotionId: number, companyId: number) => apiFetch<HiringRequest>(`/api/promociones/${promotionId}/solicitudes-contratacion`, { method: "POST", json: { empresa_id: companyId } }),
   acceptHiringRequest: (requestId: number) => apiFetch<HiringRequest>(`/api/solicitudes-contratacion-promocion/${requestId}/aceptar`, { method: "POST" }),
+  rejectHiringRequest: (requestId: number) => apiFetch<HiringRequest>(`/api/solicitudes-contratacion-promocion/${requestId}/rechazar`, { method: "POST" }),
 };
 
 export const messagesApi = {

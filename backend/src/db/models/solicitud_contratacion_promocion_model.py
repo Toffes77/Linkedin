@@ -9,6 +9,7 @@ from src.db.connection import Base
 SOLICITUD_PROMOCION_PENDING_UNIQUE_INDEX = (
     "uq_solicitud_promocion_empresa_pendiente"
 )
+SOLICITUD_PROMOCION_ACCEPTED_UNIQUE_INDEX = "uq_solicitud_promocion_aceptada"
 
 
 class EstadoSolicitudContratacionPromocion(str, Enum):
@@ -60,6 +61,13 @@ class SolicitudContratacionPromocion(Base):
             unique=True,
             postgresql_where=text("estado = 'PENDIENTE'"),
             sqlite_where=text("estado = 'PENDIENTE'"),
+        ),
+        Index(
+            SOLICITUD_PROMOCION_ACCEPTED_UNIQUE_INDEX,
+            "promocion_id",
+            unique=True,
+            postgresql_where=text("estado = 'ACEPTADA'"),
+            sqlite_where=text("estado = 'ACEPTADA'"),
         ),
         Index(
             "idx_solicitud_promocion_estado",

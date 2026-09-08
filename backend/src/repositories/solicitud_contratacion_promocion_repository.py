@@ -1,3 +1,4 @@
+from sqlalchemy import update
 from sqlalchemy.orm import Session, joinedload
 
 from src.db.models.solicitud_contratacion_promocion_model import (
@@ -91,3 +92,38 @@ class SolicitudContratacionPromocionRepository:
         else:
             self.db.flush()
         return request
+
+    def reject(
+        self,
+        request: SolicitudContratacionPromocion,
+        *,
+        commit: bool = True,
+    ) -> SolicitudContratacionPromocion:
+        request.estado = EstadoSolicitudContratacionPromocion.RECHAZADA
+        request.fecha_respuesta = utc_now()
+        if commit:
+            self.db.commit()
+            self.db.refresh(request)
+        else:
+            self.db.flush()
+        return request
+
+    def reject_other_pending_for_promotion(
+        self,
+        promocion_id: int,
+        accepted_request_id: int,
+    ) -> int:
+        result = self.db.execute(
+            update(SolicitudContratacionPromocion)
+            .where(
+                SolicitudContratacionPromocion.promocion_id == promocion_id,
+                SolicitudContratacionPromocion.id != accepted_request_id,
+                SolicitudContratacionPromocion.estado
+                == EstadoSolicitudContratacionPromocion.PENDIENTE,
+            )
+            .values(
+                estado=EstadoSolicitudContratacionPromocion.RECHAZADA,
+                fecha_respuesta=utc_now(),
+            )
+        )
+        return result.rowcount

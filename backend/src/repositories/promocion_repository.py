@@ -23,7 +23,22 @@ class PromocionRepository:
             self.db.flush()
         return promocion
 
-    def get_by_id(self, promocion_id: int) -> Promocion | None:
+    def get_by_id_basic(
+        self,
+        promocion_id: int,
+        *,
+        for_update: bool = False,
+    ) -> Promocion | None:
+        query = (
+            self.db.query(Promocion)
+            .options(joinedload(Promocion.usuario))
+            .filter(Promocion.id == promocion_id)
+        )
+        if for_update:
+            query = query.with_for_update(of=Promocion)
+        return query.first()
+
+    def get_by_id_with_requests(self, promocion_id: int) -> Promocion | None:
         return (
             self.db.query(Promocion)
             .options(
@@ -36,14 +51,18 @@ class PromocionRepository:
             .first()
         )
 
+    def get_by_id(self, promocion_id: int) -> Promocion | None:
+        """Compatibilidad para consumidores que necesitan las solicitudes."""
+        return self.get_by_id_with_requests(promocion_id)
+
     def get_board_page(
         self,
         current_user_id: int,
         *,
         title: str | None,
-        page: int,
-        page_size: int,
-    ) -> tuple[list[Promocion], int]:
+        limit: int,
+        after: tuple[datetime, int] | None = None,
+    ) -> list[Promocion]:
         ranked = (
             self.db.query(
                 Promocion.id.label("promocion_id"),
@@ -68,16 +87,31 @@ class PromocionRepository:
             )
         )
         if title:
-            query = query.filter(Promocion.titulo.ilike(f"%{title}%"))
+            escaped_title = (
+                title.replace("\\", "\\\\")
+                .replace("%", "\\%")
+                .replace("_", "\\_")
+            )
+            query = query.filter(
+                Promocion.titulo.ilike(f"%{escaped_title}%", escape="\\")
+            )
 
-        total = query.order_by(None).count()
-        items = (
+        if after is not None:
+            fecha, promocion_id = after
+            query = query.filter(
+                or_(
+                    Promocion.fecha_creacion < fecha,
+                    and_(
+                        Promocion.fecha_creacion == fecha,
+                        Promocion.id < promocion_id,
+                    ),
+                )
+            )
+        return (
             query.order_by(Promocion.fecha_creacion.desc(), Promocion.id.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
+            .limit(limit)
             .all()
         )
-        return items, total
 
     def get_by_user_page(
         self,

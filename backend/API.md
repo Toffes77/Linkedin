@@ -646,9 +646,9 @@ Respuestas: `201` `GetPromocionSchema`; `401` sin autenticación; `422` body inv
 
 Autenticación: **requerida**. Son promociones visibles para usuarios autenticados dentro de Atanes; “públicas” no significa acceso anónimo desde Internet. El usuario autenticado se utiliza para excluir su propia promoción y resolver disponibilidad.
 
-Query `q` opcional por título, `page` default `1`, `page_size` default `10` máximo `50`.
+Query `q` opcional por título, `limit` default `10` máximo `50` y `cursor` opaco opcional. El cursor está vinculado al usuario autenticado y al filtro; no se admite `OFFSET`.
 
-Respuesta `200`: `GetPromocionesPaginadasSchema` (`items`, `page`, `page_size`, `total`); `401` sin autenticación; `422` query inválida.
+Respuesta `200`: `CursorPageSchema[GetPromocionSchema]` (`items`, `next_cursor`, `has_more`); `400` cursor inválido; `401` sin autenticación; `422` query inválida.
 
 ### `GET /api/promociones/mias` — Listar mis promociones
 
@@ -674,7 +674,21 @@ Respuestas: `201` `GetSolicitudContratacionPromocionSchema` en estado `PENDIENTE
 
 Autenticación: **requerida**; solo el autor de la promoción destinatario de la propuesta.
 
-Sin body. Respuestas: `200` `GetSolicitudContratacionPromocionSchema` en estado `ACEPTADA`; `401` sin autenticación; `403` propuesta dirigida a otro usuario; `404` propuesta o empresa inexistente; `409` propuesta ya respondida o conflicto de membresía.
+Sin body. Respuestas: `200` `GetSolicitudContratacionPromocionSchema` en estado `ACEPTADA`; `401` sin autenticación; `403` propuesta dirigida a otro usuario; `404` propuesta o empresa inexistente; `409` propuesta ya respondida, promoción ya contratada o conflicto de membresía. Al aceptar, las demás propuestas pendientes pasan a `RECHAZADA` y la promoción queda `CONTRATADO`.
+
+### Contrato vigente de concurrencia y paginación del Tablón
+
+`GET /api/promociones` usa `limit` (1 a 50) y `cursor` opaco, no paginación por offset. El cursor está vinculado al usuario autenticado y al filtro `q`; reutilizarlo con otro usuario o búsqueda devuelve `400`. La búsqueda ignora mayúsculas/minúsculas, recorta espacios y trata `%` y `_` como texto literal.
+
+Una promoción puede tener como máximo una propuesta `ACEPTADA`. Al aceptar una propuesta PENDIENTE, la operación es atómica: conserva cualquier rol OWNER o RECRUITER existente del candidato, crea COLLABORATOR solo si no era miembro y cambia las demás propuestas PENDIENTE de esa promoción a `RECHAZADA`. La promoción queda `CONTRATADO`, deja de figurar en el tablón y no acepta propuestas nuevas. Los conflictos de estado, contratación ya realizada, duplicados o disponibilidad devuelven `409`.
+
+El selector de empresas excluye empresas donde la persona ya es miembro y las que ya tienen una propuesta PENDIENTE o ACEPTADA para esa promoción. El `POST /api/promociones/{promotion_id}/solicitudes-contratacion` vuelve a validar esas reglas en el servidor.
+
+### `POST /api/solicitudes-contratacion-promocion/{request_id}/rechazar` — Rechazar propuesta
+
+Autenticación: **requerida**; solo el autor de la promoción puede rechazar una propuesta en estado `PENDIENTE` dirigida a esa promoción. Sin body.
+
+Respuestas: `200` `GetSolicitudContratacionPromocionSchema` en estado `RECHAZADA`; `401` sin autenticación; `403` propuesta ajena; `404` inexistente; `409` propuesta ya respondida.
 
 ## Conversaciones y mensajes
 

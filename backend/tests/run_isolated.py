@@ -51,14 +51,17 @@ def main() -> int:
         admin.close()
 
     try:
-        with psycopg2.connect(test_url) as test_connection:
-            with test_connection.cursor() as cursor:
-                cursor.execute((BACKEND_DIRECTORY / "src/db/tables.sql").read_text(encoding="utf-8"))
-            test_connection.commit()
-
         child_environment = os.environ.copy()
         child_environment["DATABASE_URL"] = test_url
         child_environment["ENVIRONMENT"] = "test"
+        initialization = subprocess.run(
+            [sys.executable, "-m", "tests.initialize_isolated_database"],
+            cwd=BACKEND_DIRECTORY,
+            env=child_environment,
+            check=False,
+        )
+        if initialization.returncode:
+            return initialization.returncode
         command = sys.argv[1:] or [
             sys.executable,
             "-m",

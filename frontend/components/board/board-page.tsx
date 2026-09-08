@@ -14,20 +14,17 @@ export function BoardPage({ initialView, highlightedPromotion }: { initialView: 
   const [view, setView] = useState<View>(initialView);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
-  const [mineCursor, setMineCursor] = useState<string | null>(null);
-  const [mineHasMore, setMineHasMore] = useState(false);
-  const [loadingMoreMine, setLoadingMoreMine] = useState(false);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [creating, setCreating] = useState(false);
   const [hiring, setHiring] = useState<Promotion | null>(null);
-  const [acceptingId, setAcceptingId] = useState<number | null>(null);
+  const [respondingId, setRespondingId] = useState<number | null>(null);
   const [revision, setRevision] = useState(0);
-  const pageSize = 10;
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
@@ -37,13 +34,20 @@ export function BoardPage({ initialView, highlightedPromotion }: { initialView: 
   useEffect(() => {
     const controller = new AbortController();
     const request = view === "mine"
-      ? boardApi.getMyPromotions({ signal: controller.signal }).then((result) => { setMineCursor(result.next_cursor); setMineHasMore(result.has_more); return { items: result.items, total: result.items.length }; })
-      : boardApi.listPromotions(debouncedQuery, page, pageSize, controller.signal);
-    request.then((result) => { setPromotions(result.items); setTotal(result.total); })
-      .catch((caught) => { if ((caught as Error).name !== "AbortError") setError(caught instanceof Error ? caught.message : "No se pudieron cargar las promociones."); })
+      ? boardApi.getMyPromotions({ signal: controller.signal })
+      : boardApi.listPromotions(debouncedQuery, { signal: controller.signal });
+    request
+      .then((result) => {
+        setPromotions(result.items);
+        setCursor(result.next_cursor);
+        setHasMore(result.has_more);
+      })
+      .catch((caught) => {
+        if ((caught as Error).name !== "AbortError") setError(caught instanceof Error ? caught.message : "No se pudieron cargar las promociones.");
+      })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [debouncedQuery, page, revision, view]);
+  }, [debouncedQuery, revision, view]);
 
   useEffect(() => {
     if (!highlightedPromotion || loading || view !== "mine") return;
@@ -54,51 +58,54 @@ export function BoardPage({ initialView, highlightedPromotion }: { initialView: 
   const closeHiring = useCallback(() => setHiring(null), []);
 
   function changeView(next: View) {
-    setLoading(true);
+    if (next === view) return;
     setView(next);
-    setPage(1);
+    setLoading(true);
     setError("");
     setNotice("");
   }
 
-  async function acceptRequest(requestId: number) {
-    setAcceptingId(requestId);
+  async function respondToRequest(requestId: number, action: "accept" | "reject") {
+    setRespondingId(requestId);
     setError("");
     try {
-      await boardApi.acceptHiringRequest(requestId);
-      setNotice("Contratación aceptada. Ya formás parte de la empresa.");
+      if (action === "accept") {
+        await boardApi.acceptHiringRequest(requestId);
+        setNotice("Contratación aceptada. Ya formás parte de la empresa.");
+      } else {
+        await boardApi.rejectHiringRequest(requestId);
+        setNotice("La propuesta fue rechazada.");
+      }
       setLoading(true);
       setRevision((value) => value + 1);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "No se pudo aceptar la contratación.");
+      setError(caught instanceof Error ? caught.message : "No se pudo actualizar la propuesta.");
     } finally {
-      setAcceptingId(null);
+      setRespondingId(null);
     }
   }
 
-  async function loadMoreMine() {
-    if (!mineCursor || loadingMoreMine) return;
-    setLoadingMoreMine(true);
+  async function loadMore() {
+    if (!cursor || loadingMore) return;
+    setLoadingMore(true);
     setError("");
     try {
-      const result = await boardApi.getMyPromotions({ cursor: mineCursor });
+      const result = view === "mine"
+        ? await boardApi.getMyPromotions({ cursor })
+        : await boardApi.listPromotions(debouncedQuery, { cursor });
       setPromotions((current) => {
         const knownIds = new Set(current.map((promotion) => promotion.id));
-        return [
-          ...current,
-          ...result.items.filter((promotion) => !knownIds.has(promotion.id)),
-        ];
+        return [...current, ...result.items.filter((promotion) => !knownIds.has(promotion.id))];
       });
-      setMineCursor(result.next_cursor);
-      setMineHasMore(result.has_more);
+      setCursor(result.next_cursor);
+      setHasMore(result.has_more);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "No se pudieron cargar más promociones.");
     } finally {
-      setLoadingMoreMine(false);
+      setLoadingMore(false);
     }
   }
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   return <AppShell><main className="app-background"><div className="board-layout">
     <section className="board-hero card">
       <div><span className="board-kicker">Oportunidades profesionales</span><h1>Tablón</h1><p>Mostrá tu trabajo o encontrá el perfil que tu empresa necesita.</p></div>
@@ -106,17 +113,16 @@ export function BoardPage({ initialView, highlightedPromotion }: { initialView: 
     </section>
     <section className="board-toolbar card">
       <div className="board-tabs" role="tablist" aria-label="Vistas del Tablón"><button type="button" role="tab" aria-selected={view === "public"} className={view === "public" ? "active" : ""} onClick={() => changeView("public")}>Profesionales</button><button type="button" role="tab" aria-selected={view === "mine"} className={view === "mine" ? "active" : ""} onClick={() => changeView("mine")}>Mis promociones</button></div>
-      {view === "public" && <label className="board-search"><Icon name="search" width={21}/><span className="sr-only">Buscar profesionales por título</span><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); setLoading(true); setError(""); }} placeholder="Buscar profesionales" /></label>}
+      {view === "public" && <label className="board-search"><Icon name="search" width={21}/><span className="sr-only">Buscar profesionales por título</span><input value={query} onChange={(event) => { setQuery(event.target.value); setLoading(true); setError(""); }} placeholder="Buscar profesionales" /></label>}
     </section>
     {notice && <p className="notice notice-success" role="status">{notice}</p>}
     {error && <p className="notice notice-error" role="alert">{error}</p>}
     <section className="promotion-list" aria-live="polite">
-      {loading ? Array.from({ length: 3 }, (_, index) => <div className="promotion-skeleton card skeleton" key={index}/>) : promotions.length ? promotions.map((promotion) => <PromotionCard key={promotion.id} promotion={promotion} own={view === "mine"} highlighted={highlightedPromotion === promotion.id} acceptingId={acceptingId} onHire={setHiring} onAccept={acceptRequest}/>) : <div className="board-empty card">{view === "mine" ? "Todavía no creaste ninguna promoción." : "No se encontraron promociones."}</div>}
+      {loading ? Array.from({ length: 3 }, (_, index) => <div className="promotion-skeleton card skeleton" key={index}/>) : promotions.length ? promotions.map((promotion) => <PromotionCard key={promotion.id} promotion={promotion} own={view === "mine"} highlighted={highlightedPromotion === promotion.id} respondingId={respondingId} onHire={setHiring} onRespond={respondToRequest}/>) : <div className="board-empty card">{view === "mine" ? "Todavía no creaste ninguna promoción." : "No se encontraron promociones."}</div>}
     </section>
-    {view === "public" && !loading && totalPages > 1 && <nav className="board-pagination" aria-label="Paginación del Tablón"><button type="button" className="secondary-button" disabled={page === 1} onClick={() => { setLoading(true); setPage((value) => value - 1); }}>Anterior</button><span>Página {page} de {totalPages}</span><button type="button" className="secondary-button" disabled={page === totalPages} onClick={() => { setLoading(true); setPage((value) => value + 1); }}>Siguiente</button></nav>}
-    {view === "mine" && !loading && mineHasMore && <button type="button" className="secondary-button" disabled={loadingMoreMine} onClick={() => void loadMoreMine()}>{loadingMoreMine ? "Cargando..." : "Cargar más promociones"}</button>}
+    {!loading && hasMore && <button type="button" className="secondary-button board-load-more" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? "Cargando..." : "Cargar más promociones"}</button>}
   </div></main>
-  {creating && <PromotionForm onClose={closeCreate} onCreated={() => { setCreating(false); changeView("mine"); setNotice("Tu promoción fue publicada."); setRevision((value) => value + 1); }}/>} 
-  {hiring && <HiringModal promotion={hiring} onClose={closeHiring} onSent={(message) => { setHiring(null); setNotice(message); setLoading(true); setRevision((value) => value + 1); }}/>} 
+  {creating && <PromotionForm onClose={closeCreate} onCreated={() => { setCreating(false); setView("mine"); setLoading(true); setNotice("Tu promoción fue publicada."); setRevision((value) => value + 1); }}/>}
+  {hiring && <HiringModal promotion={hiring} onClose={closeHiring} onSent={(message) => { setHiring(null); setLoading(true); setNotice(message); setRevision((value) => value + 1); }}/>}
   </AppShell>;
 }

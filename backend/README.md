@@ -35,4 +35,6 @@ Models SQLAlchemy, Schemas, DTOs y Mappers permanecen separados. Las queries deb
 python tests/run_isolated.py
 ```
 
+Como protección adicional, `src.db.connection` detecta procesos de pruebas y rechaza antes de crear el engine cualquier URL PostgreSQL que no tenga el prefijo temporal `atanes_test_`. Por eso, incluso una ejecución directa de tests no puede escribir en la base principal `Linkedin`.
+
 El runner crea una base PostgreSQL local temporal, configura `DATABASE_URL` antes de importar la aplicación, ejecuta la suite y elimina únicamente esa base temporal. No usa la base principal configurada para desarrollo.

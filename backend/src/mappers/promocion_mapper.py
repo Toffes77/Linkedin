@@ -8,7 +8,6 @@ from src.dtos.promocion_dto import (
     CreateSolicitudContratacionPromocionDTO,
     EmpresaContratanteDTO,
     PromocionResponseDTO,
-    PromocionesPaginadasDTO,
     SolicitudContratacionPromocionResponseDTO,
 )
 from src.schemas.promocion_schema import (
@@ -16,7 +15,6 @@ from src.schemas.promocion_schema import (
     CreateSolicitudContratacionPromocionSchema,
     GetEmpresaContratanteSchema,
     GetPromocionSchema,
-    GetPromocionesPaginadasSchema,
     GetSolicitudContratacionPromocionSchema,
 )
 
@@ -73,12 +71,23 @@ class PromocionMapper:
         include_requests: bool = False,
     ) -> PromocionResponseDTO:
         pending_requests = []
+        accepted_request = None
         if include_requests:
             pending_requests = [
                 cls.hiring_request_to_response_dto(request)
                 for request in model.solicitudes_contratacion
                 if request.estado == EstadoSolicitudContratacionPromocion.PENDIENTE
             ]
+            accepted = next(
+                (
+                    request
+                    for request in model.solicitudes_contratacion
+                    if request.estado == EstadoSolicitudContratacionPromocion.ACEPTADA
+                ),
+                None,
+            )
+            if accepted is not None:
+                accepted_request = cls.hiring_request_to_response_dto(accepted)
         return PromocionResponseDTO(
             id=model.id,
             usuario_id=model.usuario_id,
@@ -88,8 +97,13 @@ class PromocionMapper:
             titulo=model.titulo,
             descripcion=model.descripcion,
             fecha_creacion=model.fecha_creacion,
-            estado="PENDIENTE_CONTRATACION" if pending_requests else "PENDIENTE",
+            estado=(
+                "CONTRATADO"
+                if accepted_request is not None
+                else "PENDIENTE_CONTRATACION" if pending_requests else "PENDIENTE"
+            ),
             solicitudes_pendientes=pending_requests,
+            solicitud_aceptada=accepted_request,
         )
 
     @staticmethod
@@ -104,10 +118,6 @@ class PromocionMapper:
     @staticmethod
     def to_response_schema(dto: PromocionResponseDTO) -> GetPromocionSchema:
         return GetPromocionSchema.model_validate(dto)
-
-    @staticmethod
-    def to_page_schema(dto: PromocionesPaginadasDTO) -> GetPromocionesPaginadasSchema:
-        return GetPromocionesPaginadasSchema(**dto.model_dump())
 
     @staticmethod
     def company_to_schema(dto: EmpresaContratanteDTO) -> GetEmpresaContratanteSchema:

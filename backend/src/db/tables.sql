@@ -103,6 +103,9 @@ CREATE TABLE solicitud_contratacion_promocion (
 CREATE UNIQUE INDEX uq_solicitud_promocion_empresa_pendiente
     ON solicitud_contratacion_promocion (promocion_id, empresa_id)
     WHERE estado = 'PENDIENTE';
+CREATE UNIQUE INDEX uq_solicitud_promocion_aceptada
+    ON solicitud_contratacion_promocion (promocion_id)
+    WHERE estado = 'ACEPTADA';
 CREATE INDEX idx_solicitud_promocion_estado
     ON solicitud_contratacion_promocion (
         promocion_id,

@@ -68,8 +68,9 @@ class GetPromocionSchema(BaseModel):
     titulo: str
     descripcion: str
     fecha_creacion: datetime
-    estado: Literal["PENDIENTE", "PENDIENTE_CONTRATACION"]
+    estado: Literal["PENDIENTE", "PENDIENTE_CONTRATACION", "CONTRATADO"]
     solicitudes_pendientes: list[GetSolicitudContratacionPromocionSchema]
+    solicitud_aceptada: GetSolicitudContratacionPromocionSchema | None = None
 
 
 class GetPromocionesPaginadasSchema(BaseModel):

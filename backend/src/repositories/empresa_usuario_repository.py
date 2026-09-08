@@ -2,6 +2,10 @@ from sqlalchemy import and_, case, exists, func, select
 from sqlalchemy.orm import Session, aliased, contains_eager, joinedload
 
 from src.db.models.empresa_usuario_model import EmpresaUsuario, RolEmpresa
+from src.db.models.solicitud_contratacion_promocion_model import (
+    EstadoSolicitudContratacionPromocion,
+    SolicitudContratacionPromocion,
+)
 from src.db.models.usuario_model import Usuario
 
 
@@ -99,8 +103,10 @@ class EmpresaUsuarioRepository:
         self,
         manager_user_id: int,
         candidate_user_id: int,
+        promocion_id: int,
     ) -> list[EmpresaUsuario]:
         candidate_membership = aliased(EmpresaUsuario)
+        existing_request = aliased(SolicitudContratacionPromocion)
         return (
             self.db.query(EmpresaUsuario)
             .options(joinedload(EmpresaUsuario.empresa))
@@ -111,10 +117,24 @@ class EmpresaUsuarioRepository:
                     candidate_membership.usuario_id == candidate_user_id,
                 ),
             )
+            .outerjoin(
+                existing_request,
+                and_(
+                    existing_request.promocion_id == promocion_id,
+                    existing_request.empresa_id == EmpresaUsuario.empresa_id,
+                    existing_request.estado.in_(
+                        (
+                            EstadoSolicitudContratacionPromocion.PENDIENTE,
+                            EstadoSolicitudContratacionPromocion.ACEPTADA,
+                        )
+                    ),
+                ),
+            )
             .filter(
                 EmpresaUsuario.usuario_id == manager_user_id,
                 EmpresaUsuario.rol.in_((RolEmpresa.OWNER, RolEmpresa.RECRUITER)),
                 candidate_membership.usuario_id.is_(None),
+                existing_request.id.is_(None),
             )
             .order_by(EmpresaUsuario.empresa_id)
             .all()
