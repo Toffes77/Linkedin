@@ -68,7 +68,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,
 .auth-switch a,.register-content a { color:var(--atanes-dark); font-weight:700; }
 .auth-illustration { width:100%; align-self:stretch; display:flex; align-items:center; }
 .auth-illustration img { width:660px; max-width:100%; height:auto; }
-.register-page { background:#f3f2f0; }
+.register-page { background:white; }
 .register-content { max-width:440px; margin:10px auto 60px; text-align:center; }
 .register-content h1 { font-size:30px; font-weight:400; margin:10px -100px 25px; }
 .register-form { background:white; padding:25px; border-radius:8px; box-shadow:0 1px 3px #0002; display:grid; gap:13px; text-align:left; }
