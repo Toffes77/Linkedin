@@ -1,3 +1,6 @@
+Credenciales de ejemplo para testeo con la base de datos actual:
+
+
 Nombre: Agustin Pelachini
 Email: agustin.pelachini@atanes.example.com
 Contraseña: AtanesTest2026!
@@ -84,6 +87,10 @@ Contraseña: AtanesTest2026!
 
 Nombre: Lucas Estevo
 Email: lucas.estevo@atanes.example.com
+Contraseña: AtanesTest2026!
+
+Nombre: Lucas Pirolo
+Email: lucas.pirolo@atanes.example.com
 Contraseña: AtanesTest2026!
 
 Nombre: Manfred Paulmann
